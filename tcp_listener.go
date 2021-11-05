@@ -20,6 +20,14 @@ type TcpListener struct {
 	isRunning bool
 }
 
+func NewTcpListener(acceptConnectionConfig ConnectionConfig, acceptConnectionHandler ConnectionHandler) *TcpListener {
+	return &TcpListener{
+		acceptConnectionConfig: acceptConnectionConfig,
+		acceptConnectionHandler: acceptConnectionHandler,
+		connectionMap: make(map[uint]*TcpConnection),
+	}
+}
+
 // 开启监听
 func (this *TcpListener) Start(listenAddress string, closeNotify chan struct{}) bool {
 	var err error
