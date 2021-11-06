@@ -1,19 +1,19 @@
 package gnet
 
 type ConnectionHandler interface {
-	OnConnected(success bool)
+	OnConnected(connection IConnection, success bool)
 
-	OnDisconnected()
+	OnDisconnected(connection IConnection)
 
-	OnRecvMessage(data[]byte)
+	OnRecvMessage(connection IConnection, data[]byte)
 }
 
 type ConnectorHandler interface {
-	OnConnected(success bool)
+	OnConnected(connection IConnection, success bool)
 
-	OnDisconnected()
+	OnDisconnected(connection IConnection)
 
-	OnRecvMessage(data[]byte)
+	OnRecvMessage(connection IConnection, data[]byte)
 }
 
 type ListerHandler interface {
