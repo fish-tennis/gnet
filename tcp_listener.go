@@ -7,7 +7,7 @@ import (
 
 // TCP监听
 type TcpListener struct {
-	Listener
+	baseListener
 
 	netListener net.Listener
 	acceptConnectionConfig ConnectionConfig
@@ -20,10 +20,11 @@ type TcpListener struct {
 	isRunning bool
 }
 
-func NewTcpListener(acceptConnectionConfig ConnectionConfig, acceptConnectionHandler ConnectionHandler) *TcpListener {
+func NewTcpListener(acceptConnectionConfig ConnectionConfig, acceptConnectionHandler ConnectionHandler, listenerHandler ListenerHandler) *TcpListener {
 	return &TcpListener{
-		Listener:Listener{
+		baseListener: baseListener{
 			listenerId: newListenerId(),
+			handler: listenerHandler,
 		},
 		acceptConnectionConfig: acceptConnectionConfig,
 		acceptConnectionHandler: acceptConnectionHandler,
@@ -65,6 +66,11 @@ func (this *TcpListener) Close() {
 
 // accept协程
 func (this *TcpListener) acceptLoop(closeNotify chan struct{}) {
+	defer func() {
+		if err := recover(); err != nil {
+			LogDebug("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
+		}
+	}()
 	for this.isRunning {
 		// 阻塞accept,当netListener关闭时,会返回err
 		newConn,err := this.netListener.Accept()
@@ -74,6 +80,11 @@ func (this *TcpListener) acceptLoop(closeNotify chan struct{}) {
 			break
 		}
 		go func() {
+			defer func() {
+				if err := recover(); err != nil {
+					LogDebug("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
+				}
+			}()
 			newTcpConn := NewTcpConnectionAccept(newConn, this.acceptConnectionConfig, this.acceptConnectionHandler)
 			newTcpConn.isConnected = true
 			if newTcpConn.handler != nil {
@@ -83,6 +94,13 @@ func (this *TcpListener) acceptLoop(closeNotify chan struct{}) {
 			this.connectionMap[newTcpConn.GetConnectionId()] = newTcpConn
 			this.connectionMapLock.Unlock()
 			newTcpConn.Start(closeNotify)
+
+			if this.handler != nil {
+				this.handler.OnConnectionConnected(newTcpConn)
+				newTcpConn.onClose = func(connection Connection) {
+					this.handler.OnConnectionDisconnect(connection)
+				}
+			}
 		}()
 	}
 }

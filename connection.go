@@ -2,7 +2,9 @@ package gnet
 
 import "sync/atomic"
 
-type IConnection interface {
+// 连接接口定义
+type Connection interface {
+
 	GetConnectionId() uint32
 
 	Send(data []byte) bool
@@ -10,8 +12,21 @@ type IConnection interface {
 	IsConnected() bool
 }
 
+// 连接设置
+type ConnectionConfig struct {
+	// 发包缓存大小
+	SendBufferSize uint32
+	// 最大包大小设置
+	MaxMessageSize uint32
+	// 收包超时设置(秒)
+	RecvTimeout uint32
+	// 发包超时设置(秒)
+	WriteTimeout uint32
+	// TODO:其他流量控制设置
+}
+
 // 连接
-type Connection struct {
+type baseConnection struct {
 	// 连接唯一id
 	connectionId uint32
 	// 连接设置
@@ -26,38 +41,19 @@ type Connection struct {
 	handler ConnectionHandler
 }
 
-// 连接设置
-type ConnectionConfig struct {
-	// 发包缓存大小
-	SendBufferSize int
-	// 收包超时设置(秒)
-	RecvTimeout int
-	// 发包超时设置(秒)
-	WriteTimeout int
-}
-
 // 连接唯一id
-func (this *Connection) GetConnectionId() uint32 {
+func (this *baseConnection) GetConnectionId() uint32 {
 	return this.connectionId
 }
 
 // 发送数据
-func (this *Connection) Send(data []byte) bool {
+func (this *baseConnection) Send(data []byte) bool {
 	return this.sendBuffer.Write(data)
 }
 
-// 开启读写协程
-func (this *Connection) Start() {
-
-}
-
 // 是否连接成功
-func (this *Connection) IsConnected() bool {
+func (this *baseConnection) IsConnected() bool {
 	return this.isConnected
-}
-
-// 关闭
-func (this *Connection) Close() {
 }
 
 var (

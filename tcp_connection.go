@@ -8,15 +8,19 @@ import (
 )
 
 type TcpConnection struct {
-	Connection
+	baseConnection
 	conn net.Conn
 	// 防止执行多次关闭操作
 	closeOnce sync.Once
+	// 关闭回调
+	onClose func(connection Connection)
+	// 最近收到完整数据包的时间(时间戳:秒)
+	lastRecvMessageTick uint32
 }
 
 func NewTcpConnector(config ConnectionConfig, handler ConnectionHandler) *TcpConnection {
 	return &TcpConnection{
-		Connection : Connection{
+		baseConnection: baseConnection{
 			connectionId: newConnectionId(),
 			isConnector: true,
 			config: config,
@@ -30,7 +34,7 @@ func NewTcpConnector(config ConnectionConfig, handler ConnectionHandler) *TcpCon
 
 func NewTcpConnectionAccept(conn net.Conn, config ConnectionConfig, handler ConnectionHandler) *TcpConnection {
 	return &TcpConnection{
-		Connection : Connection{
+		baseConnection: baseConnection{
 			connectionId: newConnectionId(),
 			isConnector: false,
 			config: config,
@@ -69,11 +73,13 @@ func (this *TcpConnection) Connect(address string) bool {
 
 // 开启读写协程
 func (this *TcpConnection) Start(closeNotify chan struct{}) {
+	// 开启收包协程
 	go func() {
 		this.readLoop()
 		this.Close()
 	}()
 
+	// 开启发包协程
 	go func() {
 		this.writeLoop(closeNotify)
 		this.Close()
@@ -82,6 +88,11 @@ func (this *TcpConnection) Start(closeNotify chan struct{}) {
 
 // 收包过程
 func (this *TcpConnection) readLoop() {
+	defer func() {
+		if err := recover(); err != nil {
+			LogDebug("readLoop fatal %v: %v", this.GetConnectionId(), err.(error))
+		}
+	}()
 	LogDebug("readLoop begin %v", this.GetConnectionId())
 	messageHeaderData := make([]byte, MessageHeaderSize)
 	messageHeader := &MessageHeader{}
@@ -104,6 +115,16 @@ func (this *TcpConnection) readLoop() {
 			LogDebug("readLoop %v messageHeader len err", this.GetConnectionId())
 			break
 		}
+		// 检查最大数据包限制
+		if messageHeader.GetLen() >= MaxMessageDataSize {
+			LogDebug("readLoop %v messageHeader len err:%v", this.GetConnectionId(), messageHeader.GetLen())
+			break
+		}
+		// 检查自己设置的最大数据包限制
+		if this.config.MaxMessageSize > 0 && messageHeader.GetLen() > 0 {
+			LogDebug("readLoop %v messageHeader len err:%v>%v", this.GetConnectionId(), messageHeader.GetLen(), this.config.MaxMessageSize)
+			break
+		}
 		messageData := make([]byte, messageHeader.GetLen())
 		// 此处阻塞读,当连接关闭时,会中断阻塞,返回err
 		_, dataErr := io.ReadFull(this.conn, messageData)
@@ -114,6 +135,9 @@ func (this *TcpConnection) readLoop() {
 			LogDebug("readLoop %v err:%v", this.GetConnectionId(), dataErr)
 			break
 		}
+		// 最近收到完整数据包的时间
+		// 有一种极端情况,网速太慢,即使没有掉线,也可能触发收包超时检测
+		this.lastRecvMessageTick = GetCurrentTimeStamp()
 		// TODO:根据messageHeader.GetFlags()的值对messageData进行处理
 		if this.handler != nil {
 			this.handler.OnRecvMessage(this, messageData)
@@ -124,6 +148,11 @@ func (this *TcpConnection) readLoop() {
 
 // 发包过程
 func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
+	defer func() {
+		if err := recover(); err != nil {
+			LogDebug("writeLoop fatal %v: %v", this.GetConnectionId(), err.(error))
+		}
+	}()
 	LogDebug("writeLoop begin %v", this.GetConnectionId())
 	// 收包超时计时
 	recvTimeoutTimer := time.NewTimer(time.Second * time.Duration(this.config.RecvTimeout))
@@ -134,7 +163,15 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 		case messageData = <-this.sendBuffer.buffer:
 			LogDebug("messageData %v len:%v", this.GetConnectionId(), len(messageData))
 		case <-recvTimeoutTimer.C:
-			recvTimeoutTimer.Reset(time.Second * time.Duration(this.config.RecvTimeout))
+			nextTimeoutTime := this.config.RecvTimeout + this.lastRecvMessageTick - GetCurrentTimeStamp()
+			if nextTimeoutTime > 0 {
+				recvTimeoutTimer.Reset(time.Second * time.Duration(nextTimeoutTime))
+			} else {
+				// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
+				// 需要主动关闭该连接,防止连接"泄漏"
+				LogDebug("recv timeout %v", this.GetConnectionId())
+				goto END
+			}
 		case <-closeNotify:
 			// 收到外部的关闭通知
 			LogDebug("recv closeNotify %v", this.GetConnectionId())
@@ -176,6 +213,9 @@ func (this *TcpConnection) Close() {
 			this.conn.Close()
 			LogDebug("close %v", this.GetConnectionId())
 			//this.conn = nil
+		}
+		if this.onClose != nil {
+			this.onClose(this)
 		}
 	})
 }

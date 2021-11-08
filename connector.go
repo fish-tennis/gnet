@@ -2,7 +2,7 @@ package gnet
 
 // 连接方
 type Connector struct {
-	Connection
+	baseConnection
 }
 
 // 连接

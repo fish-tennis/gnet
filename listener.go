@@ -2,16 +2,19 @@ package gnet
 
 import "sync/atomic"
 
-type IListener interface {
+// 监听接口定义
+type Listener interface {
 	GetListenerId() uint32
 }
 
 // 监听
-type Listener struct {
+type baseListener struct {
 	listenerId uint32
+
+	handler ListenerHandler
 }
 
-func (this *Listener) GetListenerId() uint32 {
+func (this *baseListener) GetListenerId() uint32 {
 	return this.listenerId
 }
 

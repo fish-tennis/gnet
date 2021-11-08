@@ -6,9 +6,6 @@ import (
 )
 
 type Message struct {
-	//len uint32
-	//cmd uint16
-	//flags uint8
 	data []byte
 }
 
@@ -41,6 +38,7 @@ func (this *MessageHeader) WriteTo(messageHeaderData []byte) {
 const (
 	// 消息头长度
 	MessageHeaderSize = unsafe.Sizeof(MessageHeader{})
+	MaxMessageDataSize = 0x00FFFFFF
 )
 
 //type ProtoMessage struct {

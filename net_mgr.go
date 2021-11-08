@@ -6,11 +6,11 @@ import "sync"
 type NetMgr struct {
 
 	// 监听对象管理
-	listenerMap map[uint32]IListener
+	listenerMap map[uint32]Listener
 	listenerMapLock sync.RWMutex
 
 	// 连接对象管理
-	connectorMap map[uint32]IConnection
+	connectorMap map[uint32]Connection
 	connectorMapLock sync.RWMutex
 
 	// 关闭通知
@@ -25,7 +25,7 @@ var (
 	}
 )
 
-// 单例模式,在调用的时候才会执行初始化
+// 单例模式,在调用的时候才会执行初始化一次
 func GetNetMgr() *NetMgr {
 	netMgr.initOnce.Do(func() {
 		netMgr.init()
@@ -35,14 +35,15 @@ func GetNetMgr() *NetMgr {
 
 // 初始化
 func (this *NetMgr) init() {
-	this.listenerMap = make(map[uint32]IListener)
-	this.connectorMap = make(map[uint32]IConnection)
+	this.listenerMap = make(map[uint32]Listener)
+	this.connectorMap = make(map[uint32]Connection)
 	this.closeNotify = make(chan struct{})
 }
 
 // 新监听对象
-func (this *NetMgr) NewListener(address string, acceptConnectionConfig ConnectionConfig, acceptConnectionHandler ConnectionHandler) IListener {
-	newListener := NewTcpListener(acceptConnectionConfig, acceptConnectionHandler)
+func (this *NetMgr) NewListener(address string, acceptConnectionConfig ConnectionConfig,
+	acceptConnectionHandler ConnectionHandler, listenerHandler ListenerHandler) Listener {
+	newListener := NewTcpListener(acceptConnectionConfig, acceptConnectionHandler, listenerHandler)
 	if !newListener.Start(address, this.closeNotify) {
 		LogDebug("NewListener Start Failed")
 		return nil
@@ -54,7 +55,7 @@ func (this *NetMgr) NewListener(address string, acceptConnectionConfig Connectio
 }
 
 // 新连接对象
-func (this *NetMgr) NewConnector(address string, connectionConfig ConnectionConfig, handler ConnectionHandler) IConnection {
+func (this *NetMgr) NewConnector(address string, connectionConfig ConnectionConfig, handler ConnectionHandler) Connection {
 	newConnector := NewTcpConnector(connectionConfig, handler)
 	if !newConnector.Connect(address) {
 		newConnector.Close()
