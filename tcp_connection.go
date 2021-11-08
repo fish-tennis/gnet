@@ -18,12 +18,13 @@ type TcpConnection struct {
 	lastRecvMessageTick uint32
 }
 
-func NewTcpConnector(config ConnectionConfig, handler ConnectionHandler) *TcpConnection {
+func NewTcpConnector(config ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
 	return &TcpConnection{
 		baseConnection: baseConnection{
 			connectionId: newConnectionId(),
 			isConnector: true,
 			config: config,
+			codec: codec,
 			handler: handler,
 			sendBuffer: &MessageBuffer{
 				buffer: make(chan []byte, config.SendBufferSize),
@@ -32,12 +33,13 @@ func NewTcpConnector(config ConnectionConfig, handler ConnectionHandler) *TcpCon
 	}
 }
 
-func NewTcpConnectionAccept(conn net.Conn, config ConnectionConfig, handler ConnectionHandler) *TcpConnection {
+func NewTcpConnectionAccept(conn net.Conn, config ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
 	return &TcpConnection{
 		baseConnection: baseConnection{
 			connectionId: newConnectionId(),
 			isConnector: false,
 			config: config,
+			codec: codec,
 			handler: handler,
 			sendBuffer: &MessageBuffer{
 				buffer: make(chan []byte, config.SendBufferSize),
@@ -93,6 +95,7 @@ func (this *TcpConnection) readLoop() {
 			LogDebug("readLoop fatal %v: %v", this.GetConnectionId(), err.(error))
 		}
 	}()
+
 	LogDebug("readLoop begin %v", this.GetConnectionId())
 	messageHeaderData := make([]byte, MessageHeaderSize)
 	messageHeader := &MessageHeader{}
@@ -110,7 +113,16 @@ func (this *TcpConnection) readLoop() {
 			LogDebug("readLoop %v err:%v", this.GetConnectionId(), err)
 			break
 		}
-		messageHeader.ReadFrom(messageHeaderData)
+		decodeMessageHeaderData := messageHeaderData
+		if this.codec != nil {
+			// 解码包头
+			decodeMessageHeaderData = this.codec.DecodeHeader(messageHeaderData)
+			if decodeMessageHeaderData == nil {
+				LogDebug("readLoop %v decode header err", this.GetConnectionId())
+				break
+			}
+		}
+		messageHeader.ReadFrom(decodeMessageHeaderData)
 		if messageHeader.GetLen() == 0 {
 			LogDebug("readLoop %v messageHeader len err", this.GetConnectionId())
 			break
@@ -135,12 +147,17 @@ func (this *TcpConnection) readLoop() {
 			LogDebug("readLoop %v err:%v", this.GetConnectionId(), dataErr)
 			break
 		}
+		decodeMessageData := messageData
+		if this.codec != nil {
+			// 解码包体
+			decodeMessageData = this.codec.DecodeData(messageData)
+		}
 		// 最近收到完整数据包的时间
 		// 有一种极端情况,网速太慢,即使没有掉线,也可能触发收包超时检测
 		this.lastRecvMessageTick = GetCurrentTimeStamp()
 		// TODO:根据messageHeader.GetFlags()的值对messageData进行处理
 		if this.handler != nil {
-			this.handler.OnRecvMessage(this, messageData)
+			this.handler.OnRecvMessage(this, decodeMessageData)
 		}
 	}
 	LogDebug("readLoop end %v", this.GetConnectionId())
@@ -153,6 +170,7 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 			LogDebug("writeLoop fatal %v: %v", this.GetConnectionId(), err.(error))
 		}
 	}()
+
 	LogDebug("writeLoop begin %v", this.GetConnectionId())
 	// 收包超时计时
 	recvTimeoutTimer := time.NewTimer(time.Second * time.Duration(this.config.RecvTimeout))
@@ -180,8 +198,21 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 		// NOTE:目前方案是一个消息一个消息分别发送
 		// 待对比方案:sendBuffer.buffer由chan改为ringbuffer,当前有多少数据待发送,就一次性发送(是否减少了系统调用的次数,从而提升了性能?)
 		if len(messageData) > 0 {
+			// 数据包编码
+			decodeMessageData := messageData
+			if this.codec != nil {
+				decodeMessageData = this.codec.Encode(messageData)
+			}
+			//messageHeader := &MessageHeader{
+			//	lenAndFlags: uint32(len(decodeMessageData)),
+			//}
+			//streamDataSize := len(decodeMessageData)+int(MessageHeaderSize)
+			//streamData := make([]byte, streamDataSize, streamDataSize)
+			//// 写入数据长度
+			//messageHeader.WriteTo(streamData)
+			//copy(streamData[MessageHeaderSize:], decodeMessageData)
 			writeIndex := 0
-			for this.isConnected && writeIndex < len(messageData) {
+			for this.isConnected && writeIndex < len(decodeMessageData) {
 				setTimeoutErr := this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout)*time.Second))
 				// Q:什么情况会导致SetWriteDeadline返回err?
 				if setTimeoutErr != nil {
@@ -189,7 +220,7 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 					LogDebug("%v setTimeoutErr:%v", this.GetConnectionId(), setTimeoutErr)
 					break
 				}
-				writeCount, err := this.conn.Write(messageData[writeIndex:])
+				writeCount, err := this.conn.Write(decodeMessageData[writeIndex:])
 				if err != nil {
 					// ...
 					LogDebug("%v write Err:%v", this.GetConnectionId(), err)
@@ -222,7 +253,7 @@ func (this *TcpConnection) Close() {
 
 // 发送数据
 func (this *TcpConnection) Send(data []byte) bool {
-	// TODO:对原始数据进行加工处理,如加密
+	// TODO:对原始数据进行加工处理
 	messageHeader := &MessageHeader{
 		lenAndFlags: uint32(len(data)),
 	}

@@ -41,9 +41,9 @@ func (this *NetMgr) init() {
 }
 
 // 新监听对象
-func (this *NetMgr) NewListener(address string, acceptConnectionConfig ConnectionConfig,
+func (this *NetMgr) NewListener(address string, acceptConnectionConfig ConnectionConfig, acceptConnectionCodec Codec,
 	acceptConnectionHandler ConnectionHandler, listenerHandler ListenerHandler) Listener {
-	newListener := NewTcpListener(acceptConnectionConfig, acceptConnectionHandler, listenerHandler)
+	newListener := NewTcpListener(acceptConnectionConfig, acceptConnectionCodec, acceptConnectionHandler, listenerHandler)
 	if !newListener.Start(address, this.closeNotify) {
 		LogDebug("NewListener Start Failed")
 		return nil
@@ -55,8 +55,8 @@ func (this *NetMgr) NewListener(address string, acceptConnectionConfig Connectio
 }
 
 // 新连接对象
-func (this *NetMgr) NewConnector(address string, connectionConfig ConnectionConfig, handler ConnectionHandler) Connection {
-	newConnector := NewTcpConnector(connectionConfig, handler)
+func (this *NetMgr) NewConnector(address string, connectionConfig ConnectionConfig, codec Codec, handler ConnectionHandler) Connection {
+	newConnector := NewTcpConnector(connectionConfig, codec, handler)
 	if !newConnector.Connect(address) {
 		newConnector.Close()
 		return nil

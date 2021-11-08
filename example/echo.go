@@ -15,12 +15,10 @@ func main() {
 		WriteTimeout: 1,
 	}
 	listenAddress := "127.0.0.1:10002"
-	echoServerHandler := &EchoServerHandler{}
-	netMgr.NewListener(listenAddress, connectionConfig, echoServerHandler, &EchoListenerHandler{})
+	netMgr.NewListener(listenAddress, connectionConfig, &gnet.NoneCodec{}, &EchoServerHandler{}, &EchoListenerHandler{})
 	time.Sleep(time.Second)
 
-	echoClientHandler := &EchoClientHandler{}
-	netMgr.NewConnector(listenAddress, connectionConfig, echoClientHandler)
+	netMgr.NewConnector(listenAddress, connectionConfig, &gnet.NoneCodec{}, &EchoClientHandler{})
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)

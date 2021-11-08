@@ -39,6 +39,8 @@ type baseConnection struct {
 	isConnected bool
 	// 接口
 	handler ConnectionHandler
+	// 编解码接口
+	codec Codec
 }
 
 // 连接唯一id

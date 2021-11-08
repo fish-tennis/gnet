@@ -11,6 +11,7 @@ type TcpListener struct {
 
 	netListener net.Listener
 	acceptConnectionConfig ConnectionConfig
+	acceptConnectionCodec Codec
 	acceptConnectionHandler ConnectionHandler
 
 	// 连接表
@@ -20,13 +21,14 @@ type TcpListener struct {
 	isRunning bool
 }
 
-func NewTcpListener(acceptConnectionConfig ConnectionConfig, acceptConnectionHandler ConnectionHandler, listenerHandler ListenerHandler) *TcpListener {
+func NewTcpListener(acceptConnectionConfig ConnectionConfig, acceptConnectionCodec Codec, acceptConnectionHandler ConnectionHandler, listenerHandler ListenerHandler) *TcpListener {
 	return &TcpListener{
 		baseListener: baseListener{
 			listenerId: newListenerId(),
 			handler: listenerHandler,
 		},
 		acceptConnectionConfig: acceptConnectionConfig,
+		acceptConnectionCodec: acceptConnectionCodec,
 		acceptConnectionHandler: acceptConnectionHandler,
 		connectionMap: make(map[uint32]*TcpConnection),
 	}
@@ -71,6 +73,7 @@ func (this *TcpListener) acceptLoop(closeNotify chan struct{}) {
 			LogDebug("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
 		}
 	}()
+
 	for this.isRunning {
 		// 阻塞accept,当netListener关闭时,会返回err
 		newConn,err := this.netListener.Accept()
@@ -85,7 +88,7 @@ func (this *TcpListener) acceptLoop(closeNotify chan struct{}) {
 					LogDebug("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
 				}
 			}()
-			newTcpConn := NewTcpConnectionAccept(newConn, this.acceptConnectionConfig, this.acceptConnectionHandler)
+			newTcpConn := NewTcpConnectionAccept(newConn, this.acceptConnectionConfig, this.acceptConnectionCodec, this.acceptConnectionHandler)
 			newTcpConn.isConnected = true
 			if newTcpConn.handler != nil {
 				newTcpConn.handler.OnConnected(newTcpConn,true)
