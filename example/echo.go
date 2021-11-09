@@ -10,7 +10,7 @@ import (
 func main() {
 	netMgr := gnet.GetNetMgr()
 	connectionConfig := gnet.ConnectionConfig{
-		SendBufferSize: 100,
+		SendPacketCacheSize: 100,
 		RecvTimeout: 5,
 		WriteTimeout: 1,
 	}
@@ -50,7 +50,7 @@ func (e EchoListenerHandler) OnConnectionDisconnect(connection gnet.Connection) 
 type EchoServerHandler struct {
 }
 
-func (e EchoServerHandler) OnConnected(connection gnet.Connection, success bool) {
+func (e *EchoServerHandler) OnConnected(connection gnet.Connection, success bool) {
 	gnet.LogDebug(fmt.Sprintf("Server OnConnected %v %v", connection.GetConnectionId(), success))
 	if success {
 		// 开一个协程,服务器自动给客户端发消息
@@ -61,8 +61,8 @@ func (e EchoServerHandler) OnConnected(connection gnet.Connection, success bool)
 				select {
 				case <-autoSendTimer.C:
 					serialId++
-					sendData := fmt.Sprintf("hello client %v", serialId)
-					connection.Send([]byte(sendData))
+					packet := gnet.NewPacket([]byte(fmt.Sprintf("hello client %v", serialId)))
+					connection.Send(packet)
 					autoSendTimer.Reset(time.Second)
 				}
 			}
@@ -70,29 +70,31 @@ func (e EchoServerHandler) OnConnected(connection gnet.Connection, success bool)
 	}
 }
 
-func (e EchoServerHandler) OnDisconnected(connection gnet.Connection, ) {
+func (e *EchoServerHandler) OnDisconnected(connection gnet.Connection, ) {
 	gnet.LogDebug(fmt.Sprintf("Server OnDisconnected %v", connection.GetConnectionId()))
 }
 
-func (e EchoServerHandler) OnRecvMessage(connection gnet.Connection, data []byte) {
-	gnet.LogDebug(fmt.Sprintf("Server OnRecvMessage %v: %v", connection.GetConnectionId(), string(data)))
+func (e *EchoServerHandler) OnRecvPacket(connection gnet.Connection, packet *gnet.Packet) {
+	gnet.LogDebug(fmt.Sprintf("Server OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetData())))
 }
 
 
 // 客户端连接接口
 type EchoClientHandler struct {
+	echoCount int
 }
 
-func (e EchoClientHandler) OnConnected(connection gnet.Connection, success bool) {
+func (e *EchoClientHandler) OnConnected(connection gnet.Connection, success bool) {
 	gnet.LogDebug(fmt.Sprintf("Client OnConnected %v %v", connection.GetConnectionId(), success))
 }
 
-func (e EchoClientHandler) OnDisconnected(connection gnet.Connection, ) {
+func (e *EchoClientHandler) OnDisconnected(connection gnet.Connection, ) {
 	gnet.LogDebug(fmt.Sprintf("Client OnDisconnected %v", connection.GetConnectionId()))
 }
 
-func (e EchoClientHandler) OnRecvMessage(connection gnet.Connection, data []byte) {
-	gnet.LogDebug(fmt.Sprintf("Client OnRecvMessage %v: %v", connection.GetConnectionId(), string(data)))
-	sendData := "hello server"
-	connection.Send([]byte(sendData))
+func (e *EchoClientHandler) OnRecvPacket(connection gnet.Connection, packet *gnet.Packet) {
+	gnet.LogDebug(fmt.Sprintf("Client OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetData())))
+	e.echoCount++
+	echoPacket := gnet.NewPacket([]byte(fmt.Sprintf("hello server %v", e.echoCount)))
+	connection.Send(echoPacket)
 }

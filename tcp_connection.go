@@ -15,7 +15,9 @@ type TcpConnection struct {
 	// 关闭回调
 	onClose func(connection Connection)
 	// 最近收到完整数据包的时间(时间戳:秒)
-	lastRecvMessageTick uint32
+	lastRecvPacketTick uint32
+	// 发包缓存
+	sendPacketCache chan *Packet
 }
 
 func NewTcpConnector(config ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
@@ -26,10 +28,11 @@ func NewTcpConnector(config ConnectionConfig, codec Codec, handler ConnectionHan
 			config: config,
 			codec: codec,
 			handler: handler,
-			sendBuffer: &MessageBuffer{
-				buffer: make(chan []byte, config.SendBufferSize),
-			},
+			//sendBuffer: &MessageBuffer{
+			//	buffer: make(chan []byte, config.SendBufferSize),
+			//},
 		},
+		sendPacketCache: make(chan *Packet, config.SendPacketCacheSize),
 	}
 }
 
@@ -41,10 +44,11 @@ func NewTcpConnectionAccept(conn net.Conn, config ConnectionConfig, codec Codec,
 			config: config,
 			codec: codec,
 			handler: handler,
-			sendBuffer: &MessageBuffer{
-				buffer: make(chan []byte, config.SendBufferSize),
-			},
+			//sendBuffer: &MessageBuffer{
+			//	buffer: make(chan []byte, config.SendBufferSize),
+			//},
 		},
+		sendPacketCache: make(chan *Packet, config.SendPacketCacheSize),
 		conn: conn,
 	}
 }
@@ -97,15 +101,16 @@ func (this *TcpConnection) readLoop() {
 	}()
 
 	LogDebug("readLoop begin %v", this.GetConnectionId())
-	messageHeaderData := make([]byte, MessageHeaderSize)
-	messageHeader := &MessageHeader{}
+	packetHeaderData := make([]byte, PacketHeaderSize)
+	packetHeader := &PacketHeader{}
 	for this.isConnected {
 		// TODO:目前方案是分别读取消息头和消息体,就算系统已经收到了多个包的数据,但是当前方案,依然需要多次io.ReadFull才能
 		//把数据读出来
 		// 待对比方案:系统当前有多少数据就读取多少,再自己进行分包(是否减少了系统调用的次数,从而提升了性能?)
 
 		// 此处阻塞读,当连接关闭时,会中断阻塞,返回err
-		_, err := io.ReadFull(this.conn, messageHeaderData)
+		// TODO:改为this.conn.Read,有多少就读出来多少
+		_, err := io.ReadFull(this.conn, packetHeaderData)
 		if err != nil {
 			if err != io.EOF {
 				// ...
@@ -113,33 +118,33 @@ func (this *TcpConnection) readLoop() {
 			LogDebug("readLoop %v err:%v", this.GetConnectionId(), err)
 			break
 		}
-		decodeMessageHeaderData := messageHeaderData
+		decodePacketHeaderData := packetHeaderData
 		if this.codec != nil {
 			// 解码包头
-			decodeMessageHeaderData = this.codec.DecodeHeader(messageHeaderData)
-			if decodeMessageHeaderData == nil {
+			decodePacketHeaderData = this.codec.DecodeHeader(packetHeaderData)
+			if decodePacketHeaderData == nil {
 				LogDebug("readLoop %v decode header err", this.GetConnectionId())
 				break
 			}
 		}
-		messageHeader.ReadFrom(decodeMessageHeaderData)
-		if messageHeader.GetLen() == 0 {
-			LogDebug("readLoop %v messageHeader len err", this.GetConnectionId())
+		packetHeader.ReadFrom(decodePacketHeaderData)
+		if packetHeader.GetLen() == 0 {
+			LogDebug("readLoop %v packetHeader len err", this.GetConnectionId())
 			break
 		}
 		// 检查最大数据包限制
-		if messageHeader.GetLen() >= MaxMessageDataSize {
-			LogDebug("readLoop %v messageHeader len err:%v", this.GetConnectionId(), messageHeader.GetLen())
+		if packetHeader.GetLen() >= MaxPacketDataSize {
+			LogDebug("readLoop %v packetHeader len err:%v", this.GetConnectionId(), packetHeader.GetLen())
 			break
 		}
 		// 检查自己设置的最大数据包限制
-		if this.config.MaxMessageSize > 0 && messageHeader.GetLen() > 0 {
-			LogDebug("readLoop %v messageHeader len err:%v>%v", this.GetConnectionId(), messageHeader.GetLen(), this.config.MaxMessageSize)
+		if this.config.MaxPacketSize > 0 && packetHeader.GetLen() > 0 {
+			LogDebug("readLoop %v packetHeader len err:%v>%v", this.GetConnectionId(), packetHeader.GetLen(), this.config.MaxPacketSize)
 			break
 		}
-		messageData := make([]byte, messageHeader.GetLen())
+		packetData := make([]byte, packetHeader.GetLen())
 		// 此处阻塞读,当连接关闭时,会中断阻塞,返回err
-		_, dataErr := io.ReadFull(this.conn, messageData)
+		_, dataErr := io.ReadFull(this.conn, packetData)
 		if dataErr != nil {
 			if dataErr != io.EOF {
 				// ...
@@ -147,17 +152,17 @@ func (this *TcpConnection) readLoop() {
 			LogDebug("readLoop %v err:%v", this.GetConnectionId(), dataErr)
 			break
 		}
-		decodeMessageData := messageData
+		decodePacketData := packetData
 		if this.codec != nil {
 			// 解码包体
-			decodeMessageData = this.codec.DecodeData(messageData)
+			decodePacketData = this.codec.DecodeData(packetData)
 		}
 		// 最近收到完整数据包的时间
 		// 有一种极端情况,网速太慢,即使没有掉线,也可能触发收包超时检测
-		this.lastRecvMessageTick = GetCurrentTimeStamp()
+		this.lastRecvPacketTick = GetCurrentTimeStamp()
 		// TODO:根据messageHeader.GetFlags()的值对messageData进行处理
 		if this.handler != nil {
-			this.handler.OnRecvMessage(this, decodeMessageData)
+			this.handler.OnRecvPacket(this, &Packet{data: decodePacketData})
 		}
 	}
 	LogDebug("readLoop end %v", this.GetConnectionId())
@@ -169,50 +174,47 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 		if err := recover(); err != nil {
 			LogDebug("writeLoop fatal %v: %v", this.GetConnectionId(), err.(error))
 		}
+		LogDebug("writeLoop end %v", this.GetConnectionId())
 	}()
 
 	LogDebug("writeLoop begin %v", this.GetConnectionId())
 	// 收包超时计时
 	recvTimeoutTimer := time.NewTimer(time.Second * time.Duration(this.config.RecvTimeout))
 	defer recvTimeoutTimer.Stop()
-	var messageData []byte
 	for this.isConnected {
+		var packet *Packet
 		select {
-		case messageData = <-this.sendBuffer.buffer:
-			LogDebug("messageData %v len:%v", this.GetConnectionId(), len(messageData))
+		case packet = <-this.sendPacketCache:
+			if packet == nil {
+				LogDebug("packet==nil %v", this.GetConnectionId())
+				return
+			}
+			LogDebug("packet %v len:%v", this.GetConnectionId(), len(packet.data))
 		case <-recvTimeoutTimer.C:
-			nextTimeoutTime := this.config.RecvTimeout + this.lastRecvMessageTick - GetCurrentTimeStamp()
+			nextTimeoutTime := this.config.RecvTimeout + this.lastRecvPacketTick - GetCurrentTimeStamp()
 			if nextTimeoutTime > 0 {
 				recvTimeoutTimer.Reset(time.Second * time.Duration(nextTimeoutTime))
 			} else {
 				// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
 				// 需要主动关闭该连接,防止连接"泄漏"
 				LogDebug("recv timeout %v", this.GetConnectionId())
-				goto END
+				return
 			}
 		case <-closeNotify:
 			// 收到外部的关闭通知
 			LogDebug("recv closeNotify %v", this.GetConnectionId())
-			goto END // break只能跳出select,无法跳出for,所以这里用了goto
+			return
 		}
 		// NOTE:目前方案是一个消息一个消息分别发送
 		// 待对比方案:sendBuffer.buffer由chan改为ringbuffer,当前有多少数据待发送,就一次性发送(是否减少了系统调用的次数,从而提升了性能?)
-		if len(messageData) > 0 {
+		if packet != nil && len(packet.data) > 0 {
 			// 数据包编码
-			decodeMessageData := messageData
+			decodePacketData := packet.data
 			if this.codec != nil {
-				decodeMessageData = this.codec.Encode(messageData)
+				decodePacketData = this.codec.Encode(packet.data)
 			}
-			//messageHeader := &MessageHeader{
-			//	lenAndFlags: uint32(len(decodeMessageData)),
-			//}
-			//streamDataSize := len(decodeMessageData)+int(MessageHeaderSize)
-			//streamData := make([]byte, streamDataSize, streamDataSize)
-			//// 写入数据长度
-			//messageHeader.WriteTo(streamData)
-			//copy(streamData[MessageHeaderSize:], decodeMessageData)
 			writeIndex := 0
-			for this.isConnected && writeIndex < len(decodeMessageData) {
+			for this.isConnected && writeIndex < len(decodePacketData) {
 				setTimeoutErr := this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout)*time.Second))
 				// Q:什么情况会导致SetWriteDeadline返回err?
 				if setTimeoutErr != nil {
@@ -220,20 +222,18 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 					LogDebug("%v setTimeoutErr:%v", this.GetConnectionId(), setTimeoutErr)
 					break
 				}
-				writeCount, err := this.conn.Write(decodeMessageData[writeIndex:])
+				writeCount, err := this.conn.Write(decodePacketData[writeIndex:])
 				if err != nil {
 					// ...
 					LogDebug("%v write Err:%v", this.GetConnectionId(), err)
 					break
 				}
 				writeIndex += writeCount
-				LogDebug("%v write count:%v", this.GetConnectionId(), writeCount)
+				LogDebug("%v write count:%v/%v", this.GetConnectionId(), writeCount, len(decodePacketData))
 			}
 		}
-		messageData = nil
+		packet = nil
 	}
-END:
-	LogDebug("writeLoop end %v", this.GetConnectionId())
 }
 
 // 关闭
@@ -251,16 +251,8 @@ func (this *TcpConnection) Close() {
 	})
 }
 
-// 发送数据
-func (this *TcpConnection) Send(data []byte) bool {
-	// TODO:对原始数据进行加工处理
-	messageHeader := &MessageHeader{
-		lenAndFlags: uint32(len(data)),
-	}
-	streamDataSize := len(data)+int(MessageHeaderSize)
-	streamData := make([]byte, streamDataSize, streamDataSize)
-	// 写入数据长度
-	messageHeader.WriteTo(streamData)
-	copy(streamData[MessageHeaderSize:], data)
-	return this.sendBuffer.Write(streamData)
+// 异步发送数据
+func (this *TcpConnection) Send(packet *Packet) bool {
+	this.sendPacketCache <- packet
+	return true
 }

@@ -5,7 +5,7 @@ type ConnectionHandler interface {
 
 	OnDisconnected(connection Connection)
 
-	OnRecvMessage(connection Connection, data[]byte)
+	OnRecvPacket(connection Connection, packet *Packet)
 }
 
 //type ConnectorHandler interface {
@@ -13,7 +13,7 @@ type ConnectionHandler interface {
 //
 //	OnDisconnected(connection Connection)
 //
-//	OnRecvMessage(connection Connection, data[]byte)
+//	OnRecvPacket(connection Connection, packet *Packet)
 //}
 
 type ListenerHandler interface {

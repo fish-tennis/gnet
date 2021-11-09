@@ -43,7 +43,7 @@ func NewXorCodec(key []byte) *XorCodec {
 }
 
 func (this XorCodec) DecodeHeader(header []byte) []byte {
-	for i := 0; i < int(MessageHeaderSize); i++ {
+	for i := 0; i < PacketHeaderSize; i++ {
 		header[i] = header[i] ^ this.key[i%len(this.key)]
 	}
 	return header
@@ -51,14 +51,20 @@ func (this XorCodec) DecodeHeader(header []byte) []byte {
 
 func (this XorCodec) DecodeData(data []byte) []byte {
 	for i := 0; i < len(data); i++ {
-		data[i] = data[i] ^ this.key[(i+int(MessageHeaderSize))%len(this.key)]
+		data[i] = data[i] ^ this.key[(i+PacketHeaderSize)%len(this.key)]
 	}
 	return data
 }
 
 func (this XorCodec) Encode(src []byte) []byte {
-	for i := 0; i < len(src); i++ {
-		src[i] = src[i] ^ this.key[i%len(this.key)]
+	dst := make([]byte, len(src)+PacketHeaderSize)
+	packetHeader := NewPacketHeader(uint32(len(src)), 0)
+	packetHeader.WriteTo(dst)
+	for i := 0; i < PacketHeaderSize; i++ {
+		dst[i] = dst[i] ^ this.key[i%len(this.key)]
 	}
-	return src
+	for i := 0; i < len(src); i++ {
+		dst[i+PacketHeaderSize] = src[i] ^ this.key[(i+PacketHeaderSize)%len(this.key)]
+	}
+	return dst
 }

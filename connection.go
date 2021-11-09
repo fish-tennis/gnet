@@ -7,7 +7,7 @@ type Connection interface {
 
 	GetConnectionId() uint32
 
-	Send(data []byte) bool
+	Send(packet *Packet) bool
 
 	IsConnected() bool
 }
@@ -15,9 +15,9 @@ type Connection interface {
 // 连接设置
 type ConnectionConfig struct {
 	// 发包缓存大小
-	SendBufferSize uint32
+	SendPacketCacheSize uint32
 	// 最大包大小设置
-	MaxMessageSize uint32
+	MaxPacketSize uint32
 	// 收包超时设置(秒)
 	RecvTimeout uint32
 	// 发包超时设置(秒)
@@ -31,8 +31,6 @@ type baseConnection struct {
 	connectionId uint32
 	// 连接设置
 	config ConnectionConfig
-	// 发包缓存
-	sendBuffer *MessageBuffer
 	// 是否是连接方
 	isConnector bool
 	// 是否连接成功
@@ -48,10 +46,10 @@ func (this *baseConnection) GetConnectionId() uint32 {
 	return this.connectionId
 }
 
-// 发送数据
-func (this *baseConnection) Send(data []byte) bool {
-	return this.sendBuffer.Write(data)
-}
+//// 发送数据
+//func (this *baseConnection) Send(data []byte) bool {
+//	return this.sendBuffer.Write(data)
+//}
 
 // 是否连接成功
 func (this *baseConnection) IsConnected() bool {
