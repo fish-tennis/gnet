@@ -32,7 +32,7 @@ func NewTcpConnector(config ConnectionConfig, codec Codec, handler ConnectionHan
 			//	buffer: make(chan []byte, config.SendBufferSize),
 			//},
 		},
-		sendPacketCache: make(chan *Packet, config.SendPacketCacheSize),
+		sendPacketCache: make(chan *Packet, config.SendPacketCacheCap),
 	}
 }
 
@@ -48,7 +48,7 @@ func NewTcpConnectionAccept(conn net.Conn, config ConnectionConfig, codec Codec,
 			//	buffer: make(chan []byte, config.SendBufferSize),
 			//},
 		},
-		sendPacketCache: make(chan *Packet, config.SendPacketCacheSize),
+		sendPacketCache: make(chan *Packet, config.SendPacketCacheCap),
 		conn: conn,
 	}
 }
@@ -173,23 +173,42 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 	defer func() {
 		if err := recover(); err != nil {
 			LogDebug("writeLoop fatal %v: %v", this.GetConnectionId(), err.(error))
+			LogStack()
 		}
 		LogDebug("writeLoop end %v", this.GetConnectionId())
 	}()
 
 	LogDebug("writeLoop begin %v", this.GetConnectionId())
-	// 收包超时计时
+	// 收包超时计时,用于检测掉线
 	recvTimeoutTimer := time.NewTimer(time.Second * time.Duration(this.config.RecvTimeout))
 	defer recvTimeoutTimer.Stop()
+	ringBufferSize := this.config.BatchPacketBufferSize
+	if ringBufferSize == 0 {
+		if this.config.MaxPacketSize > 0 {
+			ringBufferSize = this.config.MaxPacketSize*2
+		} else {
+			ringBufferSize = 65535
+		}
+	}
+	sendBuffer := NewRingBuffer(int(ringBufferSize))
 	for this.isConnected {
-		var packet *Packet
 		select {
-		case packet = <-this.sendPacketCache:
+		case packet := <-this.sendPacketCache:
 			if packet == nil {
 				LogDebug("packet==nil %v", this.GetConnectionId())
 				return
 			}
-			LogDebug("packet %v len:%v", this.GetConnectionId(), len(packet.data))
+			// 数据包编码
+			decodePacketData := packet.data
+			if this.codec != nil {
+				decodePacketData = this.codec.Encode(packet.data)
+			}
+			if _,bufferErr := sendBuffer.Write(decodePacketData); bufferErr != nil {
+				LogDebug("sendBuffer is full %v", this.GetConnectionId())
+				return
+			}
+			LogDebug("packet %v len:%v decodeLen:%v unReadLen:%v", this.GetConnectionId(), len(packet.data), len(decodePacketData), sendBuffer.UnReadLength())
+
 		case <-recvTimeoutTimer.C:
 			nextTimeoutTime := this.config.RecvTimeout + this.lastRecvPacketTick - GetCurrentTimeStamp()
 			if nextTimeoutTime > 0 {
@@ -200,39 +219,37 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 				LogDebug("recv timeout %v", this.GetConnectionId())
 				return
 			}
+
 		case <-closeNotify:
 			// 收到外部的关闭通知
 			LogDebug("recv closeNotify %v", this.GetConnectionId())
 			return
 		}
-		// NOTE:目前方案是一个消息一个消息分别发送
-		// 待对比方案:sendBuffer.buffer由chan改为ringbuffer,当前有多少数据待发送,就一次性发送(是否减少了系统调用的次数,从而提升了性能?)
-		if packet != nil && len(packet.data) > 0 {
-			// 数据包编码
-			decodePacketData := packet.data
-			if this.codec != nil {
-				decodePacketData = this.codec.Encode(packet.data)
-			}
-			writeIndex := 0
-			for this.isConnected && writeIndex < len(decodePacketData) {
-				setTimeoutErr := this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout)*time.Second))
-				// Q:什么情况会导致SetWriteDeadline返回err?
-				if setTimeoutErr != nil {
-					// ...
-					LogDebug("%v setTimeoutErr:%v", this.GetConnectionId(), setTimeoutErr)
-					break
+
+		if sendBuffer.UnReadLength() > 0 {
+			// 可读数据有可能分别存在数组的尾部和头部,所以需要循环发送,有可能发送2次
+			for this.isConnected && sendBuffer.UnReadLength() > 0 {
+				if this.config.WriteTimeout > 0 {
+					setTimeoutErr := this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout)*time.Second))
+					// Q:什么情况会导致SetWriteDeadline返回err?
+					if setTimeoutErr != nil {
+						// ...
+						LogDebug("%v setTimeoutErr:%v", this.GetConnectionId(), setTimeoutErr)
+						break
+					}
 				}
-				writeCount, err := this.conn.Write(decodePacketData[writeIndex:])
+				readBuffer := sendBuffer.ReadBuffer()
+				//LogDebug("%v readBuffer:%v", this.GetConnectionId(), len(readBuffer))
+				writeCount, err := this.conn.Write(readBuffer)
 				if err != nil {
 					// ...
 					LogDebug("%v write Err:%v", this.GetConnectionId(), err)
 					break
 				}
-				writeIndex += writeCount
-				LogDebug("%v write count:%v/%v", this.GetConnectionId(), writeCount, len(decodePacketData))
+				sendBuffer.SetReaded(writeCount)
+				//LogDebug("%v write count:%v unread:%v", this.GetConnectionId(), writeCount, sendBuffer.UnReadLength())
 			}
 		}
-		packet = nil
 	}
 }
 

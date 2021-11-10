@@ -36,3 +36,8 @@ func LogDebug(v ...interface{}) {
 		logger.Write(prefix + fmt.Sprint(v[0]))
 	}
 }
+
+func LogStack() {
+	buf := make([]byte, 1<<12)
+	LogDebug(string(buf[:runtime.Stack(buf, false)]))
+}

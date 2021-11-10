@@ -10,9 +10,9 @@ import (
 func main() {
 	netMgr := gnet.GetNetMgr()
 	connectionConfig := gnet.ConnectionConfig{
-		SendPacketCacheSize: 100,
-		RecvTimeout: 5,
-		WriteTimeout: 1,
+		SendPacketCacheCap: 100,
+		RecvTimeout:        5,
+		WriteTimeout:       1,
 	}
 	listenAddress := "127.0.0.1:10002"
 	codec := gnet.NewXorCodec([]byte{0,1,2,3,4,5,6})

@@ -14,8 +14,10 @@ type Connection interface {
 
 // 连接设置
 type ConnectionConfig struct {
-	// 发包缓存大小
-	SendPacketCacheSize uint32
+	// 发包缓存chan大小
+	SendPacketCacheCap uint32
+	// 粘包buffer大小
+	BatchPacketBufferSize uint32
 	// 最大包大小设置
 	MaxPacketSize uint32
 	// 收包超时设置(秒)
