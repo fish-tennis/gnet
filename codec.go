@@ -30,7 +30,11 @@ func (this NoneCodec) DecodeData(data []byte) []byte  {
 }
 
 func (this NoneCodec) Encode(src []byte) []byte  {
-	return src
+	dst := make([]byte, len(src)+PacketHeaderSize)
+	packetHeader := NewPacketHeader(uint32(len(src)), 0)
+	packetHeader.WriteTo(dst)
+	copy(dst[PacketHeaderSize:],src)
+	return dst
 }
 
 // 异或编解码

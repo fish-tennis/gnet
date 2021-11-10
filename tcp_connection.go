@@ -138,7 +138,7 @@ func (this *TcpConnection) readLoop() {
 			break
 		}
 		// 检查自己设置的最大数据包限制
-		if this.config.MaxPacketSize > 0 && packetHeader.GetLen() > 0 {
+		if this.config.MaxPacketSize > 0 && packetHeader.GetLen() > this.config.MaxPacketSize {
 			LogDebug("readLoop %v packetHeader len err:%v>%v", this.GetConnectionId(), packetHeader.GetLen(), this.config.MaxPacketSize)
 			break
 		}
@@ -182,16 +182,9 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 	// 收包超时计时,用于检测掉线
 	recvTimeoutTimer := time.NewTimer(time.Second * time.Duration(this.config.RecvTimeout))
 	defer recvTimeoutTimer.Stop()
-	ringBufferSize := this.config.BatchPacketBufferSize
-	if ringBufferSize == 0 {
-		if this.config.MaxPacketSize > 0 {
-			ringBufferSize = this.config.MaxPacketSize*2
-		} else {
-			ringBufferSize = 65535
-		}
-	}
-	sendBuffer := NewRingBuffer(int(ringBufferSize))
+	sendBuffer := this.createBatchPacketRingBuffer()
 	for this.isConnected {
+		var delaySendDecodePacketData []byte
 		select {
 		case packet := <-this.sendPacketCache:
 			if packet == nil {
@@ -203,21 +196,54 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 			if this.codec != nil {
 				decodePacketData = this.codec.Encode(packet.data)
 			}
-			if _,bufferErr := sendBuffer.Write(decodePacketData); bufferErr != nil {
+			writedLen,bufferErr := sendBuffer.Write(decodePacketData)
+			if bufferErr != nil {
 				LogDebug("sendBuffer is full %v", this.GetConnectionId())
 				return
 			}
-			LogDebug("packet %v len:%v decodeLen:%v unReadLen:%v", this.GetConnectionId(), len(packet.data), len(decodePacketData), sendBuffer.UnReadLength())
+			// 这里一般不可能出现写不完的情况
+			if writedLen < len(decodePacketData) {
+				delaySendDecodePacketData = decodePacketData[writedLen:]
+				LogDebug("%v sendBuffer is full delaySize:%v", this.GetConnectionId(), len(delaySendDecodePacketData))
+				break
+			}
+			packetCount := len(this.sendPacketCache)
+			// 还有其他数据包在chan里,就进行批量合并
+			if packetCount > 0 {
+				for i := 0; i < packetCount; i++ {
+					// 这里不会阻塞
+					newPacket,ok := <-this.sendPacketCache
+					if !ok {
+						LogDebug("newPacket==nil %v", this.GetConnectionId())
+						return
+					}
+					// 数据包编码
+					decodePacketData = newPacket.data
+					if this.codec != nil {
+						decodePacketData = this.codec.Encode(newPacket.data)
+					}
+					writedLen,bufferErr = sendBuffer.Write(decodePacketData)
+					// 批量粘包,导致缓存不够用了,没写入缓存的数据延后写
+					if writedLen < len(decodePacketData) {
+						delaySendDecodePacketData = decodePacketData[writedLen:]
+						LogDebug("%v sendBuffer is full delaySize:%v", this.GetConnectionId(), len(delaySendDecodePacketData))
+						break
+					}
+				}
+			}
+			LogDebug("%v packetCount:%v unReadLen:%v", this.GetConnectionId(), packetCount+1, sendBuffer.UnReadLength())
 
 		case <-recvTimeoutTimer.C:
-			nextTimeoutTime := this.config.RecvTimeout + this.lastRecvPacketTick - GetCurrentTimeStamp()
-			if nextTimeoutTime > 0 {
-				recvTimeoutTimer.Reset(time.Second * time.Duration(nextTimeoutTime))
-			} else {
-				// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
-				// 需要主动关闭该连接,防止连接"泄漏"
-				LogDebug("recv timeout %v", this.GetConnectionId())
-				return
+			if this.config.RecvTimeout > 0 {
+				nextTimeoutTime := this.config.RecvTimeout + this.lastRecvPacketTick - GetCurrentTimeStamp()
+				if nextTimeoutTime > 0 {
+					recvTimeoutTimer.Reset(time.Second * time.Duration(nextTimeoutTime))
+				} else {
+					// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
+					// 需要主动关闭该连接,防止连接"泄漏"
+					LogDebug("recv timeout %v", this.GetConnectionId())
+					return
+				}
 			}
 
 		case <-closeNotify:
@@ -235,18 +261,28 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 					if setTimeoutErr != nil {
 						// ...
 						LogDebug("%v setTimeoutErr:%v", this.GetConnectionId(), setTimeoutErr)
-						break
+						return
 					}
 				}
 				readBuffer := sendBuffer.ReadBuffer()
+				//LogDebug("readBuffer:%v", readBuffer)
 				//LogDebug("%v readBuffer:%v", this.GetConnectionId(), len(readBuffer))
 				writeCount, err := this.conn.Write(readBuffer)
 				if err != nil {
 					// ...
 					LogDebug("%v write Err:%v", this.GetConnectionId(), err)
-					break
+					return
 				}
 				sendBuffer.SetReaded(writeCount)
+				LogDebug("%v send:%v unread:%v", this.GetConnectionId(), writeCount, sendBuffer.UnReadLength())
+				if delaySendDecodePacketData != nil {
+					if _,bufferErr := sendBuffer.Write(delaySendDecodePacketData); bufferErr == nil {
+						LogDebug("%v delayData write:%v", this.GetConnectionId(), len(delaySendDecodePacketData))
+						//LogDebug("%v", delaySendDecodePacketData)
+						//LogDebug("%v unread:%v", this.GetConnectionId(), sendBuffer.UnReadLength())
+						delaySendDecodePacketData = nil
+					}
+				}
 				//LogDebug("%v write count:%v unread:%v", this.GetConnectionId(), writeCount, sendBuffer.UnReadLength())
 			}
 		}
@@ -272,4 +308,17 @@ func (this *TcpConnection) Close() {
 func (this *TcpConnection) Send(packet *Packet) bool {
 	this.sendPacketCache <- packet
 	return true
+}
+
+// 创建用于批量粘包的RingBuffer
+func (this *TcpConnection) createBatchPacketRingBuffer() *RingBuffer {
+	ringBufferSize := this.config.BatchPacketBufferSize
+	if ringBufferSize == 0 {
+		if this.config.MaxPacketSize > 0 {
+			ringBufferSize = this.config.MaxPacketSize*2
+		} else {
+			ringBufferSize = 65535
+		}
+	}
+	return NewRingBuffer(int(ringBufferSize))
 }

@@ -47,35 +47,49 @@ func (this *RingBuffer) ReadBuffer() []byte {
 	}
 }
 
-// 写入数据,如果没有足够空间可写,返回ErrBufferFull
+// 写入数据
 func (this *RingBuffer) Write(p []byte) (n int, err error) {
-	n = len(p)
-	if n == 0 {
+	if len(p) == 0 {
 		return
 	}
 	bufferSize := cap(this.buffer)
-	// 还有多少空间可以写
-	sizeCanWrite := bufferSize+this.r-this.w
-	if sizeCanWrite < len(p) {
+	canWriteSize := bufferSize + this.r - this.w
+	if canWriteSize <= 0 {
 		return 0, ErrBufferFull
 	}
 	writeIndex := this.w%bufferSize
-	// [.......w..........]
-	//         <- n ->
-	// [.............w....] copy n
-	if bufferSize-writeIndex >= n {
-		// 数组尾部有足够的空间,则一次性拷贝
-		copy(this.buffer[writeIndex:], p)
+	// 有足够的空间可以把p写完
+	if canWriteSize >= len(p) {
+		n = copy(this.buffer[writeIndex:], p)
+		// 如果没能一次写完,说明写在尾部了,剩下的直接写入头部
+		if n < len(p) {
+			n += copy(this.buffer[0:], p[n:])
+		}
+		this.w += n
+		return
+		//// [.......w..........]
+		////         <- n ->
+		//// [.............w....] copy n
+		//if bufferSize-writeIndex >= n {
+		//	// 数组尾部有足够的空间,则一次性拷贝
+		//	copy(this.buffer[writeIndex:], p)
+		//} else {
+		//	// [..........w..]
+		//	//            <- n ->
+		//	// [w............] copy (bufferSize-writeIndex)
+		//	// [..w..........] copy n-(bufferSize-writeIndex)
+		//	// 先拷贝一部分到数组尾部
+		//	copy(this.buffer[writeIndex:], p[0:bufferSize-writeIndex])
+		//	// 再拷贝剩下的部分到数组头部
+		//	copy(this.buffer[0:], p[n-(bufferSize-writeIndex):])
+		//}
 	} else {
-		// [..........w..]
-		//            <- n ->
-		// [w............] copy (bufferSize-writeIndex)
-		// [..w..........] copy n-(bufferSize-writeIndex)
-		// 先拷贝一部分到数组尾部
-		copy(this.buffer[writeIndex:], p[0:bufferSize-writeIndex])
-		// 再拷贝剩下的部分到数组头部
-		copy(this.buffer[0:], p[n-(bufferSize-writeIndex):])
+		n = copy(this.buffer[writeIndex:], p[0:canWriteSize])
+		// 如果没能一次写完,说明写在尾部了,剩下的直接写入头部
+		if n < canWriteSize {
+			n += copy(this.buffer[0:], p[n:canWriteSize])
+		}
+		this.w += n
 	}
-	this.w += n
 	return
 }

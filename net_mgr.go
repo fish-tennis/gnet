@@ -65,6 +65,12 @@ func (this *NetMgr) NewConnector(address string, connectionConfig ConnectionConf
 	this.connectorMap[newConnector.GetConnectionId()] = newConnector
 	this.connectorMapLock.Unlock()
 	newConnector.Start(this.closeNotify)
+
+	newConnector.onClose = func(connection Connection) {
+		this.connectorMapLock.Lock()
+		delete(this.connectorMap, connection.GetConnectionId())
+		this.connectorMapLock.Unlock()
+	}
 	return newConnector
 }
 

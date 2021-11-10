@@ -8,14 +8,24 @@ import (
 )
 
 func main() {
+	defer func() {
+		if err := recover(); err != nil {
+			gnet.LogDebug("fatal %v", err.(error))
+			gnet.LogStack()
+		}
+	}()
+
 	netMgr := gnet.GetNetMgr()
 	connectionConfig := gnet.ConnectionConfig{
-		SendPacketCacheCap: 100,
-		RecvTimeout:        5,
-		WriteTimeout:       1,
+		SendPacketCacheCap:    100,
+		BatchPacketBufferSize: 60,
+		MaxPacketSize:         1024,
+		RecvTimeout:           0,
+		WriteTimeout:          0,
 	}
 	listenAddress := "127.0.0.1:10002"
 	codec := gnet.NewXorCodec([]byte{0,1,2,3,4,5,6})
+	//codec := gnet.NoneCodec{}
 	netMgr.NewListener(listenAddress, connectionConfig, codec, &EchoServerHandler{}, &EchoListenerHandler{})
 	time.Sleep(time.Second)
 
@@ -54,9 +64,15 @@ func (e *EchoServerHandler) OnConnected(connection gnet.Connection, success bool
 	gnet.LogDebug(fmt.Sprintf("Server OnConnected %v %v", connection.GetConnectionId(), success))
 	if success {
 		// 开一个协程,服务器自动给客户端发消息
+		serialId := 0
+		// 先连发10个数据包
+		for i := 0; i < 10; i++ {
+			serialId++
+			packet := gnet.NewPacket([]byte(fmt.Sprintf("hello client %v", serialId)))
+			connection.Send(packet)
+		}
 		go func() {
 			autoSendTimer := time.NewTimer(time.Second)
-			serialId := 0
 			for connection.IsConnected() {
 				select {
 				case <-autoSendTimer.C:
