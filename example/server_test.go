@@ -10,10 +10,21 @@ import (
 )
 
 var (
-	// 统计数据
+	// 统计收包数据
+	// 因为数据包内容是固定的,所以单位时间内的收包数量就能体现网络性能
 	serverRecvPacketCount int64 = 0
 	clientRecvPacketCount int64 = 0
 )
+
+// 模拟的应用场景:
+// 开启一个服务器和N个客户端
+// 服务器端:
+//   1.当一个新客户端连接上来时,发送30个数据包给该客户端,模拟的游戏角色登录时,游戏服务器下发大量数据包
+//   2.服务器收到客户端的数据包,则下发4个数据包作为回复,模拟服务器处理客户端的消息时,往往要回复多个数据包
+// 客户端:
+//   当收到服务器回复的数据包时,向服务器发送一条数据包,模拟一次客户端交互请求
+//
+// 性能指定:指定的时间内,服务器和客户端的收发包数量
 
 func TestTestServer(t *testing.T) {
 	defer func() {
@@ -118,21 +129,6 @@ type TestClientHandler struct {
 }
 
 func (t *TestClientHandler) OnConnected(connection gnet.Connection, success bool) {
-	//packet := gnet.NewPacket([]byte("hello server"))
-	//connection.Send(packet)
-	//
-	//// 模拟客户端每秒发一个请求到服务器
-	//go func() {
-	//	autoSendTimer := time.NewTimer(time.Second)
-	//	for connection.IsConnected() {
-	//		select {
-	//		case <-autoSendTimer.C:
-	//			packet := gnet.NewPacket([]byte("hello server"))
-	//			connection.Send(packet)
-	//			autoSendTimer.Reset(time.Second)
-	//		}
-	//	}
-	//}()
 }
 
 func (t *TestClientHandler) OnDisconnected(connection gnet.Connection) {
