@@ -231,7 +231,7 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 					}
 				}
 			}
-			LogDebug("%v packetCount:%v unReadLen:%v", this.GetConnectionId(), packetCount+1, sendBuffer.UnReadLength())
+			//LogDebug("%v packetCount:%v unReadLen:%v", this.GetConnectionId(), packetCount+1, sendBuffer.UnReadLength())
 
 		case <-recvTimeoutTimer.C:
 			if this.config.RecvTimeout > 0 {
@@ -274,7 +274,7 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 					return
 				}
 				sendBuffer.SetReaded(writeCount)
-				LogDebug("%v send:%v unread:%v", this.GetConnectionId(), writeCount, sendBuffer.UnReadLength())
+				//LogDebug("%v send:%v unread:%v", this.GetConnectionId(), writeCount, sendBuffer.UnReadLength())
 				if delaySendDecodePacketData != nil {
 					if _,bufferErr := sendBuffer.Write(delaySendDecodePacketData); bufferErr == nil {
 						LogDebug("%v delayData write:%v", this.GetConnectionId(), len(delaySendDecodePacketData))

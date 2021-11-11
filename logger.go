@@ -6,10 +6,12 @@ import (
 	"time"
 )
 
+// 日志写接口
 type ILogWriter interface {
 	Write(str string)
 }
 
+// 控制台输出日志
 type ConsoleLogWriter struct {
 }
 
@@ -17,9 +19,20 @@ func (this *ConsoleLogWriter) Write(str string) {
 	fmt.Println(str)
 }
 
+// 什么都不处理,可用于关闭日志
+type NoneLogWriter struct {
+}
+
+func (this *NoneLogWriter) Write(str string) {
+}
+
 var (
-	logger ILogWriter = &ConsoleLogWriter{}
+	logWriter ILogWriter = &ConsoleLogWriter{}
 )
+
+func SetDefaultLogWriter(w ILogWriter) {
+	logWriter = w
+}
 
 func LogDebug(v ...interface{}) {
 	level := "D"
@@ -31,9 +44,9 @@ func LogDebug(v ...interface{}) {
 		prefix = fmt.Sprintf("[%s][%s]:", level, time.Now().Format("2006-01-02 15:04:05"))
 	}
 	if len(v) > 1 {
-		logger.Write(prefix + fmt.Sprintf(v[0].(string), v[1:]...))
+		logWriter.Write(prefix + fmt.Sprintf(v[0].(string), v[1:]...))
 	} else {
-		logger.Write(prefix + fmt.Sprint(v[0]))
+		logWriter.Write(prefix + fmt.Sprint(v[0]))
 	}
 }
 
