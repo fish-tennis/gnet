@@ -25,7 +25,6 @@ func main() {
 	}
 	listenAddress := "127.0.0.1:10002"
 	codec := gnet.NewXorCodec([]byte{0,1,2,3,4,5,6})
-	//codec := gnet.NoneCodec{}
 	netMgr.NewListener(listenAddress, connectionConfig, codec, &EchoServerHandler{}, &EchoListenerHandler{})
 	time.Sleep(time.Second)
 
@@ -40,7 +39,7 @@ func main() {
 		wg.Done()
 	}
 	wg.Wait()
-	netMgr.Shutdown()
+	netMgr.Shutdown(true)
 }
 
 // 监听接口

@@ -19,6 +19,13 @@ type TcpListener struct {
 	connectionMapLock sync.RWMutex
 
 	isRunning bool
+	// 防止执行多次关闭操作
+	closeOnce sync.Once
+	// 关闭回调
+	onClose func(listener Listener)
+
+	// 外部传进来的WaitGroup
+	netMgrWg *sync.WaitGroup
 }
 
 func NewTcpListener(acceptConnectionConfig ConnectionConfig, acceptConnectionCodec Codec, acceptConnectionHandler ConnectionHandler, listenerHandler ListenerHandler) *TcpListener {
@@ -45,12 +52,16 @@ func (this *TcpListener) Start(listenAddress string, closeNotify chan struct{}) 
 
 	// 监听协程
 	this.isRunning = true
+	this.netMgrWg.Add(1)
 	go func() {
+		defer this.netMgrWg.Done()
 		this.acceptLoop(closeNotify)
 	}()
 
 	// 关闭响应协程
+	this.netMgrWg.Add(1)
 	go func() {
+		defer this.netMgrWg.Done()
 		select {
 		case <-closeNotify:
 			LogDebug("recv closeNotify %v", this.GetListenerId())
@@ -62,8 +73,15 @@ func (this *TcpListener) Start(listenAddress string, closeNotify chan struct{}) 
 }
 
 func (this *TcpListener) Close() {
-	this.isRunning = false
-	this.netListener.Close()
+	this.closeOnce.Do(func() {
+		this.isRunning = false
+		if this.netListener != nil {
+			this.netListener.Close()
+		}
+		if this.onClose != nil {
+			this.onClose(this)
+		}
+	})
 }
 
 // accept协程
@@ -71,6 +89,7 @@ func (this *TcpListener) acceptLoop(closeNotify chan struct{}) {
 	defer func() {
 		if err := recover(); err != nil {
 			LogDebug("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
+			LogStack()
 		}
 	}()
 
@@ -82,10 +101,13 @@ func (this *TcpListener) acceptLoop(closeNotify chan struct{}) {
 			LogDebug("%v accept err:%v", this.GetListenerId(), err)
 			break
 		}
+		this.netMgrWg.Add(1)
 		go func() {
 			defer func() {
+				this.netMgrWg.Done()
 				if err := recover(); err != nil {
 					LogDebug("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
+					LogStack()
 				}
 			}()
 			newTcpConn := NewTcpConnectionAccept(newConn, this.acceptConnectionConfig, this.acceptConnectionCodec, this.acceptConnectionHandler)
@@ -96,6 +118,7 @@ func (this *TcpListener) acceptLoop(closeNotify chan struct{}) {
 			this.connectionMapLock.Lock()
 			this.connectionMap[newTcpConn.GetConnectionId()] = newTcpConn
 			this.connectionMapLock.Unlock()
+			newTcpConn.netMgrWg = this.netMgrWg
 			newTcpConn.Start(closeNotify)
 
 			if this.handler != nil {

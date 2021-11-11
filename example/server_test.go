@@ -72,7 +72,7 @@ func TestTestServer(t *testing.T) {
 		wg.Done()
 	}
 	wg.Wait()
-	netMgr.Shutdown()
+	netMgr.Shutdown(true)
 
 	println("*********************************************************")
 	// antnet serverRecv:113669 clientRecv:457562

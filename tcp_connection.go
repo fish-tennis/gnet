@@ -18,6 +18,8 @@ type TcpConnection struct {
 	lastRecvPacketTick uint32
 	// 发包缓存
 	sendPacketCache chan *Packet
+	// 外部传进来的WaitGroup
+	netMgrWg *sync.WaitGroup
 }
 
 func NewTcpConnector(config ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
@@ -80,13 +82,17 @@ func (this *TcpConnection) Connect(address string) bool {
 // 开启读写协程
 func (this *TcpConnection) Start(closeNotify chan struct{}) {
 	// 开启收包协程
+	this.netMgrWg.Add(1)
 	go func() {
+		defer this.netMgrWg.Done()
 		this.readLoop()
 		this.Close()
 	}()
 
 	// 开启发包协程
+	this.netMgrWg.Add(1)
 	go func() {
+		defer this.netMgrWg.Done()
 		this.writeLoop(closeNotify)
 		this.Close()
 	}()
