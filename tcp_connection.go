@@ -281,11 +281,14 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 				}
 				sendBuffer.SetReaded(writeCount)
 				//LogDebug("%v send:%v unread:%v", this.GetConnectionId(), writeCount, sendBuffer.UnReadLength())
-				if delaySendDecodePacketData != nil {
-					if _,bufferErr := sendBuffer.Write(delaySendDecodePacketData); bufferErr == nil {
-						LogDebug("%v delayData write:%v", this.GetConnectionId(), len(delaySendDecodePacketData))
-						//LogDebug("%v", delaySendDecodePacketData)
-						//LogDebug("%v unread:%v", this.GetConnectionId(), sendBuffer.UnReadLength())
+				if len(delaySendDecodePacketData) > 0 {
+					writedLen,_ := sendBuffer.Write(delaySendDecodePacketData)
+					// 这里不一定能全部写完
+					if writedLen < len(delaySendDecodePacketData) {
+						delaySendDecodePacketData = delaySendDecodePacketData[writedLen:]
+						LogDebug("%v write delaybuffer :%v", this.GetConnectionId(), writedLen)
+						break
+					} else {
 						delaySendDecodePacketData = nil
 					}
 				}
