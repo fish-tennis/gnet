@@ -287,7 +287,6 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 					if writedLen < len(delaySendDecodePacketData) {
 						delaySendDecodePacketData = delaySendDecodePacketData[writedLen:]
 						LogDebug("%v write delaybuffer :%v", this.GetConnectionId(), writedLen)
-						break
 					} else {
 						delaySendDecodePacketData = nil
 					}
