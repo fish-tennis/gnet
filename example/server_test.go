@@ -44,7 +44,7 @@ func TestTestServer(t *testing.T) {
 	)
 
 	// 关闭日志
-	gnet.SetDefaultLogWriter(&gnet.NoneLogWriter{})
+	gnet.SetLogWriter(&gnet.NoneLogWriter{})
 	netMgr := gnet.GetNetMgr()
 	connectionConfig := gnet.ConnectionConfig{
 		SendPacketCacheCap:    32,
