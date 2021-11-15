@@ -48,31 +48,31 @@ func (this *Logger) write(levelStr,format string, args ...interface{}) {
 }
 
 func (this *Logger) Debug(format string, args ...interface{}) {
-	if this.level >= DebugLevel {
+	if this.level <= DebugLevel {
 		this.write("D", format, args...)
 	}
 }
 
 func (this *Logger) Info(format string, args ...interface{}) {
-	if this.level >= InfoLevel {
+	if this.level <= InfoLevel {
 		this.write("I", format, args...)
 	}
 }
 
 func (this *Logger) Warn(format string, args ...interface{}) {
-	if this.level >= WarnLevel {
+	if this.level <= WarnLevel {
 		this.write("W", format, args...)
 	}
 }
 
 func (this *Logger) Error(format string, args ...interface{}) {
-	if this.level >= ErrorLevel {
+	if this.level <= ErrorLevel {
 		this.write("E", format, args...)
 	}
 }
 
 func (this *Logger) Fatal(format string, args ...interface{}) {
-	if this.level >= FatalLevel {
+	if this.level <= FatalLevel {
 		this.write("F", format, args...)
 	}
 }

@@ -55,7 +55,7 @@ func TestTestServer(t *testing.T) {
 		WriteTimeout:          0,
 	}
 
-	codec := gnet.NoneCodec{}
+	codec := &gnet.DefaultCodec{}
 	netMgr.NewListener(listenAddress, connectionConfig, codec, &TestServerClientHandler{}, &TestServerListenerHandler{})
 	time.Sleep(time.Second)
 
@@ -75,8 +75,9 @@ func TestTestServer(t *testing.T) {
 	netMgr.Shutdown(true)
 
 	println("*********************************************************")
-	// antnet serverRecv:113669 clientRecv:457562
-	// gnet   serverRecv:199361 clientRecv:800342
+	// antnet:             	serverRecv:113669 clientRecv:457562
+	// gnet 发包 RingBuffer:	serverRecv:199361 clientRecv:800342
+	// gnet 收发 RingBuffer:	serverRecv:478501 clientRecv:1916884
 	println(fmt.Sprintf("serverRecv:%v clientRecv:%v", serverRecvPacketCount, clientRecvPacketCount))
 	println("*********************************************************")
 }

@@ -18,6 +18,8 @@ type TcpConnection struct {
 	lastRecvPacketTick uint32
 	// 发包缓存
 	sendPacketCache chan *Packet
+	// 收包缓存
+	recvBuffer *RingBuffer
 	// 外部传进来的WaitGroup
 	netMgrWg *sync.WaitGroup
 }
@@ -103,12 +105,14 @@ func (this *TcpConnection) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
 			LogDebug("readLoop fatal %v: %v", this.GetConnectionId(), err.(error))
+			LogStack()
 		}
 	}()
 
 	LogDebug("readLoop begin %v", this.GetConnectionId())
-	packetHeaderData := make([]byte, PacketHeaderSize)
-	packetHeader := &PacketHeader{}
+	this.recvBuffer = NewRingBuffer(1024*10)
+	//packetHeaderData := make([]byte, PacketHeaderSize)
+	//packetHeader := &PacketHeader{}
 	for this.isConnected {
 		// TODO:目前方案是分别读取消息头和消息体,就算系统已经收到了多个包的数据,但是当前方案,依然需要多次io.ReadFull才能
 		//把数据读出来
@@ -116,7 +120,12 @@ func (this *TcpConnection) readLoop() {
 
 		// 此处阻塞读,当连接关闭时,会中断阻塞,返回err
 		// TODO:改为this.conn.Read,有多少就读出来多少
-		_, err := io.ReadFull(this.conn, packetHeaderData)
+		writeBuffer := this.recvBuffer.WriteBuffer()
+		if len(writeBuffer) == 0 {
+			// 不可能走到这里来
+			return
+		}
+		n,err := this.conn.Read(writeBuffer)
 		if err != nil {
 			if err != io.EOF {
 				// ...
@@ -124,52 +133,77 @@ func (this *TcpConnection) readLoop() {
 			LogDebug("readLoop %v err:%v", this.GetConnectionId(), err)
 			break
 		}
-		decodePacketHeaderData := packetHeaderData
-		if this.codec != nil {
-			// 解码包头
-			decodePacketHeaderData = this.codec.DecodeHeader(packetHeaderData)
-			if decodePacketHeaderData == nil {
-				LogDebug("readLoop %v decode header err", this.GetConnectionId())
+		LogDebug("%v Read:%v", this.GetConnectionId(), n)
+		this.recvBuffer.SetWrited(n)
+		for this.isConnected {
+			newPacket := this.codec.Decode(this, this.recvBuffer.ReadBuffer())
+			if newPacket == nil {
 				break
 			}
-		}
-		packetHeader.ReadFrom(decodePacketHeaderData)
-		if packetHeader.GetLen() == 0 {
-			LogDebug("readLoop %v packetHeader len err", this.GetConnectionId())
-			break
-		}
-		// 检查最大数据包限制
-		if packetHeader.GetLen() >= MaxPacketDataSize {
-			LogDebug("readLoop %v packetHeader len err:%v", this.GetConnectionId(), packetHeader.GetLen())
-			break
-		}
-		// 检查自己设置的最大数据包限制
-		if this.config.MaxPacketSize > 0 && packetHeader.GetLen() > this.config.MaxPacketSize {
-			LogDebug("readLoop %v packetHeader len err:%v>%v", this.GetConnectionId(), packetHeader.GetLen(), this.config.MaxPacketSize)
-			break
-		}
-		packetData := make([]byte, packetHeader.GetLen())
-		// 此处阻塞读,当连接关闭时,会中断阻塞,返回err
-		_, dataErr := io.ReadFull(this.conn, packetData)
-		if dataErr != nil {
-			if dataErr != io.EOF {
-				// ...
+			// 最近收到完整数据包的时间
+			// 有一种极端情况,网速太慢,即使没有掉线,也可能触发收包超时检测
+			this.lastRecvPacketTick = GetCurrentTimeStamp()
+			// TODO:根据messageHeader.GetFlags()的值对messageData进行处理
+			if this.handler != nil {
+				this.handler.OnRecvPacket(this, newPacket)
 			}
-			LogDebug("readLoop %v err:%v", this.GetConnectionId(), dataErr)
-			break
 		}
-		decodePacketData := packetData
-		if this.codec != nil {
-			// 解码包体
-			decodePacketData = this.codec.DecodeData(packetData)
-		}
-		// 最近收到完整数据包的时间
-		// 有一种极端情况,网速太慢,即使没有掉线,也可能触发收包超时检测
-		this.lastRecvPacketTick = GetCurrentTimeStamp()
-		// TODO:根据messageHeader.GetFlags()的值对messageData进行处理
-		if this.handler != nil {
-			this.handler.OnRecvPacket(this, &Packet{data: decodePacketData})
-		}
+
+
+		//_, err := io.ReadFull(this.conn, packetHeaderData)
+		//if err != nil {
+		//	if err != io.EOF {
+		//		// ...
+		//	}
+		//	LogDebug("readLoop %v err:%v", this.GetConnectionId(), err)
+		//	break
+		//}
+		//decodePacketHeaderData := packetHeaderData
+		//if this.codec != nil {
+		//	// 解码包头
+		//	decodePacketHeaderData = this.codec.DecodeHeader(packetHeaderData)
+		//	if decodePacketHeaderData == nil {
+		//		LogDebug("readLoop %v decode header err", this.GetConnectionId())
+		//		break
+		//	}
+		//}
+		//packetHeader.ReadFrom(decodePacketHeaderData)
+		//if packetHeader.GetLen() == 0 {
+		//	LogDebug("readLoop %v packetHeader len err", this.GetConnectionId())
+		//	break
+		//}
+		//// 检查最大数据包限制
+		//if packetHeader.GetLen() >= MaxPacketDataSize {
+		//	LogDebug("readLoop %v packetHeader len err:%v", this.GetConnectionId(), packetHeader.GetLen())
+		//	break
+		//}
+		//// 检查自己设置的最大数据包限制
+		//if this.config.MaxPacketSize > 0 && packetHeader.GetLen() > this.config.MaxPacketSize {
+		//	LogDebug("readLoop %v packetHeader len err:%v>%v", this.GetConnectionId(), packetHeader.GetLen(), this.config.MaxPacketSize)
+		//	break
+		//}
+		//packetData := make([]byte, packetHeader.GetLen())
+		//// 此处阻塞读,当连接关闭时,会中断阻塞,返回err
+		//_, dataErr := io.ReadFull(this.conn, packetData)
+		//if dataErr != nil {
+		//	if dataErr != io.EOF {
+		//		// ...
+		//	}
+		//	LogDebug("readLoop %v err:%v", this.GetConnectionId(), dataErr)
+		//	break
+		//}
+		//decodePacketData := packetData
+		//if this.codec != nil {
+		//	// 解码包体
+		//	decodePacketData = this.codec.DecodeData(packetData)
+		//}
+		//// 最近收到完整数据包的时间
+		//// 有一种极端情况,网速太慢,即使没有掉线,也可能触发收包超时检测
+		//this.lastRecvPacketTick = GetCurrentTimeStamp()
+		//// TODO:根据messageHeader.GetFlags()的值对messageData进行处理
+		//if this.handler != nil {
+		//	this.handler.OnRecvPacket(this, &Packet{data: decodePacketData})
+		//}
 	}
 	LogDebug("readLoop end %v", this.GetConnectionId())
 }
@@ -200,7 +234,7 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 			// 数据包编码
 			decodePacketData := packet.data
 			if this.codec != nil {
-				decodePacketData = this.codec.Encode(packet.data)
+				decodePacketData = this.codec.Encode(this, packet)
 			}
 			writedLen,bufferErr := sendBuffer.Write(decodePacketData)
 			if bufferErr != nil {
@@ -226,7 +260,7 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 					// 数据包编码
 					decodePacketData = newPacket.data
 					if this.codec != nil {
-						decodePacketData = this.codec.Encode(newPacket.data)
+						decodePacketData = this.codec.Encode(this, newPacket)
 					}
 					writedLen,bufferErr = sendBuffer.Write(decodePacketData)
 					// 批量粘包,导致缓存不够用了,没写入缓存的数据延后写
@@ -259,7 +293,7 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 		}
 
 		if sendBuffer.UnReadLength() > 0 {
-			// 可读数据有可能分别存在数组的尾部和头部,所以需要循环发送,有可能发送2次
+			// 可读数据有可能分别存在数组的尾部和头部,所以需要循环发送,有可能需要发送多次
 			for this.isConnected && sendBuffer.UnReadLength() > 0 {
 				if this.config.WriteTimeout > 0 {
 					setTimeoutErr := this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout)*time.Second))

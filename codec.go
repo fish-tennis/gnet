@@ -1,40 +1,75 @@
 package gnet
 
 // 编解码接口
-// 由于读取流数据时,先解码出消息头,再根据消息头的内容来解包体,所以包头和包体的解码分开提供接口
-// 但是编码没有这种需求,所以只提供一个编码接口就可以了
 type Codec interface {
-	// 包头解码接口,返回的数组大小必须是MessageHeaderSize
-	// 返回解码后的数据,可能地址和src相同
-	DecodeHeader(header []byte) []byte
-
-	// 包体解码接口
-	// 返回解码后的数据,可能地址和src相同
-	DecodeData(data []byte) []byte
-
 	// 编码接口
-	// 返回编码后的数据,可能地址和src相同
-	Encode(src []byte) []byte
+	Encode(connection Connection, packet *Packet) []byte
+
+	// 解码接口
+	Decode(connection Connection, data []byte) *Packet
 }
 
-// 不进行编解码
-type NoneCodec struct {
+// 默认编解码
+type DefaultCodec struct {
 }
 
-func (this NoneCodec) DecodeHeader(header []byte) []byte  {
-	return header
-}
-
-func (this NoneCodec) DecodeData(data []byte) []byte  {
-	return data
-}
-
-func (this NoneCodec) Encode(src []byte) []byte  {
+func (this *DefaultCodec) Encode(_ Connection, packet *Packet) []byte  {
+	src := packet.data
 	dst := make([]byte, len(src)+PacketHeaderSize)
 	packetHeader := NewPacketHeader(uint32(len(src)), 0)
 	packetHeader.WriteTo(dst)
 	copy(dst[PacketHeaderSize:],src)
 	return dst
+}
+
+func (this *DefaultCodec) Decode(connection Connection, data []byte) *Packet {
+	if tcpConnection,ok := connection.(*TcpConnection); ok {
+		// TcpConnection用了RingBuffer,解码时,尽可能的不产生copy
+		if tcpConnection.recvBuffer.UnReadLength() < PacketHeaderSize {
+			return nil
+		}
+		var packetHeaderData []byte
+		readBuffer := tcpConnection.recvBuffer.ReadBuffer()
+		if len(readBuffer) >= PacketHeaderSize {
+			// 这里不产生copy
+			packetHeaderData = readBuffer[0:PacketHeaderSize]
+		} else {
+			packetHeaderData = make([]byte, PacketHeaderSize)
+			// 先拷贝RingBuffer的尾部
+			n := copy(packetHeaderData, readBuffer)
+			// 再拷贝RingBuffer的头部
+			copy(packetHeaderData[n:], tcpConnection.recvBuffer.buffer)
+		}
+		header := &PacketHeader{}
+		header.ReadFrom(packetHeaderData)
+		if tcpConnection.recvBuffer.UnReadLength() < PacketHeaderSize + int(header.GetLen()) {
+			return nil
+		}
+		tcpConnection.recvBuffer.SetReaded(PacketHeaderSize)
+		readBuffer = tcpConnection.recvBuffer.ReadBuffer()
+		if len(readBuffer) >= int(header.GetLen()) {
+			// 这里不产生copy
+			packetData := readBuffer[0:header.GetLen()]
+			tcpConnection.recvBuffer.SetReaded(int(header.GetLen()))
+			return NewPacket(packetData)
+		} else {
+			packetData := make([]byte, header.GetLen())
+			// 先拷贝RingBuffer的尾部
+			n := copy(packetData, readBuffer)
+			// 再拷贝RingBuffer的头部
+			copy(packetData[n:], tcpConnection.recvBuffer.buffer)
+			tcpConnection.recvBuffer.SetReaded(int(header.GetLen()))
+			return NewPacket(packetData)
+		}
+	}
+	if len(data) >= PacketHeaderSize {
+		header := &PacketHeader{}
+		header.ReadFrom(data)
+		if len(data) >= PacketHeaderSize+int(header.GetLen()) {
+			return NewPacket(data[PacketHeaderSize:PacketHeaderSize+int(header.GetLen())])
+		}
+	}
+	return nil
 }
 
 // 异或编解码
@@ -46,21 +81,8 @@ func NewXorCodec(key []byte) *XorCodec {
 	return &XorCodec{key: key}
 }
 
-func (this XorCodec) DecodeHeader(header []byte) []byte {
-	for i := 0; i < PacketHeaderSize; i++ {
-		header[i] = header[i] ^ this.key[i%len(this.key)]
-	}
-	return header
-}
-
-func (this XorCodec) DecodeData(data []byte) []byte {
-	for i := 0; i < len(data); i++ {
-		data[i] = data[i] ^ this.key[(i+PacketHeaderSize)%len(this.key)]
-	}
-	return data
-}
-
-func (this XorCodec) Encode(src []byte) []byte {
+func (this *XorCodec) Encode(_ Connection, packet *Packet) []byte {
+	src := packet.data
 	dst := make([]byte, len(src)+PacketHeaderSize)
 	packetHeader := NewPacketHeader(uint32(len(src)), 0)
 	packetHeader.WriteTo(dst)
@@ -71,4 +93,69 @@ func (this XorCodec) Encode(src []byte) []byte {
 		dst[i+PacketHeaderSize] = src[i] ^ this.key[(i+PacketHeaderSize)%len(this.key)]
 	}
 	return dst
+}
+
+func (this *XorCodec) Decode(connection Connection, data []byte) *Packet {
+	if tcpConnection,ok := connection.(*TcpConnection); ok {
+		// TcpConnection用了RingBuffer,解码时,尽可能的不产生copy
+		if tcpConnection.recvBuffer.UnReadLength() < PacketHeaderSize {
+			return nil
+		}
+		packetHeaderData := make([]byte, PacketHeaderSize)
+		readBuffer := tcpConnection.recvBuffer.ReadBuffer()
+		if len(readBuffer) >= PacketHeaderSize {
+			copy(packetHeaderData, readBuffer)
+		} else {
+			// 先拷贝RingBuffer的尾部
+			n := copy(packetHeaderData, readBuffer)
+			// 再拷贝RingBuffer的头部
+			copy(packetHeaderData[n:], tcpConnection.recvBuffer.buffer)
+		}
+		for i := 0; i < PacketHeaderSize; i++ {
+			packetHeaderData[i] = packetHeaderData[i] ^ this.key[i%len(this.key)]
+		}
+		header := &PacketHeader{}
+		header.ReadFrom(packetHeaderData)
+		if tcpConnection.recvBuffer.UnReadLength() < PacketHeaderSize + int(header.GetLen()) {
+			return nil
+		}
+		tcpConnection.recvBuffer.SetReaded(PacketHeaderSize)
+		readBuffer = tcpConnection.recvBuffer.ReadBuffer()
+		if len(readBuffer) >= int(header.GetLen()) {
+			// 这里不产生copy
+			packetData := readBuffer[0:header.GetLen()]
+			tcpConnection.recvBuffer.SetReaded(int(header.GetLen()))
+			for i := 0; i < len(packetData); i++ {
+				packetData[i] = packetData[i] ^ this.key[(i+PacketHeaderSize)%len(this.key)]
+			}
+			return NewPacket(packetData)
+		} else {
+			packetData := make([]byte, header.GetLen())
+			// 先拷贝RingBuffer的尾部
+			n := copy(packetData, readBuffer)
+			// 再拷贝RingBuffer的头部
+			copy(packetData[n:], tcpConnection.recvBuffer.buffer)
+			tcpConnection.recvBuffer.SetReaded(int(header.GetLen()))
+			for i := 0; i < len(packetData); i++ {
+				packetData[i] = packetData[i] ^ this.key[(i+PacketHeaderSize)%len(this.key)]
+			}
+			return NewPacket(packetData)
+		}
+	}
+	if len(data) >= PacketHeaderSize {
+		packetHeaderData := make([]byte, PacketHeaderSize)
+		for i := 0; i < PacketHeaderSize; i++ {
+			packetHeaderData[i] = data[i] ^ this.key[i%len(this.key)]
+		}
+		header := &PacketHeader{}
+		header.ReadFrom(packetHeaderData)
+		if len(data) >= PacketHeaderSize+int(header.GetLen()) {
+			packetData := data[PacketHeaderSize:PacketHeaderSize+int(header.GetLen())]
+			for i := 0; i < len(packetData); i++ {
+				packetData[i] = packetData[i] ^ this.key[(i+PacketHeaderSize)%len(this.key)]
+			}
+			return NewPacket(packetData)
+		}
+	}
+	return nil
 }

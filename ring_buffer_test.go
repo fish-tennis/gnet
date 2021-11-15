@@ -15,7 +15,9 @@ func TestReadWrite(t *testing.T) {
 	println(fmt.Sprintf("%v", rb.buffer))
 	println(fmt.Sprintf("readBuffer:%v", rb.ReadBuffer()))
 	println(fmt.Sprintf("unReadLen:%v", rb.UnReadLength()))
+	println(fmt.Sprintf("WriteBuffer:%v", rb.WriteBuffer()))
 	rb.SetReaded(8)
+	println(fmt.Sprintf("WriteBuffer:%v", rb.WriteBuffer()))
 	for i := 0; i < 8; i++ {
 		rb.Write([]byte{writeCounter})
 		writeCounter++
@@ -23,7 +25,9 @@ func TestReadWrite(t *testing.T) {
 	println(fmt.Sprintf("%v", rb.buffer))
 	println(fmt.Sprintf("readBuffer:%v", rb.ReadBuffer()))
 	println(fmt.Sprintf("unReadLen:%v", rb.UnReadLength()))
+	println(fmt.Sprintf("WriteBuffer:%v", rb.WriteBuffer()))
 	rb.SetReaded(len(rb.ReadBuffer()))
 	println(fmt.Sprintf("readBuffer:%v", rb.ReadBuffer()))
 	println(fmt.Sprintf("unReadLen:%v", rb.UnReadLength()))
+	println(fmt.Sprintf("WriteBuffer:%v", rb.WriteBuffer()))
 }

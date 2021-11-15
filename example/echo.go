@@ -25,6 +25,7 @@ func main() {
 	}
 	listenAddress := "127.0.0.1:10002"
 	codec := gnet.NewXorCodec([]byte{0,1,2,3,4,5,6})
+	//codec := &gnet.DefaultCodec{}
 	netMgr.NewListener(listenAddress, connectionConfig, codec, &EchoServerHandler{}, &EchoListenerHandler{})
 	time.Sleep(time.Second)
 
