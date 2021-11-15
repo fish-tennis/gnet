@@ -38,7 +38,7 @@ func TestTestServer(t *testing.T) {
 		// 模拟客户端数量
 		clientCount = 100
 		// 测试程序运行多长时间
-		testTime time.Duration = time.Minute
+		testTime = time.Minute
 		// 监听地址
 		listenAddress = "127.0.0.1:10002"
 	)
@@ -49,10 +49,11 @@ func TestTestServer(t *testing.T) {
 	connectionConfig := gnet.ConnectionConfig{
 		SendPacketCacheCap:    32,
 		// 因为测试的数据包比较小,所以这里也设置的不大
-		BatchPacketBufferSize: 1024,
-		MaxPacketSize:         1024,
-		RecvTimeout:           0,
-		WriteTimeout:          0,
+		SendBufferSize: 1024,
+		RecvBufferSize: 1024,
+		MaxPacketSize:  1024,
+		RecvTimeout:    0,
+		WriteTimeout:   0,
 	}
 
 	codec := &gnet.DefaultCodec{}

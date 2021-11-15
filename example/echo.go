@@ -17,11 +17,12 @@ func main() {
 
 	netMgr := gnet.GetNetMgr()
 	connectionConfig := gnet.ConnectionConfig{
-		SendPacketCacheCap:    100,
-		BatchPacketBufferSize: 60,
-		MaxPacketSize:         1024,
-		RecvTimeout:           0,
-		WriteTimeout:          0,
+		SendPacketCacheCap: 100,
+		SendBufferSize:     60,
+		RecvBufferSize:     60,
+		MaxPacketSize:      1024,
+		RecvTimeout:        0,
+		WriteTimeout:       0,
 	}
 	listenAddress := "127.0.0.1:10002"
 	codec := gnet.NewXorCodec([]byte{0,1,2,3,4,5,6})
