@@ -20,6 +20,11 @@ func NewRingBuffer(size int) *RingBuffer {
 	}
 }
 
+// Buffer
+func (this *RingBuffer) GetBuffer() []byte {
+	return this.buffer
+}
+
 // 未被读取的长度
 func (this *RingBuffer) UnReadLength() int {
 	return this.w - this.r

@@ -322,3 +322,13 @@ func (this *TcpConnection) createRecvBuffer() *RingBuffer {
 	}
 	return NewRingBuffer(int(ringBufferSize))
 }
+
+// 发包RingBuffer
+func (this *TcpConnection) GetSendBuffer() *RingBuffer {
+	return this.sendBuffer
+}
+
+// 收包RingBuffer
+func (this *TcpConnection) GetRecvBuffer() *RingBuffer {
+	return this.recvBuffer
+}

@@ -9,6 +9,7 @@ type Connection interface {
 	GetConnectionId() uint32
 
 	// 发包
+	// NOTE:调用Send(packet)之后,不要在对packet进行读写!
 	Send(packet *Packet) bool
 
 	// 是否连接成功
@@ -16,6 +17,9 @@ type Connection interface {
 
 	// 获取编解码接口
 	GetCodec() Codec
+
+	// 设置编解码接口
+	SetCodec(codec Codec)
 }
 
 // 连接设置
@@ -66,8 +70,14 @@ func (this *baseConnection) IsConnected() bool {
 	return this.isConnected
 }
 
+// 获取编解码接口
 func (this *baseConnection) GetCodec() Codec {
 	return this.codec
+}
+
+// 设置编解码接口
+func (this *baseConnection) SetCodec(codec Codec) {
+	this.codec = codec
 }
 
 var (

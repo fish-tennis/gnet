@@ -27,7 +27,7 @@ func TestEcho(t *testing.T) {
 	}
 	listenAddress := "127.0.0.1:10002"
 	codec := gnet.NewXorCodec([]byte{0,1,2,3,4,5,6})
-	//codec := &gnet.DefaultCodec{}
+	//codec := gnet.NewDefaultCodec()
 	netMgr.NewListener(listenAddress, connectionConfig, codec, &EchoServerHandler{}, &EchoListenerHandler{})
 	time.Sleep(time.Second)
 
@@ -106,7 +106,7 @@ func (e *EchoClientHandler) OnConnected(connection gnet.Connection, success bool
 	gnet.LogDebug(fmt.Sprintf("Client OnConnected %v %v", connection.GetConnectionId(), success))
 }
 
-func (e *EchoClientHandler) OnDisconnected(connection gnet.Connection, ) {
+func (e *EchoClientHandler) OnDisconnected(connection gnet.Connection ) {
 	gnet.LogDebug(fmt.Sprintf("Client OnDisconnected %v", connection.GetConnectionId()))
 }
 

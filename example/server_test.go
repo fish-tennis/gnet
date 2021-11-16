@@ -56,7 +56,7 @@ func TestTestServer(t *testing.T) {
 		WriteTimeout:   0,
 	}
 
-	codec := &gnet.DefaultCodec{}
+	codec := gnet.NewDefaultCodec()
 	netMgr.NewListener(listenAddress, connectionConfig, codec, &TestServerClientHandler{}, &TestServerListenerHandler{})
 	time.Sleep(time.Second)
 
