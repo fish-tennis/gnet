@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"github.com/gnet"
 	"sync"
+	"testing"
 	"time"
 )
 
-func main() {
+func TestEcho(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
 			gnet.LogDebug("fatal %v", err.(error))
@@ -49,11 +50,11 @@ type EchoListenerHandler struct {
 	
 }
 
-func (e EchoListenerHandler) OnConnectionConnected(connection gnet.Connection) {
+func (e *EchoListenerHandler) OnConnectionConnected(connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
 }
 
-func (e EchoListenerHandler) OnConnectionDisconnect(connection gnet.Connection) {
+func (e *EchoListenerHandler) OnConnectionDisconnect(connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
 }
 

@@ -5,11 +5,17 @@ import "sync/atomic"
 // 连接接口定义
 type Connection interface {
 
+	// 连接唯一id
 	GetConnectionId() uint32
 
+	// 发包
 	Send(packet *Packet) bool
 
+	// 是否连接成功
 	IsConnected() bool
+
+	// 获取编解码接口
+	GetCodec() Codec
 }
 
 // 连接设置
@@ -58,6 +64,10 @@ func (this *baseConnection) GetConnectionId() uint32 {
 // 是否连接成功
 func (this *baseConnection) IsConnected() bool {
 	return this.isConnected
+}
+
+func (this *baseConnection) GetCodec() Codec {
+	return this.codec
 }
 
 var (

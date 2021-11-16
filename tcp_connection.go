@@ -127,7 +127,7 @@ func (this *TcpConnection) readLoop() {
 			LogDebug("readLoop %v err:%v", this.GetConnectionId(), err)
 			break
 		}
-		LogDebug("%v Read:%v", this.GetConnectionId(), n)
+		//LogDebug("%v Read:%v", this.GetConnectionId(), n)
 		this.recvBuffer.SetWrited(n)
 		for this.isConnected {
 			newPacket := this.codec.Decode(this, this.recvBuffer.ReadBuffer())

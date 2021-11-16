@@ -91,5 +91,6 @@ func (this *NetMgr) Shutdown(waitForAllNetGoroutine bool) {
 	close(this.closeNotify)
 	if waitForAllNetGoroutine {
 		this.wg.Wait()
+		LogDebug("AllNetGoroutine close")
 	}
 }
