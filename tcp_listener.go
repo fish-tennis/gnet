@@ -46,7 +46,7 @@ func (this *TcpListener) Start(listenAddress string, closeNotify chan struct{}) 
 	var err error
 	this.netListener,err = net.Listen("tcp", listenAddress)
 	if err != nil {
-		LogDebug("Listen Failed %v: %v", this.GetListenerId(), err)
+		LogError("Listen Failed %v: %v", this.GetListenerId(), err)
 		return false
 	}
 
@@ -88,7 +88,7 @@ func (this *TcpListener) Close() {
 func (this *TcpListener) acceptLoop(closeNotify chan struct{}) {
 	defer func() {
 		if err := recover(); err != nil {
-			LogDebug("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
+			LogError("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
 			LogStack()
 		}
 	}()
@@ -106,7 +106,7 @@ func (this *TcpListener) acceptLoop(closeNotify chan struct{}) {
 			defer func() {
 				this.netMgrWg.Done()
 				if err := recover(); err != nil {
-					LogDebug("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
+					LogError("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
 					LogStack()
 				}
 			}()

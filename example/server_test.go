@@ -44,7 +44,8 @@ func TestTestServer(t *testing.T) {
 	)
 
 	// 关闭日志
-	gnet.SetLogWriter(&gnet.NoneLogWriter{})
+	//gnet.SetLogWriter(&gnet.NoneLogWriter{})
+	gnet.SetLogLevel(gnet.ErrorLevel)
 	netMgr := gnet.GetNetMgr()
 	connectionConfig := gnet.ConnectionConfig{
 		SendPacketCacheCap:    32,
@@ -79,6 +80,7 @@ func TestTestServer(t *testing.T) {
 	// antnet:             	serverRecv:113669 clientRecv:457562
 	// gnet 发包 RingBuffer:	serverRecv:199361 clientRecv:800342
 	// gnet 收发 RingBuffer:	serverRecv:478501 clientRecv:1916884
+	// gnet latest 	      :	serverRecv:497713 clientRecv:1993764
 	println(fmt.Sprintf("serverRecv:%v clientRecv:%v", serverRecvPacketCount, clientRecvPacketCount))
 	println("*********************************************************")
 }

@@ -34,9 +34,6 @@ func NewTcpConnector(config ConnectionConfig, codec Codec, handler ConnectionHan
 			config: config,
 			codec: codec,
 			handler: handler,
-			//sendBuffer: &MessageBuffer{
-			//	buffer: make(chan []byte, config.SendBufferSize),
-			//},
 		},
 		sendPacketCache: make(chan *Packet, config.SendPacketCacheCap),
 	}
@@ -50,26 +47,18 @@ func NewTcpConnectionAccept(conn net.Conn, config ConnectionConfig, codec Codec,
 			config: config,
 			codec: codec,
 			handler: handler,
-			//sendBuffer: &MessageBuffer{
-			//	buffer: make(chan []byte, config.SendBufferSize),
-			//},
 		},
 		sendPacketCache: make(chan *Packet, config.SendPacketCacheCap),
 		conn: conn,
 	}
 }
 
-//// 发送数据
-//func (this* TcpConnection) Send(data []byte) bool {
-//	return false
-//}
-
 // 连接
 func (this *TcpConnection) Connect(address string) bool {
 	conn, err := net.DialTimeout("tcp", address, time.Second)
 	if err != nil {
 		this.isConnected = false
-		LogDebug("Connect failed %v: %v", this.GetConnectionId(), err)
+		LogError("Connect failed %v: %v", this.GetConnectionId(), err)
 		if this.handler != nil {
 			this.handler.OnConnected(this,false)
 		}
@@ -106,7 +95,7 @@ func (this *TcpConnection) Start(closeNotify chan struct{}) {
 func (this *TcpConnection) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			LogDebug("readLoop fatal %v: %v", this.GetConnectionId(), err.(error))
+			LogError("readLoop fatal %v: %v", this.GetConnectionId(), err.(error))
 			LogStack()
 		}
 	}()
@@ -117,6 +106,7 @@ func (this *TcpConnection) readLoop() {
 		writeBuffer := this.recvBuffer.WriteBuffer()
 		if len(writeBuffer) == 0 {
 			// 一般不会运行到这里来,除非recvBuffer的大小设置太小:小于了某个数据包的长度
+			LogError("%v recvBuffer full", this.GetConnectionId())
 			return
 		}
 		n,err := this.conn.Read(writeBuffer)
@@ -130,16 +120,20 @@ func (this *TcpConnection) readLoop() {
 		//LogDebug("%v Read:%v", this.GetConnectionId(), n)
 		this.recvBuffer.SetWrited(n)
 		for this.isConnected {
-			newPacket := this.codec.Decode(this, this.recvBuffer.ReadBuffer())
+			newPacket,decodeError := this.codec.Decode(this, this.recvBuffer.ReadBuffer())
+			if decodeError != nil {
+				LogError("%v decodeError:%v", this.GetConnectionId(), decodeError)
+				return
+			}
 			if newPacket == nil {
 				break
 			}
 			if len(newPacket.data) > MaxPacketDataSize {
-				LogDebug("%v packet len err:%v", this.GetConnectionId(), len(newPacket.data))
+				LogError("%v packet len err:%v", this.GetConnectionId(), len(newPacket.data))
 				return
 			}
 			if this.config.MaxPacketSize > 0 && len(newPacket.data) > int(this.config.MaxPacketSize) {
-				LogDebug("%v packet len err:%v", this.GetConnectionId(), len(newPacket.data))
+				LogError("%v packet len err:%v", this.GetConnectionId(), len(newPacket.data))
 				return
 			}
 			// 最近收到完整数据包的时间
@@ -157,7 +151,7 @@ func (this *TcpConnection) readLoop() {
 func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 	defer func() {
 		if err := recover(); err != nil {
-			LogDebug("writeLoop fatal %v: %v", this.GetConnectionId(), err.(error))
+			LogError("writeLoop fatal %v: %v", this.GetConnectionId(), err.(error))
 			LogStack()
 		}
 		LogDebug("writeLoop end %v", this.GetConnectionId())
@@ -177,18 +171,10 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 				return
 			}
 			// 数据包编码
-			decodePacketData := packet.data
-			if this.codec != nil {
-				decodePacketData = this.codec.Encode(this, packet)
-			}
-			writedLen,bufferErr := this.sendBuffer.Write(decodePacketData)
-			if bufferErr != nil {
-				LogDebug("sendBuffer is full %v", this.GetConnectionId())
-				return
-			}
-			// 这里一般不可能出现写不完的情况
-			if writedLen < len(decodePacketData) {
-				delaySendDecodePacketData = decodePacketData[writedLen:]
+			// Encode里面会把编码后的数据直接写入sendBuffer
+			_,delaySendDecodePacketData = this.codec.Encode(this, packet)
+			if len(delaySendDecodePacketData) > 0 {
+				// Encode里面写不完的数据延后处理
 				LogDebug("%v sendBuffer is full delaySize:%v", this.GetConnectionId(), len(delaySendDecodePacketData))
 				break
 			}
@@ -203,14 +189,8 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 						return
 					}
 					// 数据包编码
-					decodePacketData = newPacket.data
-					if this.codec != nil {
-						decodePacketData = this.codec.Encode(this, newPacket)
-					}
-					writedLen,bufferErr = this.sendBuffer.Write(decodePacketData)
-					// 批量粘包,导致缓存不够用了,没写入缓存的数据延后写
-					if writedLen < len(decodePacketData) {
-						delaySendDecodePacketData = decodePacketData[writedLen:]
+					_,delaySendDecodePacketData = this.codec.Encode(this, newPacket)
+					if len(delaySendDecodePacketData) > 0 {
 						LogDebug("%v sendBuffer is full delaySize:%v", this.GetConnectionId(), len(delaySendDecodePacketData))
 						break
 					}

@@ -19,7 +19,7 @@ func TestEcho(t *testing.T) {
 	netMgr := gnet.GetNetMgr()
 	connectionConfig := gnet.ConnectionConfig{
 		SendPacketCacheCap: 100,
-		SendBufferSize:     60,
+		SendBufferSize:     60, // 设置的比较小,便于测试缓存写满的情况
 		RecvBufferSize:     60,
 		MaxPacketSize:      1024,
 		RecvTimeout:        0,

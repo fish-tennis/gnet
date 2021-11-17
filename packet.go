@@ -24,18 +24,19 @@ type PacketHeader struct {
 	lenAndFlags uint32
 }
 
-func NewPacketHeader(len,flags uint32) *PacketHeader {
+func NewPacketHeader(len uint32,flags uint8) *PacketHeader {
 	return &PacketHeader{
-		lenAndFlags: flags<<24 | len,
+		lenAndFlags: uint32(flags)<<24 | len,
 	}
 }
 
+// 包体长度,不包含包头的长度
 // [0,0x00FFFFFF]
 func (this *PacketHeader) GetLen() uint32 {
 	return this.lenAndFlags & 0x00FFFFFF
 }
 
-// [0,0xFF]
+// 标志 [0,0xFF]
 func (this *PacketHeader) GetFlags() uint32 {
 	return this.lenAndFlags >> 24
 }
