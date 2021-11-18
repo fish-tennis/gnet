@@ -5,16 +5,21 @@ import (
 	"unsafe"
 )
 
-// 数据包
-type Packet struct {
+// 数据包接口
+type Packet interface {
+	GetData() []byte
+}
+
+// 只包含一个[]byte的数据包
+type DataPacket struct {
 	data []byte
 }
 
-func NewPacket(data []byte) *Packet {
-	return &Packet{data: data}
+func NewDataPacket(data []byte) *DataPacket {
+	return &DataPacket{data: data}
 }
 
-func (this *Packet) GetData() []byte {
+func (this *DataPacket) GetData() []byte {
 	return this.data
 }
 
@@ -54,6 +59,6 @@ func (this *PacketHeader) WriteTo(messageHeaderData []byte) {
 
 const (
 	// 消息头长度
-	PacketHeaderSize = int(unsafe.Sizeof(PacketHeader{}))
+	DefaultPacketHeaderSize = int(unsafe.Sizeof(PacketHeader{}))
 	MaxPacketDataSize = 0x00FFFFFF
 )

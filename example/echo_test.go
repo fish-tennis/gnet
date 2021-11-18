@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/gnet"
+	"gnet"
 	"sync"
 	"testing"
 	"time"
@@ -70,7 +70,7 @@ func (e *EchoServerHandler) OnConnected(connection gnet.Connection, success bool
 		// 先连发10个数据包
 		for i := 0; i < 10; i++ {
 			serialId++
-			packet := gnet.NewPacket([]byte(fmt.Sprintf("hello client %v", serialId)))
+			packet := gnet.NewDataPacket([]byte(fmt.Sprintf("hello client %v", serialId)))
 			connection.Send(packet)
 		}
 		go func() {
@@ -79,7 +79,7 @@ func (e *EchoServerHandler) OnConnected(connection gnet.Connection, success bool
 				select {
 				case <-autoSendTimer.C:
 					serialId++
-					packet := gnet.NewPacket([]byte(fmt.Sprintf("hello client %v", serialId)))
+					packet := gnet.NewDataPacket([]byte(fmt.Sprintf("hello client %v", serialId)))
 					connection.Send(packet)
 					autoSendTimer.Reset(time.Second)
 				}
@@ -88,11 +88,11 @@ func (e *EchoServerHandler) OnConnected(connection gnet.Connection, success bool
 	}
 }
 
-func (e *EchoServerHandler) OnDisconnected(connection gnet.Connection, ) {
+func (e *EchoServerHandler) OnDisconnected(connection gnet.Connection ) {
 	gnet.LogDebug(fmt.Sprintf("Server OnDisconnected %v", connection.GetConnectionId()))
 }
 
-func (e *EchoServerHandler) OnRecvPacket(connection gnet.Connection, packet *gnet.Packet) {
+func (e *EchoServerHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
 	gnet.LogDebug(fmt.Sprintf("Server OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetData())))
 }
 
@@ -110,9 +110,9 @@ func (e *EchoClientHandler) OnDisconnected(connection gnet.Connection ) {
 	gnet.LogDebug(fmt.Sprintf("Client OnDisconnected %v", connection.GetConnectionId()))
 }
 
-func (e *EchoClientHandler) OnRecvPacket(connection gnet.Connection, packet *gnet.Packet) {
+func (e *EchoClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
 	gnet.LogDebug(fmt.Sprintf("Client OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetData())))
 	e.echoCount++
-	echoPacket := gnet.NewPacket([]byte(fmt.Sprintf("hello server %v", e.echoCount)))
+	echoPacket := gnet.NewDataPacket([]byte(fmt.Sprintf("hello server %v", e.echoCount)))
 	connection.Send(echoPacket)
 }

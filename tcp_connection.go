@@ -17,7 +17,7 @@ type TcpConnection struct {
 	// 最近收到完整数据包的时间(时间戳:秒)
 	lastRecvPacketTick uint32
 	// 发包缓存chan
-	sendPacketCache chan *Packet
+	sendPacketCache chan Packet
 	// 发包RingBuffer
 	sendBuffer *RingBuffer
 	// 收包RingBuffer
@@ -27,6 +27,12 @@ type TcpConnection struct {
 }
 
 func NewTcpConnector(config ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
+	if config.MaxPacketSize == 0 {
+		config.MaxPacketSize = MaxPacketDataSize
+	}
+	if config.MaxPacketSize > MaxPacketDataSize {
+		config.MaxPacketSize = MaxPacketDataSize
+	}
 	return &TcpConnection{
 		baseConnection: baseConnection{
 			connectionId: newConnectionId(),
@@ -35,11 +41,17 @@ func NewTcpConnector(config ConnectionConfig, codec Codec, handler ConnectionHan
 			codec: codec,
 			handler: handler,
 		},
-		sendPacketCache: make(chan *Packet, config.SendPacketCacheCap),
+		sendPacketCache: make(chan Packet, config.SendPacketCacheCap),
 	}
 }
 
 func NewTcpConnectionAccept(conn net.Conn, config ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
+	if config.MaxPacketSize == 0 {
+		config.MaxPacketSize = MaxPacketDataSize
+	}
+	if config.MaxPacketSize > MaxPacketDataSize {
+		config.MaxPacketSize = MaxPacketDataSize
+	}
 	return &TcpConnection{
 		baseConnection: baseConnection{
 			connectionId: newConnectionId(),
@@ -48,7 +60,7 @@ func NewTcpConnectionAccept(conn net.Conn, config ConnectionConfig, codec Codec,
 			codec: codec,
 			handler: handler,
 		},
-		sendPacketCache: make(chan *Packet, config.SendPacketCacheCap),
+		sendPacketCache: make(chan Packet, config.SendPacketCacheCap),
 		conn: conn,
 	}
 }
@@ -128,14 +140,14 @@ func (this *TcpConnection) readLoop() {
 			if newPacket == nil {
 				break
 			}
-			if len(newPacket.data) > MaxPacketDataSize {
-				LogError("%v packet len err:%v", this.GetConnectionId(), len(newPacket.data))
-				return
-			}
-			if this.config.MaxPacketSize > 0 && len(newPacket.data) > int(this.config.MaxPacketSize) {
-				LogError("%v packet len err:%v", this.GetConnectionId(), len(newPacket.data))
-				return
-			}
+			//if len(newPacket.GetData()) > MaxPacketDataSize {
+			//	LogError("%v packet len err:%v", this.GetConnectionId(), len(newPacket.GetData()))
+			//	return
+			//}
+			//if this.config.MaxPacketSize > 0 && len(newPacket.GetData()) > int(this.config.MaxPacketSize) {
+			//	LogError("%v packet len err:%v", this.GetConnectionId(), len(newPacket.GetData()))
+			//	return
+			//}
 			// 最近收到完整数据包的时间
 			// 有一种极端情况,网速太慢,即使没有掉线,也可能触发收包超时检测
 			this.lastRecvPacketTick = GetCurrentTimeStamp()
@@ -172,7 +184,7 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 			}
 			// 数据包编码
 			// Encode里面会把编码后的数据直接写入sendBuffer
-			_,delaySendDecodePacketData = this.codec.Encode(this, packet)
+			delaySendDecodePacketData = this.codec.Encode(this, packet)
 			if len(delaySendDecodePacketData) > 0 {
 				// Encode里面写不完的数据延后处理
 				LogDebug("%v sendBuffer is full delaySize:%v", this.GetConnectionId(), len(delaySendDecodePacketData))
@@ -189,7 +201,7 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 						return
 					}
 					// 数据包编码
-					_,delaySendDecodePacketData = this.codec.Encode(this, newPacket)
+					delaySendDecodePacketData = this.codec.Encode(this, newPacket)
 					if len(delaySendDecodePacketData) > 0 {
 						LogDebug("%v sendBuffer is full delaySize:%v", this.GetConnectionId(), len(delaySendDecodePacketData))
 						break
@@ -272,7 +284,13 @@ func (this *TcpConnection) Close() {
 }
 
 // 异步发送数据
-func (this *TcpConnection) Send(packet *Packet) bool {
+func (this *TcpConnection) Send(packet Packet) bool {
+	this.sendPacketCache <- packet
+	return true
+}
+
+// 异步发protobuf格式的包
+func (this *TcpConnection) SendProto(packet *ProtoPacket) bool {
 	this.sendPacketCache <- packet
 	return true
 }

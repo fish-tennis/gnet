@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/gnet"
+	"gnet"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -105,25 +105,25 @@ type TestServerClientHandler struct {
 func (t *TestServerClientHandler) OnConnected(connection gnet.Connection, success bool) {
 	// 模拟客户端登录游戏时,会密集收到一堆消息
 	for i := 0; i < 30; i++ {
-		toPacket := gnet.NewPacket([]byte("hello client"))
+		toPacket := gnet.NewDataPacket([]byte("hello client"))
 		connection.Send(toPacket)
 	}
-	toPacket := gnet.NewPacket([]byte("response"))
+	toPacket := gnet.NewDataPacket([]byte("response"))
 	connection.Send(toPacket)
 }
 
 func (t *TestServerClientHandler) OnDisconnected(connection gnet.Connection) {
 }
 
-func (t *TestServerClientHandler) OnRecvPacket(connection gnet.Connection, packet *gnet.Packet) {
+func (t *TestServerClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
 	atomic.AddInt64(&serverRecvPacketCount,1)
 	// 收到客户端的消息,服务器给客户端回4个消息
 	// 因为游戏的特点是:服务器下传数据比客户端上传数据要多
 	for i := 0; i < 3; i++ {
-		toPacket := gnet.NewPacket([]byte("hello client this is server"))
+		toPacket := gnet.NewDataPacket([]byte("hello client this is server"))
 		connection.Send(toPacket)
 	}
-	toPacket := gnet.NewPacket([]byte("response"))
+	toPacket := gnet.NewDataPacket([]byte("response"))
 	connection.Send(toPacket)
 }
 
@@ -138,10 +138,10 @@ func (t *TestClientHandler) OnConnected(connection gnet.Connection, success bool
 func (t *TestClientHandler) OnDisconnected(connection gnet.Connection) {
 }
 
-func (t *TestClientHandler) OnRecvPacket(connection gnet.Connection, packet *gnet.Packet) {
+func (t *TestClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
 	atomic.AddInt64(&clientRecvPacketCount,1)
 	if string(packet.GetData()) == "response" {
-		toPacket := gnet.NewPacket([]byte("hello server"))
+		toPacket := gnet.NewDataPacket([]byte("hello server"))
 		connection.Send(toPacket)
 	}
 }

@@ -5,7 +5,7 @@ type ConnectionHandler interface {
 
 	OnDisconnected(connection Connection)
 
-	OnRecvPacket(connection Connection, packet *Packet)
+	OnRecvPacket(connection Connection, packet Packet)
 }
 
 //type ConnectorHandler interface {

@@ -10,7 +10,10 @@ type Connection interface {
 
 	// 发包
 	// NOTE:调用Send(packet)之后,不要在对packet进行读写!
-	Send(packet *Packet) bool
+	Send(packet Packet) bool
+
+	// 发protobuf格式的包
+	SendProto(packet *ProtoPacket) bool
 
 	// 是否连接成功
 	IsConnected() bool
