@@ -26,8 +26,8 @@ func TestEcho(t *testing.T) {
 		WriteTimeout:       0,
 	}
 	listenAddress := "127.0.0.1:10002"
-	codec := gnet.NewXorCodec([]byte{0,1,2,3,4,5,6})
-	//codec := gnet.NewDefaultCodec()
+	//codec := gnet.NewXorCodec([]byte{0,1,2,3,4,5,6})
+	codec := gnet.NewDefaultCodec()
 	netMgr.NewListener(listenAddress, connectionConfig, codec, &EchoServerHandler{}, &EchoListenerHandler{})
 	time.Sleep(time.Second)
 
@@ -93,7 +93,7 @@ func (e *EchoServerHandler) OnDisconnected(connection gnet.Connection ) {
 }
 
 func (e *EchoServerHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
-	gnet.LogDebug(fmt.Sprintf("Server OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetData())))
+	gnet.LogDebug(fmt.Sprintf("Server OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetStreamData())))
 }
 
 
@@ -111,7 +111,7 @@ func (e *EchoClientHandler) OnDisconnected(connection gnet.Connection ) {
 }
 
 func (e *EchoClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
-	gnet.LogDebug(fmt.Sprintf("Client OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetData())))
+	gnet.LogDebug(fmt.Sprintf("Client OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetStreamData())))
 	e.echoCount++
 	echoPacket := gnet.NewDataPacket([]byte(fmt.Sprintf("hello server %v", e.echoCount)))
 	connection.Send(echoPacket)

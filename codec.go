@@ -3,6 +3,7 @@ package gnet
 // 连接的编解码接口
 type Codec interface {
 	// 包头长度
+	// 应用层可以自己扩展包头长度
 	PacketHeaderSize() uint32
 
 	// 编码接口
@@ -45,7 +46,7 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 		if this.DataEncoder != nil {
 			encodedData = this.DataEncoder(connection, packet)
 		} else {
-			encodedData = [][]byte{packet.GetData()}
+			encodedData = [][]byte{packet.GetStreamData()}
 		}
 		encodedDataLen := 0
 		for _,data := range encodedData {
@@ -113,7 +114,7 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 	//}
 	//copy(encodedData[PacketHeaderSize:], packetData)
 	//remainData = encodedData
-	return packet.GetData()
+	return packet.GetStreamData()
 }
 
 func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPacket Packet, err error) {
@@ -200,39 +201,4 @@ type DefaultCodec struct {
 
 func NewDefaultCodec() *DefaultCodec {
 	return &DefaultCodec{}
-}
-
-// 异或编解码
-type XorCodec struct {
-	RingBufferCodec
-	key []byte
-}
-
-func NewXorCodec(key []byte) *XorCodec {
-	return &XorCodec{
-		key: key,
-		RingBufferCodec:RingBufferCodec{
-			HeaderEncoder: func(connection Connection, packet Packet, headerData []byte) {
-				xorEncode(headerData, key)
-			},
-			DataEncoder: func(connection Connection, packet Packet) [][]byte {
-				xorEncode(packet.GetData(), key)
-				return [][]byte{packet.GetData()}
-			},
-			HeaderDecoder: func(connection Connection, headerData []byte) {
-				xorEncode(headerData, key)
-			},
-			DataDecoder: func(connection Connection, packetHeader *PacketHeader, packetData []byte) Packet {
-				xorEncode(packetData, key)
-				return NewDataPacket(packetData)
-			},
-		},
-	}
-}
-
-// 异或
-func xorEncode(data []byte, key []byte) {
-	for i := 0; i < len(data); i++ {
-		data[i] = data[i] ^ key[i%len(key)]
-	}
 }

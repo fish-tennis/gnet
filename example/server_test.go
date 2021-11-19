@@ -140,7 +140,7 @@ func (t *TestClientHandler) OnDisconnected(connection gnet.Connection) {
 
 func (t *TestClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
 	atomic.AddInt64(&clientRecvPacketCount,1)
-	if string(packet.GetData()) == "response" {
+	if string(packet.GetStreamData()) == "response" {
 		toPacket := gnet.NewDataPacket([]byte("hello server"))
 		connection.Send(toPacket)
 	}

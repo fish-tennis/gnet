@@ -33,7 +33,8 @@ func TestEchoProto(t *testing.T) {
 	protoMap[gnet.PacketCommand(123)] = func() proto.Message {
 		return &pb.TestMessage{}
 	}
-	codec := gnet.NewProtoCodec(protoMap)
+	//codec := gnet.NewProtoCodec(protoMap)
+	codec := gnet.NewXorProtoCodec([]byte("xor_test_key"), protoMap)
 	netMgr.NewListener(listenAddress, connectionConfig, codec, &EchoProtoServerHandler{}, &EchoListenerHandler{})
 	time.Sleep(time.Second)
 

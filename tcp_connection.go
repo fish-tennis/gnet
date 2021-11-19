@@ -140,14 +140,6 @@ func (this *TcpConnection) readLoop() {
 			if newPacket == nil {
 				break
 			}
-			//if len(newPacket.GetData()) > MaxPacketDataSize {
-			//	LogError("%v packet len err:%v", this.GetConnectionId(), len(newPacket.GetData()))
-			//	return
-			//}
-			//if this.config.MaxPacketSize > 0 && len(newPacket.GetData()) > int(this.config.MaxPacketSize) {
-			//	LogError("%v packet len err:%v", this.GetConnectionId(), len(newPacket.GetData()))
-			//	return
-			//}
 			// 最近收到完整数据包的时间
 			// 有一种极端情况,网速太慢,即使没有掉线,也可能触发收包超时检测
 			this.lastRecvPacketTick = GetCurrentTimeStamp()

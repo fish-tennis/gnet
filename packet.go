@@ -2,26 +2,19 @@ package gnet
 
 import (
 	"encoding/binary"
+	"google.golang.org/protobuf/proto"
 	"unsafe"
 )
 
-// 数据包接口
-type Packet interface {
-	GetData() []byte
-}
+const (
+	// 包头长度
+	DefaultPacketHeaderSize = int(unsafe.Sizeof(PacketHeader{}))
+	// 数据包长度限制
+	MaxPacketDataSize = 0x00FFFFFF
+)
 
-// 只包含一个[]byte的数据包
-type DataPacket struct {
-	data []byte
-}
-
-func NewDataPacket(data []byte) *DataPacket {
-	return &DataPacket{data: data}
-}
-
-func (this *DataPacket) GetData() []byte {
-	return this.data
-}
+// 消息号
+type PacketCommand uint16
 
 // 包头
 type PacketHeader struct {
@@ -41,7 +34,7 @@ func (this *PacketHeader) GetLen() uint32 {
 	return this.lenAndFlags & 0x00FFFFFF
 }
 
-// 标志 [0,0xFF]
+// 标记 [0,0xFF]
 func (this *PacketHeader) GetFlags() uint32 {
 	return this.lenAndFlags >> 24
 }
@@ -57,8 +50,67 @@ func (this *PacketHeader) WriteTo(messageHeaderData []byte) {
 	binary.LittleEndian.PutUint32(messageHeaderData, this.lenAndFlags)
 }
 
-const (
-	// 消息头长度
-	DefaultPacketHeaderSize = int(unsafe.Sizeof(PacketHeader{}))
-	MaxPacketDataSize = 0x00FFFFFF
-)
+
+// 数据包接口
+type Packet interface {
+	// 消息号
+	// 没有把消息号放在PacketHeader里,因为对TCP网络层来说,只需要知道每个数据包的分割长度就可以了,
+	// 至于数据包具体的格式,不该是网络层关心的事情
+	// 消息号也不是必须放在这里的,但是游戏项目一般都是用消息号,为了减少封装层次,就放这里了
+	Command() PacketCommand
+
+	// 默认使用protobuf,现在做游戏还有不用protobuf的吗
+	Message() proto.Message
+
+	// 预留一个二进制数据的接口,如果项目使用protobuf,该不需要该接口了
+	GetStreamData() []byte
+}
+
+
+// proto数据包
+type ProtoPacket struct {
+	command PacketCommand
+	message proto.Message
+}
+
+func NewProtoPacket(command PacketCommand, message proto.Message) *ProtoPacket {
+	return &ProtoPacket{
+		command: command,
+		message: message,
+	}
+}
+
+func (this *ProtoPacket) Command() PacketCommand {
+	return this.command
+}
+
+func (this *ProtoPacket) Message() proto.Message {
+	return this.message
+}
+
+// ProtoPacket没有用这个函数,这里只是为了满足Packet的接口
+func (this *ProtoPacket) GetStreamData() []byte {
+	return nil
+}
+
+
+// 只包含一个[]byte的数据包
+type DataPacket struct {
+	data []byte
+}
+
+func NewDataPacket(data []byte) *DataPacket {
+	return &DataPacket{data: data}
+}
+
+func (this *DataPacket) Command() PacketCommand {
+	return 0
+}
+
+func (this *DataPacket) Message() proto.Message {
+	return nil
+}
+
+func (this *DataPacket) GetStreamData() []byte {
+	return this.data
+}
