@@ -1,4 +1,4 @@
-module gnet
+module github.com/fish-tennis/gnet
 
 go 1.16
 

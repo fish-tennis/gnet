@@ -32,6 +32,7 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]b
 		if err != nil {
 			return nil
 		}
+		// Q:这里可以继续对messageBytes进行编码,如加密,压缩等
 		return [][]byte{commandBytes,messageBytes}
 		//fullData := make([]byte, len(commandBytes)+len(messageBytes))
 		//n := copy(fullData, commandBytes)
@@ -52,6 +53,7 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]b
 
 func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader *PacketHeader, packetData []byte) Packet {
 	command := binary.LittleEndian.Uint16(packetData[:2])
+	// Q:这里可以对packetData[2:]进行解码,如解密,解压等
 	if messageCreator,ok := this.messageCreatorMap[PacketCommand(command)]; ok {
 		newProtoMessage := messageCreator()
 		err := proto.Unmarshal(packetData[2:], newProtoMessage)

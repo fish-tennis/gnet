@@ -1,8 +1,8 @@
-package main
+package example
 
 import (
 	"fmt"
-	"gnet"
+	"github.com/fish-tennis/gnet"
 	"sync"
 	"testing"
 	"time"

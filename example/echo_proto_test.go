@@ -1,9 +1,9 @@
-package main
+package example
 
 import (
 	"fmt"
-	"gnet"
-	"gnet/example/pb"
+	"github.com/fish-tennis/gnet"
+	"github.com/fish-tennis/gnet/example/pb"
 	"google.golang.org/protobuf/proto"
 	"sync"
 	"testing"
