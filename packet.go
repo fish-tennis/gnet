@@ -30,12 +30,12 @@ func NewPacketHeader(len uint32,flags uint8) *PacketHeader {
 
 // 包体长度,不包含包头的长度
 // [0,0x00FFFFFF]
-func (this *PacketHeader) GetLen() uint32 {
+func (this *PacketHeader) Len() uint32 {
 	return this.lenAndFlags & 0x00FFFFFF
 }
 
 // 标记 [0,0xFF]
-func (this *PacketHeader) GetFlags() uint32 {
+func (this *PacketHeader) Flags() uint32 {
 	return this.lenAndFlags >> 24
 }
 

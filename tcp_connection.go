@@ -22,6 +22,8 @@ type TcpConnection struct {
 	sendBuffer *RingBuffer
 	// 收包RingBuffer
 	recvBuffer *RingBuffer
+	//packetHeaderDataEncode []byte
+	//packetHeaderDataDecode []byte
 	// 外部传进来的WaitGroup
 	netMgrWg *sync.WaitGroup
 }

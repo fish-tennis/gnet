@@ -151,30 +151,30 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 		header.ReadFrom(packetHeaderData)
 		// TODO: 优化思路: 从sync.pool创建的packetHeaderData回收到sync.pool
 		//packetHeaderData = nil
-		if int(header.GetLen()) > recvBuffer.Size() - packetHeaderSize {
+		if int(header.Len()) > recvBuffer.Size() - packetHeaderSize {
 			return nil, ErrPacketLength
 		}
-		if header.GetLen() > tcpConnection.config.MaxPacketSize {
+		if header.Len() > tcpConnection.config.MaxPacketSize {
 			return nil, ErrPacketLength
 		}
-		if recvBuffer.UnReadLength() < packetHeaderSize + int(header.GetLen()) {
+		if recvBuffer.UnReadLength() < packetHeaderSize + int(header.Len()) {
 			return
 		}
 		recvBuffer.SetReaded(packetHeaderSize)
 		readBuffer = recvBuffer.ReadBuffer()
 		var packetData []byte
-		if len(readBuffer) >= int(header.GetLen()) {
+		if len(readBuffer) >= int(header.Len()) {
 			// 这里不产生copy
-			packetData = readBuffer[0:header.GetLen()]
+			packetData = readBuffer[0:header.Len()]
 		} else {
 			// TODO: 优化思路,用sync.pool创建,Q:何时回收?
-			packetData = make([]byte, header.GetLen())
+			packetData = make([]byte, header.Len())
 			// 先拷贝RingBuffer的尾部
 			n := copy(packetData, readBuffer)
 			// 再拷贝RingBuffer的头部
 			copy(packetData[n:], recvBuffer.buffer)
 		}
-		recvBuffer.SetReaded(int(header.GetLen()))
+		recvBuffer.SetReaded(int(header.Len()))
 		if this.DataDecoder != nil {
 			// 包体的解码接口
 			newPacket = this.DataDecoder(connection, header, packetData)

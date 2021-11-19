@@ -48,6 +48,7 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]b
 		binary.LittleEndian.PutUint16(commandBytes, uint16(protoPacket.Command()))
 		messageBytes,err := proto.Marshal(protoMessage)
 		if err != nil {
+			LogError("proto encode err:%v cmd:%v", err, packet.Command())
 			return nil
 		}
 		// 这里可以继续对messageBytes进行编码,如异或,加密,压缩等
@@ -65,7 +66,7 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]b
 
 func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader *PacketHeader, packetData []byte) Packet {
 	decodedPacketData := packetData
-	// Q:这里可以对packetData[2:]进行解码,如异或,解密,解压等
+	// Q:这里可以对packetData进行解码,如异或,解密,解压等
 	if this.ProtoPacketBytesDecoder != nil {
 		decodedPacketData = this.ProtoPacketBytesDecoder(packetData)
 	}
@@ -77,6 +78,7 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader *Packet
 		newProtoMessage := messageCreator()
 		err := proto.Unmarshal(decodedPacketData[2:], newProtoMessage)
 		if err != nil {
+			LogError("proto decode err:%v cmd:%v", err, command)
 			return nil
 		}
 		return &ProtoPacket{
@@ -85,7 +87,5 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader *Packet
 		}
 	}
 	LogError("unsupport command:%v", command)
-	return &ProtoPacket{
-		command: PacketCommand(command),
-	}
+	return nil
 }

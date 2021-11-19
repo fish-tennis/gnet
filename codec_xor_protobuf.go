@@ -18,7 +18,6 @@ func NewXorProtoCodec(xorKey []byte, messageCreatorMap map[PacketCommand]ProtoMe
 				data[i] = data[i] ^ codec.xorKey[keyIndex%len(codec.xorKey)]
 				keyIndex++
 			}
-			//xorEncode(data,codec.xorKey)
 		}
 		return protoPacketBytes
 	}

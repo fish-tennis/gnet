@@ -21,17 +21,17 @@ func TestEcho(t *testing.T) {
 		SendPacketCacheCap: 100,
 		SendBufferSize:     60, // 设置的比较小,便于测试缓存写满的情况
 		RecvBufferSize:     60,
-		MaxPacketSize:      1024,
+		MaxPacketSize:      60,
 		RecvTimeout:        0,
 		WriteTimeout:       0,
 	}
 	listenAddress := "127.0.0.1:10002"
 	//codec := gnet.NewXorCodec([]byte{0,1,2,3,4,5,6})
 	codec := gnet.NewDefaultCodec()
-	netMgr.NewListener(listenAddress, connectionConfig, codec, &EchoServerHandler{}, &EchoListenerHandler{})
+	netMgr.NewListener(listenAddress, connectionConfig, codec, &echoServerHandler{}, &echoListenerHandler{})
 	time.Sleep(time.Second)
 
-	netMgr.NewConnector(listenAddress, connectionConfig, codec, &EchoClientHandler{})
+	netMgr.NewConnector(listenAddress, connectionConfig, codec, &echoClientHandler{})
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -46,23 +46,23 @@ func TestEcho(t *testing.T) {
 }
 
 // 监听接口
-type EchoListenerHandler struct {
+type echoListenerHandler struct {
 	
 }
 
-func (e *EchoListenerHandler) OnConnectionConnected(connection gnet.Connection) {
+func (e *echoListenerHandler) OnConnectionConnected(connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
 }
 
-func (e *EchoListenerHandler) OnConnectionDisconnect(connection gnet.Connection) {
+func (e *echoListenerHandler) OnConnectionDisconnect(connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
 }
 
 // 服务端监听到的连接接口
-type EchoServerHandler struct {
+type echoServerHandler struct {
 }
 
-func (e *EchoServerHandler) OnConnected(connection gnet.Connection, success bool) {
+func (e *echoServerHandler) OnConnected(connection gnet.Connection, success bool) {
 	gnet.LogDebug(fmt.Sprintf("Server OnConnected %v %v", connection.GetConnectionId(), success))
 	if success {
 		// 开一个协程,服务器自动给客户端发消息
@@ -88,29 +88,29 @@ func (e *EchoServerHandler) OnConnected(connection gnet.Connection, success bool
 	}
 }
 
-func (e *EchoServerHandler) OnDisconnected(connection gnet.Connection ) {
+func (e *echoServerHandler) OnDisconnected(connection gnet.Connection ) {
 	gnet.LogDebug(fmt.Sprintf("Server OnDisconnected %v", connection.GetConnectionId()))
 }
 
-func (e *EchoServerHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
+func (e *echoServerHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
 	gnet.LogDebug(fmt.Sprintf("Server OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetStreamData())))
 }
 
 
 // 客户端连接接口
-type EchoClientHandler struct {
+type echoClientHandler struct {
 	echoCount int
 }
 
-func (e *EchoClientHandler) OnConnected(connection gnet.Connection, success bool) {
+func (e *echoClientHandler) OnConnected(connection gnet.Connection, success bool) {
 	gnet.LogDebug(fmt.Sprintf("Client OnConnected %v %v", connection.GetConnectionId(), success))
 }
 
-func (e *EchoClientHandler) OnDisconnected(connection gnet.Connection ) {
+func (e *echoClientHandler) OnDisconnected(connection gnet.Connection ) {
 	gnet.LogDebug(fmt.Sprintf("Client OnDisconnected %v", connection.GetConnectionId()))
 }
 
-func (e *EchoClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
+func (e *echoClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
 	gnet.LogDebug(fmt.Sprintf("Client OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetStreamData())))
 	e.echoCount++
 	echoPacket := gnet.NewDataPacket([]byte(fmt.Sprintf("hello server %v", e.echoCount)))

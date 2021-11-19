@@ -3,6 +3,8 @@ package example
 import (
 	"fmt"
 	"github.com/fish-tennis/gnet"
+	"github.com/fish-tennis/gnet/example/pb"
+	"google.golang.org/protobuf/proto"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -57,12 +59,17 @@ func TestTestServer(t *testing.T) {
 		WriteTimeout:   0,
 	}
 
-	codec := gnet.NewDefaultCodec()
-	netMgr.NewListener(listenAddress, connectionConfig, codec, &TestServerClientHandler{}, &TestServerListenerHandler{})
+	protoMap := make(map[gnet.PacketCommand]gnet.ProtoMessageCreator)
+	protoMap[gnet.PacketCommand(123)] = func() proto.Message {
+		return &pb.TestMessage{}
+	}
+	codec := gnet.NewProtoCodec(protoMap)
+
+	netMgr.NewListener(listenAddress, connectionConfig, codec, &testServerClientHandler{}, &testServerListenerHandler{})
 	time.Sleep(time.Second)
 
 	for i := 0; i < clientCount; i++ {
-		netMgr.NewConnector(listenAddress, connectionConfig, codec, &TestClientHandler{})
+		netMgr.NewConnector(listenAddress, connectionConfig, codec, &testClientHandler{})
 	}
 
 	wg := &sync.WaitGroup{}
@@ -86,62 +93,84 @@ func TestTestServer(t *testing.T) {
 }
 
 // 服务器监听接口
-type TestServerListenerHandler struct {
+type testServerListenerHandler struct {
 }
 
-func (e *TestServerListenerHandler) OnConnectionConnected(connection gnet.Connection) {
+func (e *testServerListenerHandler) OnConnectionConnected(connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
 }
 
-func (e *TestServerListenerHandler) OnConnectionDisconnect(connection gnet.Connection) {
+func (e *testServerListenerHandler) OnConnectionDisconnect(connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
 }
 
 // 服务器端的客户端接口
-type TestServerClientHandler struct {
+type testServerClientHandler struct {
 
 }
 
-func (t *TestServerClientHandler) OnConnected(connection gnet.Connection, success bool) {
+func (t *testServerClientHandler) OnConnected(connection gnet.Connection, success bool) {
 	// 模拟客户端登录游戏时,会密集收到一堆消息
 	for i := 0; i < 30; i++ {
-		toPacket := gnet.NewDataPacket([]byte("hello client"))
+		toPacket := gnet.NewProtoPacket( 123,
+			&pb.TestMessage{
+				Name: "hello client",
+				I32: int32(i),
+			})
 		connection.Send(toPacket)
 	}
-	toPacket := gnet.NewDataPacket([]byte("response"))
+	toPacket := gnet.NewProtoPacket( 123,
+		&pb.TestMessage{
+			Name: "response",
+			I32: int32(0),
+		})
 	connection.Send(toPacket)
 }
 
-func (t *TestServerClientHandler) OnDisconnected(connection gnet.Connection) {
+func (t *testServerClientHandler) OnDisconnected(connection gnet.Connection) {
 }
 
-func (t *TestServerClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
+func (t *testServerClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
 	atomic.AddInt64(&serverRecvPacketCount,1)
 	// 收到客户端的消息,服务器给客户端回4个消息
 	// 因为游戏的特点是:服务器下传数据比客户端上传数据要多
 	for i := 0; i < 3; i++ {
-		toPacket := gnet.NewDataPacket([]byte("hello client this is server"))
+		toPacket := gnet.NewProtoPacket( 123,
+			&pb.TestMessage{
+				Name: "hello client this is server",
+				I32: int32(i),
+			})
 		connection.Send(toPacket)
 	}
-	toPacket := gnet.NewDataPacket([]byte("response"))
+	toPacket := gnet.NewProtoPacket( 123,
+		&pb.TestMessage{
+			Name: "response",
+			I32: int32(0),
+		})
 	connection.Send(toPacket)
 }
 
 // 客户端的网络接口
-type TestClientHandler struct {
+type testClientHandler struct {
 
 }
 
-func (t *TestClientHandler) OnConnected(connection gnet.Connection, success bool) {
+func (t *testClientHandler) OnConnected(connection gnet.Connection, success bool) {
 }
 
-func (t *TestClientHandler) OnDisconnected(connection gnet.Connection) {
+func (t *testClientHandler) OnDisconnected(connection gnet.Connection) {
 }
 
-func (t *TestClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
+func (t *testClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
 	atomic.AddInt64(&clientRecvPacketCount,1)
-	if string(packet.GetStreamData()) == "response" {
-		toPacket := gnet.NewDataPacket([]byte("hello server"))
+	protoPacket := packet.(*gnet.ProtoPacket)
+	recvMessage := protoPacket.Message().(*pb.TestMessage)
+	if recvMessage.GetName() == "response" {
+		toPacket := gnet.NewProtoPacket( 123,
+			&pb.TestMessage{
+				Name: "hello server",
+				I32: int32(0),
+			})
 		connection.Send(toPacket)
 	}
 }

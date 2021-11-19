@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func TestEchoProto(t *testing.T) {
+func TestEchoAntnet(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
 			gnet.LogDebug("fatal %v", err.(error))
@@ -30,15 +30,15 @@ func TestEchoProto(t *testing.T) {
 	listenAddress := "127.0.0.1:10002"
 
 	protoMap := make(map[gnet.PacketCommand]gnet.ProtoMessageCreator)
-	protoMap[gnet.PacketCommand(123)] = func() proto.Message {
+	protoMap[gnet.PacketCommand(1<<8 + 2)] = func() proto.Message {
 		return &pb.TestMessage{}
 	}
-	//codec := gnet.NewProtoCodec(protoMap)
-	codec := gnet.NewXorProtoCodec([]byte("xor_test_key"), protoMap)
-	netMgr.NewListener(listenAddress, connectionConfig, codec, &echoProtoServerHandler{}, &echoProtoListenerHandler{})
+	codec := gnet.NewAntnetCodec(false, protoMap)
+
+	netMgr.NewListener(listenAddress, connectionConfig, codec, &antnetServerHandler{}, &antnetListenerHandler{})
 	time.Sleep(time.Second)
 
-	netMgr.NewConnector(listenAddress, connectionConfig, codec, &echoProtoClientHandler{})
+	netMgr.NewConnector(listenAddress, connectionConfig, codec, &antnetClientHandler{})
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -53,23 +53,23 @@ func TestEchoProto(t *testing.T) {
 }
 
 // 监听接口
-type echoProtoListenerHandler struct {
-	
+type antnetListenerHandler struct {
+
 }
 
-func (e *echoProtoListenerHandler) OnConnectionConnected(connection gnet.Connection) {
+func (e *antnetListenerHandler) OnConnectionConnected(connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
 }
 
-func (e *echoProtoListenerHandler) OnConnectionDisconnect(connection gnet.Connection) {
+func (e *antnetListenerHandler) OnConnectionDisconnect(connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
 }
 
 // 服务端监听到的连接接口
-type echoProtoServerHandler struct {
+type antnetServerHandler struct {
 }
 
-func (e *echoProtoServerHandler) OnConnected(connection gnet.Connection, success bool) {
+func (e *antnetServerHandler) OnConnected(connection gnet.Connection, success bool) {
 	gnet.LogDebug(fmt.Sprintf("Server OnConnected %v %v", connection.GetConnectionId(), success))
 	if success {
 		// 开一个协程,服务器自动给客户端发消息
@@ -77,10 +77,10 @@ func (e *echoProtoServerHandler) OnConnected(connection gnet.Connection, success
 		// 先连发10个数据包
 		for i := 0; i < 10; i++ {
 			serialId++
-			packet := gnet.NewProtoPacket(gnet.PacketCommand(123),
+			packet := gnet.NewAntnetPacket(1, 2, 0,
 				&pb.TestMessage{
-				Name: fmt.Sprintf("hello client %v", serialId),
-				I32: int32(serialId),
+					Name: fmt.Sprintf("hello client %v", serialId),
+					I32: int32(serialId),
 				})
 			connection.Send(packet)
 		}
@@ -90,7 +90,7 @@ func (e *echoProtoServerHandler) OnConnected(connection gnet.Connection, success
 				select {
 				case <-autoSendTimer.C:
 					serialId++
-					packet := gnet.NewProtoPacket(gnet.PacketCommand(123),
+					packet := gnet.NewAntnetPacket(1, 2, 0,
 						&pb.TestMessage{
 							Name: fmt.Sprintf("hello client %v", serialId),
 							I32: int32(serialId),
@@ -103,39 +103,41 @@ func (e *echoProtoServerHandler) OnConnected(connection gnet.Connection, success
 	}
 }
 
-func (e *echoProtoServerHandler) OnDisconnected(connection gnet.Connection ) {
+func (e *antnetServerHandler) OnDisconnected(connection gnet.Connection ) {
 	gnet.LogDebug(fmt.Sprintf("Server OnDisconnected %v", connection.GetConnectionId()))
 }
 
-func (e *echoProtoServerHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
-	protoPacket := packet.(*gnet.ProtoPacket)
-	recvMessage := protoPacket.Message().(*pb.TestMessage)
-	gnet.LogDebug(fmt.Sprintf("Server OnRecvPacket %v: %v", connection.GetConnectionId(), recvMessage))
+func (e *antnetServerHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
+	antnetPacket := packet.(*gnet.AntnetPacket)
+	recvMessage := antnetPacket.Message().(*pb.TestMessage)
+	gnet.LogDebug(fmt.Sprintf("Server OnRecvPacket %v: cmd:%v act:%v msg:%v", connection.GetConnectionId(),
+		antnetPacket.Cmd(), antnetPacket.Act(), recvMessage))
 }
 
 
 // 客户端连接接口
-type echoProtoClientHandler struct {
+type antnetClientHandler struct {
 	echoCount int
 }
 
-func (e *echoProtoClientHandler) OnConnected(connection gnet.Connection, success bool) {
+func (e *antnetClientHandler) OnConnected(connection gnet.Connection, success bool) {
 	gnet.LogDebug(fmt.Sprintf("Client OnConnected %v %v", connection.GetConnectionId(), success))
 }
 
-func (e *echoProtoClientHandler) OnDisconnected(connection gnet.Connection ) {
+func (e *antnetClientHandler) OnDisconnected(connection gnet.Connection ) {
 	gnet.LogDebug(fmt.Sprintf("Client OnDisconnected %v", connection.GetConnectionId()))
 }
 
-func (e *echoProtoClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
-	protoPacket := packet.(*gnet.ProtoPacket)
-	recvMessage := protoPacket.Message().(*pb.TestMessage)
-	gnet.LogDebug(fmt.Sprintf("Client OnRecvPacket %v: %v", connection.GetConnectionId(), recvMessage))
+func (e *antnetClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
+	antnetPacket := packet.(*gnet.AntnetPacket)
+	recvMessage := antnetPacket.Message().(*pb.TestMessage)
+	gnet.LogDebug(fmt.Sprintf("Client OnRecvPacket %v: cmd:%v act:%v msg:%v", connection.GetConnectionId(),
+		antnetPacket.Cmd(), antnetPacket.Act(), recvMessage))
 	e.echoCount++
-	echoPacket := gnet.NewProtoPacket(gnet.PacketCommand(123),
+	echoPacket := gnet.NewAntnetPacket(1, 2, 0,
 		&pb.TestMessage{
-		Name: fmt.Sprintf("hello server %v", e.echoCount),
-		I32: int32(e.echoCount),
+			Name: fmt.Sprintf("hello server %v", e.echoCount),
+			I32: int32(e.echoCount),
 		})
 	connection.Send(echoPacket)
 }
