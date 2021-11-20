@@ -8,7 +8,8 @@ import (
 	"time"
 )
 
-func TestEcho(t *testing.T) {
+// 不使用protobuf的测试
+func TestEchoData(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
 			gnet.LogDebug("fatal %v", err.(error))
@@ -23,6 +24,7 @@ func TestEcho(t *testing.T) {
 		RecvBufferSize:     60,
 		MaxPacketSize:      60,
 		RecvTimeout:        0,
+		HeartBeatInterval:  2,
 		WriteTimeout:       0,
 	}
 	listenAddress := "127.0.0.1:10002"
@@ -96,6 +98,8 @@ func (e *echoServerHandler) OnRecvPacket(connection gnet.Connection, packet gnet
 	gnet.LogDebug(fmt.Sprintf("Server OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetStreamData())))
 }
 
+func (e *echoServerHandler) CreateHeartBeatPacket() gnet.Packet { return nil }
+
 
 // 客户端连接接口
 type echoClientHandler struct {
@@ -115,4 +119,8 @@ func (e *echoClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet
 	e.echoCount++
 	echoPacket := gnet.NewDataPacket([]byte(fmt.Sprintf("hello server %v", e.echoCount)))
 	connection.Send(echoPacket)
+}
+
+func (e *echoClientHandler) CreateHeartBeatPacket() gnet.Packet {
+	return gnet.NewDataPacket([]byte("heartbeat"))
 }

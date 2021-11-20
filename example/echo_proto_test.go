@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// 测试protobuf
 func TestEchoProto(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -25,11 +26,15 @@ func TestEchoProto(t *testing.T) {
 		RecvBufferSize:     60,
 		MaxPacketSize:      60,
 		RecvTimeout:        0,
+		HeartBeatInterval:  3,
 		WriteTimeout:       0,
 	}
 	listenAddress := "127.0.0.1:10002"
 
 	protoMap := make(map[gnet.PacketCommand]gnet.ProtoMessageCreator)
+	protoMap[gnet.PacketCommand(1)] = func() proto.Message {
+		return &pb.HeartBeatRequest{}
+	}
 	protoMap[gnet.PacketCommand(123)] = func() proto.Message {
 		return &pb.TestMessage{}
 	}
@@ -67,6 +72,10 @@ func (e *echoProtoListenerHandler) OnConnectionDisconnect(connection gnet.Connec
 
 // 服务端监听到的连接接口
 type echoProtoServerHandler struct {
+}
+
+func (e *echoProtoServerHandler) CreateHeartBeatPacket() gnet.Packet {
+	return nil
 }
 
 func (e *echoProtoServerHandler) OnConnected(connection gnet.Connection, success bool) {
@@ -109,14 +118,23 @@ func (e *echoProtoServerHandler) OnDisconnected(connection gnet.Connection ) {
 
 func (e *echoProtoServerHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
 	protoPacket := packet.(*gnet.ProtoPacket)
-	recvMessage := protoPacket.Message().(*pb.TestMessage)
-	gnet.LogDebug(fmt.Sprintf("Server OnRecvPacket %v: %v", connection.GetConnectionId(), recvMessage))
+	if packet.Command() == 123 {
+		recvMessage := protoPacket.Message().(*pb.TestMessage)
+		gnet.LogDebug(fmt.Sprintf("Server OnRecvPacket %v: %v", connection.GetConnectionId(), recvMessage))
+	}
 }
 
 
 // 客户端连接接口
 type echoProtoClientHandler struct {
 	echoCount int
+}
+
+func (e *echoProtoClientHandler) CreateHeartBeatPacket() gnet.Packet {
+	return gnet.NewProtoPacket(gnet.PacketCommand(1),
+		&pb.HeartBeatRequest{
+			Timestamp: time.Now().UnixNano()/int64(time.Microsecond),
+		})
 }
 
 func (e *echoProtoClientHandler) OnConnected(connection gnet.Connection, success bool) {

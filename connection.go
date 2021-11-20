@@ -9,11 +9,8 @@ type Connection interface {
 	GetConnectionId() uint32
 
 	// 发包
-	// NOTE:调用Send(packet)之后,不要在对packet进行读写!
+	// NOTE:调用Send(packet)之后,不要再对packet进行读写!
 	Send(packet Packet) bool
-
-	// 发protobuf格式的包
-	SendProto(packet *ProtoPacket) bool
 
 	// 是否连接成功
 	IsConnected() bool
@@ -37,6 +34,8 @@ type ConnectionConfig struct {
 	MaxPacketSize uint32
 	// 收包超时设置(秒)
 	RecvTimeout uint32
+	// 心跳包发送间隔(秒),对connector有效
+	HeartBeatInterval uint32
 	// 发包超时设置(秒)
 	WriteTimeout uint32
 	// TODO:其他流量控制设置

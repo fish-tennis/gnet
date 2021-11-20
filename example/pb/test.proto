@@ -13,3 +13,17 @@ message TestMessage {
   repeated int32 i32_list = 6;
   map<string, string> m = 7;
 }
+
+message InitSeed {
+  uint32 encodeSeed = 1;
+  uint32 decodeSeed = 2;
+}
+
+message HeartBeatRequest {
+  int64 timestamp = 1;
+}
+
+message HeartBeatResponse {
+  int64 requestTimestamp = 1;
+  int64 responseTimestamp = 2;
+}

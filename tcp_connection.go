@@ -167,6 +167,9 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 	// 收包超时计时,用于检测掉线
 	recvTimeoutTimer := time.NewTimer(time.Second * time.Duration(this.config.RecvTimeout))
 	defer recvTimeoutTimer.Stop()
+	// 心跳包计时
+	heartBeatTimer := time.NewTimer(time.Second * time.Duration(this.config.HeartBeatInterval))
+	defer heartBeatTimer.Stop()
 	this.sendBuffer = this.createSendBuffer()
 	for this.isConnected {
 		var delaySendDecodePacketData []byte
@@ -214,6 +217,14 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 					// 需要主动关闭该连接,防止连接"泄漏"
 					LogDebug("recv timeout %v", this.GetConnectionId())
 					return
+				}
+			}
+
+		case <-heartBeatTimer.C:
+			if this.isConnector && this.config.HeartBeatInterval > 0 && this.handler != nil {
+				if heartBeatPacket := this.handler.CreateHeartBeatPacket(); heartBeatPacket != nil {
+					delaySendDecodePacketData = this.codec.Encode(this, heartBeatPacket)
+					heartBeatTimer.Reset(time.Second * time.Duration(this.config.HeartBeatInterval))
 				}
 			}
 
@@ -278,13 +289,9 @@ func (this *TcpConnection) Close() {
 }
 
 // 异步发送数据
+// NOTE:调用Send(packet)之后,不要再对packet进行读写!
 func (this *TcpConnection) Send(packet Packet) bool {
-	this.sendPacketCache <- packet
-	return true
-}
-
-// 异步发protobuf格式的包
-func (this *TcpConnection) SendProto(packet *ProtoPacket) bool {
+	// NOTE:当sendPacketCache满时,这里会阻塞
 	this.sendPacketCache <- packet
 	return true
 }

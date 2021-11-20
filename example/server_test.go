@@ -109,6 +109,10 @@ type testServerClientHandler struct {
 
 }
 
+func (t *testServerClientHandler) CreateHeartBeatPacket() gnet.Packet {
+	return nil
+}
+
 func (t *testServerClientHandler) OnConnected(connection gnet.Connection, success bool) {
 	// 模拟客户端登录游戏时,会密集收到一堆消息
 	for i := 0; i < 30; i++ {
@@ -153,6 +157,10 @@ func (t *testServerClientHandler) OnRecvPacket(connection gnet.Connection, packe
 // 客户端的网络接口
 type testClientHandler struct {
 
+}
+
+func (t *testClientHandler) CreateHeartBeatPacket() gnet.Packet {
+	return nil
 }
 
 func (t *testClientHandler) OnConnected(connection gnet.Connection, success bool) {

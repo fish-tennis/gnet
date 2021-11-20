@@ -75,6 +75,10 @@ type antnetConnectorHandler struct {
 
 }
 
+func (this *antnetConnectorHandler) CreateHeartBeatPacket() gnet.Packet {
+	return nil
+}
+
 func (this *antnetConnectorHandler) OnConnected(connection gnet.Connection, success bool) {
 }
 

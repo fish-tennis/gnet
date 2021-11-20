@@ -115,6 +115,163 @@ func (x *TestMessage) GetM() map[string]string {
 	return nil
 }
 
+type InitSeed struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	EncodeSeed uint32 `protobuf:"varint,1,opt,name=encodeSeed,proto3" json:"encodeSeed,omitempty"`
+	DecodeSeed uint32 `protobuf:"varint,2,opt,name=decodeSeed,proto3" json:"decodeSeed,omitempty"`
+}
+
+func (x *InitSeed) Reset() {
+	*x = InitSeed{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_test_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *InitSeed) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InitSeed) ProtoMessage() {}
+
+func (x *InitSeed) ProtoReflect() protoreflect.Message {
+	mi := &file_test_proto_msgTypes[1]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InitSeed.ProtoReflect.Descriptor instead.
+func (*InitSeed) Descriptor() ([]byte, []int) {
+	return file_test_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *InitSeed) GetEncodeSeed() uint32 {
+	if x != nil {
+		return x.EncodeSeed
+	}
+	return 0
+}
+
+func (x *InitSeed) GetDecodeSeed() uint32 {
+	if x != nil {
+		return x.DecodeSeed
+	}
+	return 0
+}
+
+type HeartBeatRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Timestamp int64 `protobuf:"varint,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+}
+
+func (x *HeartBeatRequest) Reset() {
+	*x = HeartBeatRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_test_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *HeartBeatRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HeartBeatRequest) ProtoMessage() {}
+
+func (x *HeartBeatRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_test_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HeartBeatRequest.ProtoReflect.Descriptor instead.
+func (*HeartBeatRequest) Descriptor() ([]byte, []int) {
+	return file_test_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *HeartBeatRequest) GetTimestamp() int64 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
+type HeartBeatResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	RequestTimestamp  int64 `protobuf:"varint,1,opt,name=requestTimestamp,proto3" json:"requestTimestamp,omitempty"`
+	ResponseTimestamp int64 `protobuf:"varint,2,opt,name=responseTimestamp,proto3" json:"responseTimestamp,omitempty"`
+}
+
+func (x *HeartBeatResponse) Reset() {
+	*x = HeartBeatResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_test_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *HeartBeatResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HeartBeatResponse) ProtoMessage() {}
+
+func (x *HeartBeatResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_test_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HeartBeatResponse.ProtoReflect.Descriptor instead.
+func (*HeartBeatResponse) Descriptor() ([]byte, []int) {
+	return file_test_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *HeartBeatResponse) GetRequestTimestamp() int64 {
+	if x != nil {
+		return x.RequestTimestamp
+	}
+	return 0
+}
+
+func (x *HeartBeatResponse) GetResponseTimestamp() int64 {
+	if x != nil {
+		return x.ResponseTimestamp
+	}
+	return 0
+}
+
 var File_test_proto protoreflect.FileDescriptor
 
 var file_test_proto_rawDesc = []byte{
@@ -132,8 +289,23 @@ var file_test_proto_rawDesc = []byte{
 	0x4d, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x01, 0x6d, 0x1a, 0x34, 0x0a, 0x06, 0x4d, 0x45, 0x6e,
 	0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
 	0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x42,
-	0x06, 0x5a, 0x04, 0x2e, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22,
+	0x4a, 0x0a, 0x08, 0x49, 0x6e, 0x69, 0x74, 0x53, 0x65, 0x65, 0x64, 0x12, 0x1e, 0x0a, 0x0a, 0x65,
+	0x6e, 0x63, 0x6f, 0x64, 0x65, 0x53, 0x65, 0x65, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0d, 0x52,
+	0x0a, 0x65, 0x6e, 0x63, 0x6f, 0x64, 0x65, 0x53, 0x65, 0x65, 0x64, 0x12, 0x1e, 0x0a, 0x0a, 0x64,
+	0x65, 0x63, 0x6f, 0x64, 0x65, 0x53, 0x65, 0x65, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0d, 0x52,
+	0x0a, 0x64, 0x65, 0x63, 0x6f, 0x64, 0x65, 0x53, 0x65, 0x65, 0x64, 0x22, 0x30, 0x0a, 0x10, 0x48,
+	0x65, 0x61, 0x72, 0x74, 0x42, 0x65, 0x61, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12,
+	0x1c, 0x0a, 0x09, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x03, 0x52, 0x09, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x22, 0x6d, 0x0a,
+	0x11, 0x48, 0x65, 0x61, 0x72, 0x74, 0x42, 0x65, 0x61, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x2a, 0x0a, 0x10, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x54, 0x69, 0x6d,
+	0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x10, 0x72, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x12, 0x2c,
+	0x0a, 0x11, 0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74,
+	0x61, 0x6d, 0x70, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52, 0x11, 0x72, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x42, 0x06, 0x5a, 0x04,
+	0x2e, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -148,13 +320,16 @@ func file_test_proto_rawDescGZIP() []byte {
 	return file_test_proto_rawDescData
 }
 
-var file_test_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_test_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_test_proto_goTypes = []interface{}{
-	(*TestMessage)(nil), // 0: test.TestMessage
-	nil,                 // 1: test.TestMessage.MEntry
+	(*TestMessage)(nil),       // 0: test.TestMessage
+	(*InitSeed)(nil),          // 1: test.InitSeed
+	(*HeartBeatRequest)(nil),  // 2: test.HeartBeatRequest
+	(*HeartBeatResponse)(nil), // 3: test.HeartBeatResponse
+	nil,                       // 4: test.TestMessage.MEntry
 }
 var file_test_proto_depIdxs = []int32{
-	1, // 0: test.TestMessage.m:type_name -> test.TestMessage.MEntry
+	4, // 0: test.TestMessage.m:type_name -> test.TestMessage.MEntry
 	1, // [1:1] is the sub-list for method output_type
 	1, // [1:1] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
@@ -180,6 +355,42 @@ func file_test_proto_init() {
 				return nil
 			}
 		}
+		file_test_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*InitSeed); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_test_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*HeartBeatRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_test_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*HeartBeatResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -187,7 +398,7 @@ func file_test_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_test_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// gnet模拟antnet的协议格式
 func TestEchoAntnet(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -69,6 +70,10 @@ func (e *antnetListenerHandler) OnConnectionDisconnect(connection gnet.Connectio
 type antnetServerHandler struct {
 }
 
+func (e *antnetServerHandler) CreateHeartBeatPacket() gnet.Packet {
+	return nil
+}
+
 func (e *antnetServerHandler) OnConnected(connection gnet.Connection, success bool) {
 	gnet.LogDebug(fmt.Sprintf("Server OnConnected %v %v", connection.GetConnectionId(), success))
 	if success {
@@ -118,6 +123,10 @@ func (e *antnetServerHandler) OnRecvPacket(connection gnet.Connection, packet gn
 // 客户端连接接口
 type antnetClientHandler struct {
 	echoCount int
+}
+
+func (e *antnetClientHandler) CreateHeartBeatPacket() gnet.Packet {
+	return nil
 }
 
 func (e *antnetClientHandler) OnConnected(connection gnet.Connection, success bool) {
