@@ -20,6 +20,7 @@
 ## 核心模块
 ### 监听Listener(https://github.com/fish-tennis/gnet/blob/main/listener.go)
 监听某个端口,开启一个监听协程,并管理监听到的连接
+
 创建一个Listener:
 ```go
 netMgr.NewListener("127.0.0.1:10001", connectionConfig, codec, &echoServerHandler{}, &echoListenerHandler{})
@@ -28,6 +29,7 @@ netMgr.NewListener("127.0.0.1:10001", connectionConfig, codec, &echoServerHandle
 对连接的封装,连接有2种:
 - 一种是发起连接的一方(调用connect连接服务器的一方)
 - 一种是Listener监听到的连接(Listener通过accept监听到的连接)
+
 创建一个Connector:
 ```go
 netMgr.NewConnector("127.0.0.1:10001", connectionConfig, codec, &echoClientHandler{})
@@ -36,13 +38,20 @@ netMgr.NewConnector("127.0.0.1:10001", connectionConfig, codec, &echoClientHandl
 游戏行业的常规做法,数据包由消息号和proto消息构成,同时预留一个二进制数据的接口(不使用proto消息的应用可以使用该接口,如示例[不使用proto的echo](https://github.com/fish-tennis/gnet/blob/main/example/echo_data_test.go))
 ### 编解码Codec(https://github.com/fish-tennis/gnet/blob/main/codec.go)
 gnet把基于TCP流的解码分成3层
+
 第1层:对数据流进行分包,格式:|Length|Data|,在收到一个完整的数据包内容后,交给下一层处理
+
 第2层:对数据包的流数据进行解码,如解密,解压缩等
+
 第3层:对解码后的数据,进行protobuf反序列化,还原成proto.Message对象
+
 ### 应用层接口Handler(https://github.com/fish-tennis/gnet/blob/main/handler.go)
 ListenerHandler:当监听到新连接和连接断开时,提供回调接口
+
 ConnectionHandler:在连接成功或失败,连接断开,收到数据包时,提供回调接口
+
 应用层的逻辑主要处理OnRecvPacket接口
+
 ```go
 func (e *echoClientHandler) OnRecvPacket(connection Connection, packet Packet) {
 	connection.Send(packet)
