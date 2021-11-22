@@ -222,7 +222,7 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 
 		case <-heartBeatTimer.C:
 			if this.isConnector && this.config.HeartBeatInterval > 0 && this.handler != nil {
-				if heartBeatPacket := this.handler.CreateHeartBeatPacket(); heartBeatPacket != nil {
+				if heartBeatPacket := this.handler.CreateHeartBeatPacket(this); heartBeatPacket != nil {
 					delaySendDecodePacketData = this.codec.Encode(this, heartBeatPacket)
 					heartBeatTimer.Reset(time.Second * time.Duration(this.config.HeartBeatInterval))
 				}
@@ -291,6 +291,9 @@ func (this *TcpConnection) Close() {
 // 异步发送数据
 // NOTE:调用Send(packet)之后,不要再对packet进行读写!
 func (this *TcpConnection) Send(packet Packet) bool {
+	if !this.isConnected {
+		return false
+	}
 	// NOTE:当sendPacketCache满时,这里会阻塞
 	this.sendPacketCache <- packet
 	return true
@@ -330,4 +333,20 @@ func (this *TcpConnection) GetSendBuffer() *RingBuffer {
 // 收包RingBuffer
 func (this *TcpConnection) GetRecvBuffer() *RingBuffer {
 	return this.recvBuffer
+}
+
+// LocalAddr returns the local network address.
+func (this *TcpConnection) LocalAddr() net.Addr {
+	if this.conn == nil {
+		return nil
+	}
+	return this.conn.LocalAddr()
+}
+
+// RemoteAddr returns the remote network address.
+func (this *TcpConnection) RemoteAddr() net.Addr {
+	if this.conn == nil {
+		return nil
+	}
+	return this.conn.RemoteAddr()
 }

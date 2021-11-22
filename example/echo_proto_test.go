@@ -38,8 +38,8 @@ func TestEchoProto(t *testing.T) {
 	protoMap[gnet.PacketCommand(123)] = func() proto.Message {
 		return &pb.TestMessage{}
 	}
-	//codec := gnet.NewProtoCodec(protoMap)
-	codec := gnet.NewXorProtoCodec([]byte("xor_test_key"), protoMap)
+	codec := gnet.NewProtoCodec(protoMap)
+	//codec := gnet.NewXorProtoCodec([]byte("xor_test_key"), protoMap)
 	netMgr.NewListener(listenAddress, connectionConfig, codec, &echoProtoServerHandler{}, &echoProtoListenerHandler{})
 	time.Sleep(time.Second)
 
@@ -62,11 +62,11 @@ type echoProtoListenerHandler struct {
 	
 }
 
-func (e *echoProtoListenerHandler) OnConnectionConnected(connection gnet.Connection) {
+func (e *echoProtoListenerHandler) OnConnectionConnected(listener gnet.Listener, connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
 }
 
-func (e *echoProtoListenerHandler) OnConnectionDisconnect(connection gnet.Connection) {
+func (e *echoProtoListenerHandler) OnConnectionDisconnect(listener gnet.Listener, connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
 }
 
@@ -74,7 +74,7 @@ func (e *echoProtoListenerHandler) OnConnectionDisconnect(connection gnet.Connec
 type echoProtoServerHandler struct {
 }
 
-func (e *echoProtoServerHandler) CreateHeartBeatPacket() gnet.Packet {
+func (e *echoProtoServerHandler) CreateHeartBeatPacket(connection gnet.Connection) gnet.Packet {
 	return nil
 }
 
@@ -130,7 +130,7 @@ type echoProtoClientHandler struct {
 	echoCount int
 }
 
-func (e *echoProtoClientHandler) CreateHeartBeatPacket() gnet.Packet {
+func (e *echoProtoClientHandler) CreateHeartBeatPacket(connection gnet.Connection) gnet.Packet {
 	return gnet.NewProtoPacket(gnet.PacketCommand(1),
 		&pb.HeartBeatRequest{
 			Timestamp: time.Now().UnixNano()/int64(time.Microsecond),

@@ -58,11 +58,11 @@ type antnetListenerHandler struct {
 
 }
 
-func (e *antnetListenerHandler) OnConnectionConnected(connection gnet.Connection) {
-	gnet.LogDebug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
+func (e *antnetListenerHandler) OnConnectionConnected(listener gnet.Listener, acceptedConnection gnet.Connection) {
+	gnet.LogDebug(fmt.Sprintf("OnConnectionConnected %v", acceptedConnection.GetConnectionId()))
 }
 
-func (e *antnetListenerHandler) OnConnectionDisconnect(connection gnet.Connection) {
+func (e *antnetListenerHandler) OnConnectionDisconnect(listener gnet.Listener, connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
 }
 
@@ -70,7 +70,7 @@ func (e *antnetListenerHandler) OnConnectionDisconnect(connection gnet.Connectio
 type antnetServerHandler struct {
 }
 
-func (e *antnetServerHandler) CreateHeartBeatPacket() gnet.Packet {
+func (e *antnetServerHandler) CreateHeartBeatPacket(connection gnet.Connection) gnet.Packet {
 	return nil
 }
 
@@ -125,7 +125,7 @@ type antnetClientHandler struct {
 	echoCount int
 }
 
-func (e *antnetClientHandler) CreateHeartBeatPacket() gnet.Packet {
+func (e *antnetClientHandler) CreateHeartBeatPacket(connection gnet.Connection) gnet.Packet {
 	return nil
 }
 

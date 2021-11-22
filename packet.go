@@ -64,6 +64,9 @@ type Packet interface {
 
 	// 预留一个二进制数据的接口,如果项目使用protobuf,该不需要该接口了
 	GetStreamData() []byte
+
+	// deep copy
+	Clone() Packet
 }
 
 
@@ -93,6 +96,14 @@ func (this *ProtoPacket) GetStreamData() []byte {
 	return nil
 }
 
+// deep copy
+func (this *ProtoPacket) Clone() Packet {
+	return &ProtoPacket{
+		command: this.command,
+		message: proto.Clone(this.message),
+	}
+}
+
 
 // 只包含一个[]byte的数据包
 type DataPacket struct {
@@ -113,4 +124,11 @@ func (this *DataPacket) Message() proto.Message {
 
 func (this *DataPacket) GetStreamData() []byte {
 	return this.data
+}
+
+// deep copy
+func (this *DataPacket) Clone() Packet {
+	newPacket := &DataPacket{data: make([]byte,len(this.data))}
+	copy(newPacket.data, this.data)
+	return newPacket
 }

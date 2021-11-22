@@ -1,10 +1,24 @@
 package gnet
 
-import "sync/atomic"
+import (
+	"net"
+	"sync/atomic"
+)
 
 // 监听接口定义
 type Listener interface {
 	GetListenerId() uint32
+
+	GetConnection(connectionId uint32) Connection
+
+	// 广播消息
+	Broadcast(packet Packet)
+
+	// Addr returns the listener's network address.
+	Addr() net.Addr
+
+	// 关闭
+	Close()
 }
 
 // 监听

@@ -52,11 +52,11 @@ type echoListenerHandler struct {
 	
 }
 
-func (e *echoListenerHandler) OnConnectionConnected(connection gnet.Connection) {
+func (e *echoListenerHandler) OnConnectionConnected(listener gnet.Listener, connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
 }
 
-func (e *echoListenerHandler) OnConnectionDisconnect(connection gnet.Connection) {
+func (e *echoListenerHandler) OnConnectionDisconnect(listener gnet.Listener, connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
 }
 
@@ -98,7 +98,7 @@ func (e *echoServerHandler) OnRecvPacket(connection gnet.Connection, packet gnet
 	gnet.LogDebug(fmt.Sprintf("Server OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetStreamData())))
 }
 
-func (e *echoServerHandler) CreateHeartBeatPacket() gnet.Packet { return nil }
+func (e *echoServerHandler) CreateHeartBeatPacket(connection gnet.Connection, ) gnet.Packet { return nil }
 
 
 // 客户端连接接口
@@ -121,6 +121,6 @@ func (e *echoClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet
 	connection.Send(echoPacket)
 }
 
-func (e *echoClientHandler) CreateHeartBeatPacket() gnet.Packet {
+func (e *echoClientHandler) CreateHeartBeatPacket(connection gnet.Connection) gnet.Packet {
 	return gnet.NewDataPacket([]byte("heartbeat"))
 }

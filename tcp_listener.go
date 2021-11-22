@@ -41,6 +41,24 @@ func NewTcpListener(acceptConnectionConfig ConnectionConfig, acceptConnectionCod
 	}
 }
 
+func (this *TcpListener) GetConnection(connectionId uint32) Connection {
+	this.connectionMapLock.Lock()
+	conn := this.connectionMap[connectionId]
+	this.connectionMapLock.Unlock()
+	return conn
+}
+
+// 广播消息
+func (this *TcpListener) Broadcast(packet Packet)  {
+	this.connectionMapLock.Lock()
+	for _,conn := range this.connectionMap {
+		if conn.isConnected {
+			conn.Send(packet.Clone())
+		}
+	}
+	this.connectionMapLock.Unlock()
+}
+
 // 开启监听
 func (this *TcpListener) Start(listenAddress string, closeNotify chan struct{}) bool {
 	var err error
@@ -72,11 +90,22 @@ func (this *TcpListener) Start(listenAddress string, closeNotify chan struct{}) 
 	return true
 }
 
+// 关闭监听,并关闭管理的连接
 func (this *TcpListener) Close() {
 	this.closeOnce.Do(func() {
 		this.isRunning = false
 		if this.netListener != nil {
 			this.netListener.Close()
+		}
+		connMap := make(map[uint32]*TcpConnection)
+		this.connectionMapLock.Lock()
+		for k,v := range this.connectionMap {
+			connMap[k] = v
+		}
+		this.connectionMapLock.Unlock()
+		// 关闭管理的连接
+		for _,conn := range connMap {
+			conn.Close()
 		}
 		if this.onClose != nil {
 			this.onClose(this)
@@ -122,12 +151,19 @@ func (this *TcpListener) acceptLoop(closeNotify chan struct{}) {
 			newTcpConn.Start(closeNotify)
 
 			if this.handler != nil {
-				this.handler.OnConnectionConnected(newTcpConn)
+				this.handler.OnConnectionConnected(this, newTcpConn)
 				newTcpConn.onClose = func(connection Connection) {
-					this.handler.OnConnectionDisconnect(connection)
+					this.handler.OnConnectionDisconnect(this, connection)
 				}
 			}
 		}()
 	}
 }
 
+// Addr returns the listener's network address.
+func (this *TcpListener) Addr() net.Addr {
+	if this.netListener == nil {
+		return nil
+	}
+	return this.netListener.Addr()
+}

@@ -1,12 +1,17 @@
 package gnet
 
-import "sync/atomic"
+import (
+	"net"
+	"sync/atomic"
+)
 
 // 连接接口定义
 type Connection interface {
-
 	// 连接唯一id
 	GetConnectionId() uint32
+
+	// 是否是发起连接的一方
+	IsConnector() bool
 
 	// 发包
 	// NOTE:调用Send(packet)之后,不要再对packet进行读写!
@@ -20,6 +25,15 @@ type Connection interface {
 
 	// 设置编解码接口
 	SetCodec(codec Codec)
+
+	// LocalAddr returns the local network address.
+	LocalAddr() net.Addr
+
+	// RemoteAddr returns the remote network address.
+	RemoteAddr() net.Addr
+
+	// 关闭连接
+	Close()
 }
 
 // 连接设置
@@ -60,6 +74,10 @@ type baseConnection struct {
 // 连接唯一id
 func (this *baseConnection) GetConnectionId() uint32 {
 	return this.connectionId
+}
+
+func (this *baseConnection) IsConnector() bool {
+	return this.isConnector
 }
 
 //// 发送数据

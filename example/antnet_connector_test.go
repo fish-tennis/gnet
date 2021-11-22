@@ -75,7 +75,7 @@ type antnetConnectorHandler struct {
 
 }
 
-func (this *antnetConnectorHandler) CreateHeartBeatPacket() gnet.Packet {
+func (this *antnetConnectorHandler) CreateHeartBeatPacket(connection gnet.Connection) gnet.Packet {
 	return nil
 }
 

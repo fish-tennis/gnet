@@ -96,11 +96,11 @@ func TestTestServer(t *testing.T) {
 type testServerListenerHandler struct {
 }
 
-func (e *testServerListenerHandler) OnConnectionConnected(connection gnet.Connection) {
+func (e *testServerListenerHandler) OnConnectionConnected(listener gnet.Listener, connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
 }
 
-func (e *testServerListenerHandler) OnConnectionDisconnect(connection gnet.Connection) {
+func (e *testServerListenerHandler) OnConnectionDisconnect(listener gnet.Listener, connection gnet.Connection) {
 	gnet.LogDebug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
 }
 
@@ -109,7 +109,7 @@ type testServerClientHandler struct {
 
 }
 
-func (t *testServerClientHandler) CreateHeartBeatPacket() gnet.Packet {
+func (t *testServerClientHandler) CreateHeartBeatPacket(connection gnet.Connection) gnet.Packet {
 	return nil
 }
 
@@ -159,7 +159,7 @@ type testClientHandler struct {
 
 }
 
-func (t *testClientHandler) CreateHeartBeatPacket() gnet.Packet {
+func (t *testClientHandler) CreateHeartBeatPacket(connection gnet.Connection) gnet.Packet {
 	return nil
 }
 

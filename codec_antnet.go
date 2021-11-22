@@ -45,6 +45,17 @@ func (this *AntnetPacket) GetStreamData() []byte {
 	return nil
 }
 
+func (this *AntnetPacket) Clone() Packet {
+	return &AntnetPacket{
+		Head: &AntnetHeader{
+			Cmd: this.Head.Cmd,
+			Act: this.Head.Act,
+			Error: this.Head.Error,
+		},
+		message: proto.Clone(this.message),
+	}
+}
+
 func (this *AntnetPacket) CmdAct() int {
 	return int(this.Command())
 }
