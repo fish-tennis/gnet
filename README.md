@@ -65,3 +65,11 @@ func (e *echoClientHandler) OnRecvPacket(connection Connection, packet Packet) {
 
 [模拟一个简单的游戏应用场景的性能测试](https://github.com/fish-tennis/gnet/blob/main/example/server_test.go)
 
+## 编译
+项目使用go.mod
+
+依赖项: google.golang.org/protobuf
+
+由于墙的问题,可以设置 GOPROXY=https://goproxy.cn
+
+无法下载google.golang.org/protobuf的解决方法:在Go的root目录,git clone https://github.com/protocolbuffers/protobuf-go.git, clone到GO的root目录/src/google.golang.org/protobuf
