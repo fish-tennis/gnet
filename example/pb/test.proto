@@ -4,6 +4,28 @@ option go_package = "./pb";
 
 package test;
 
+// 消息号定义
+enum CmdTest {
+	Cmd_None      = 0; // 解决"The first enum value must be zero in proto3."的报错
+
+	// 消息号枚举值的命名规范建议:Cmd_MessageName,便于工具处理,生成一些辅助代码
+	Cmd_HeartBeat = 1;
+
+	Cmd_TestMessage = 123;
+}
+
+// 心跳包
+message HeartBeatReq {
+  int64 timestamp = 1;
+}
+
+// 心跳回复
+message HeartBeatRes {
+  int64 requestTimestamp = 1;
+  int64 responseTimestamp = 2;
+}
+
+// 测试消息
 message TestMessage {
   string name = 1;
   int32 i32 = 2;
@@ -12,18 +34,4 @@ message TestMessage {
   float f = 5;
   repeated int32 i32_list = 6;
   map<string, string> m = 7;
-}
-
-message InitSeed {
-  uint32 encodeSeed = 1;
-  uint32 decodeSeed = 2;
-}
-
-message HeartBeatRequest {
-  int64 timestamp = 1;
-}
-
-message HeartBeatResponse {
-  int64 requestTimestamp = 1;
-  int64 responseTimestamp = 2;
 }

@@ -1,6 +1,7 @@
 package gnet
 
 import (
+	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
 	"sync"
@@ -288,9 +289,21 @@ func (this *TcpConnection) Close() {
 	})
 }
 
+// 异步发送proto包
+// NOTE:调用Send(command,message)之后,不要再对message进行读写!
+func (this *TcpConnection) Send(command PacketCommand, message proto.Message) bool {
+	if !this.isConnected {
+		return false
+	}
+	packet := NewProtoPacket(command, message)
+	// NOTE:当sendPacketCache满时,这里会阻塞
+	this.sendPacketCache <- packet
+	return true
+}
+
 // 异步发送数据
-// NOTE:调用Send(packet)之后,不要再对packet进行读写!
-func (this *TcpConnection) Send(packet Packet) bool {
+// NOTE:调用SendPacket(packet)之后,不要再对packet进行读写!
+func (this *TcpConnection) SendPacket(packet Packet) bool {
 	if !this.isConnected {
 		return false
 	}

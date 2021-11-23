@@ -73,7 +73,7 @@ func (e *echoServerHandler) OnConnected(connection gnet.Connection, success bool
 		for i := 0; i < 10; i++ {
 			serialId++
 			packet := gnet.NewDataPacket([]byte(fmt.Sprintf("hello client %v", serialId)))
-			connection.Send(packet)
+			connection.SendPacket(packet)
 		}
 		go func() {
 			autoSendTimer := time.NewTimer(time.Second)
@@ -82,7 +82,7 @@ func (e *echoServerHandler) OnConnected(connection gnet.Connection, success bool
 				case <-autoSendTimer.C:
 					serialId++
 					packet := gnet.NewDataPacket([]byte(fmt.Sprintf("hello client %v", serialId)))
-					connection.Send(packet)
+					connection.SendPacket(packet)
 					autoSendTimer.Reset(time.Second)
 				}
 			}
@@ -118,7 +118,7 @@ func (e *echoClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet
 	gnet.LogDebug(fmt.Sprintf("Client OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetStreamData())))
 	e.echoCount++
 	echoPacket := gnet.NewDataPacket([]byte(fmt.Sprintf("hello server %v", e.echoCount)))
-	connection.Send(echoPacket)
+	connection.SendPacket(echoPacket)
 }
 
 func (e *echoClientHandler) CreateHeartBeatPacket(connection gnet.Connection) gnet.Packet {

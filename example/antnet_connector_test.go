@@ -96,7 +96,7 @@ func (this *antnetConnectorHandler) OnRecvPacket(connection gnet.Connection, pac
 				Label: proto.String("hello server"),
 				Type: proto.String(""),
 			})
-		connection.Send(toPacket)
+		connection.SendPacket(toPacket)
 	}
 }
 

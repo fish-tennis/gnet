@@ -87,7 +87,7 @@ func (e *antnetServerHandler) OnConnected(connection gnet.Connection, success bo
 					Name: fmt.Sprintf("hello client %v", serialId),
 					I32: int32(serialId),
 				})
-			connection.Send(packet)
+			connection.SendPacket(packet)
 		}
 		go func() {
 			autoSendTimer := time.NewTimer(time.Second)
@@ -100,7 +100,7 @@ func (e *antnetServerHandler) OnConnected(connection gnet.Connection, success bo
 							Name: fmt.Sprintf("hello client %v", serialId),
 							I32: int32(serialId),
 						})
-					connection.Send(packet)
+					connection.SendPacket(packet)
 					autoSendTimer.Reset(time.Second)
 				}
 			}
@@ -148,5 +148,5 @@ func (e *antnetClientHandler) OnRecvPacket(connection gnet.Connection, packet gn
 			Name: fmt.Sprintf("hello server %v", e.echoCount),
 			I32: int32(e.echoCount),
 		})
-	connection.Send(echoPacket)
+	connection.SendPacket(echoPacket)
 }

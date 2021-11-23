@@ -121,14 +121,14 @@ func (t *testServerClientHandler) OnConnected(connection gnet.Connection, succes
 				Name: "hello client",
 				I32: int32(i),
 			})
-		connection.Send(toPacket)
+		connection.SendPacket(toPacket)
 	}
 	toPacket := gnet.NewProtoPacket( 123,
 		&pb.TestMessage{
 			Name: "response",
 			I32: int32(0),
 		})
-	connection.Send(toPacket)
+	connection.SendPacket(toPacket)
 }
 
 func (t *testServerClientHandler) OnDisconnected(connection gnet.Connection) {
@@ -144,14 +144,14 @@ func (t *testServerClientHandler) OnRecvPacket(connection gnet.Connection, packe
 				Name: "hello client this is server",
 				I32: int32(i),
 			})
-		connection.Send(toPacket)
+		connection.SendPacket(toPacket)
 	}
 	toPacket := gnet.NewProtoPacket( 123,
 		&pb.TestMessage{
 			Name: "response",
 			I32: int32(0),
 		})
-	connection.Send(toPacket)
+	connection.SendPacket(toPacket)
 }
 
 // 客户端的网络接口
@@ -179,6 +179,6 @@ func (t *testClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet
 				Name: "hello server",
 				I32: int32(0),
 			})
-		connection.Send(toPacket)
+		connection.SendPacket(toPacket)
 	}
 }

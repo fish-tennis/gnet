@@ -53,7 +53,7 @@ func (this *TcpListener) Broadcast(packet Packet)  {
 	this.connectionMapLock.Lock()
 	for _,conn := range this.connectionMap {
 		if conn.isConnected {
-			conn.Send(packet.Clone())
+			conn.SendPacket(packet.Clone())
 		}
 	}
 	this.connectionMapLock.Unlock()

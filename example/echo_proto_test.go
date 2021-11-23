@@ -31,19 +31,42 @@ func TestEchoProto(t *testing.T) {
 	}
 	listenAddress := "127.0.0.1:10002"
 
-	protoMap := make(map[gnet.PacketCommand]gnet.ProtoMessageCreator)
-	protoMap[gnet.PacketCommand(1)] = func() proto.Message {
-		return &pb.HeartBeatRequest{}
+	serverCodec := gnet.NewProtoCodec(nil)
+	//serverCodec := gnet.NewXorProtoCodec([]byte("xor_test_key"), nil)
+	serverHandler := &echoProtoServerHandler{
+		DefaultConnectionHandler: *gnet.NewDefaultConnectionHandler(serverCodec),
 	}
-	protoMap[gnet.PacketCommand(123)] = func() proto.Message {
+	// 注册服务器的消息回调
+	serverHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_HeartBeat), onHeartBeatReq, func() proto.Message {
+		return &pb.HeartBeatReq{}
+	})
+	serverHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessageServer, func() proto.Message {
 		return &pb.TestMessage{}
+	})
+	if netMgr.NewListener(listenAddress, connectionConfig, serverCodec, serverHandler, nil) == nil {
+		panic("listen failed")
 	}
-	codec := gnet.NewProtoCodec(protoMap)
-	//codec := gnet.NewXorProtoCodec([]byte("xor_test_key"), protoMap)
-	netMgr.NewListener(listenAddress, connectionConfig, codec, &echoProtoServerHandler{}, &echoProtoListenerHandler{})
 	time.Sleep(time.Second)
 
-	netMgr.NewConnector(listenAddress, connectionConfig, codec, &echoProtoClientHandler{})
+	clientCodec := gnet.NewProtoCodec(nil)
+	//clientCodec := gnet.NewXorProtoCodec([]byte("xor_test_key"), nil)
+	clientHandler := &echoProtoClientHandler{
+		DefaultConnectionHandler: *gnet.NewDefaultConnectionHandler(clientCodec),
+	}
+	// 客户端作为connector,需要设置心跳包
+	clientHandler.RegisterHeartBeat(gnet.PacketCommand(pb.CmdTest_Cmd_HeartBeat), func() proto.Message {
+		return &pb.HeartBeatReq{}
+	})
+	// 注册客户端的消息回调
+	clientHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_HeartBeat), clientHandler.onHeartBeatRes, func() proto.Message {
+		return &pb.HeartBeatRes{}
+	})
+	clientHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), clientHandler.onTestMessage, func() proto.Message {
+		return &pb.TestMessage{}
+	})
+	if netMgr.NewConnector(listenAddress, connectionConfig, clientCodec, clientHandler) == nil {
+		panic("connect failed")
+	}
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -57,25 +80,10 @@ func TestEchoProto(t *testing.T) {
 	netMgr.Shutdown(true)
 }
 
-// 监听接口
-type echoProtoListenerHandler struct {
-	
-}
-
-func (e *echoProtoListenerHandler) OnConnectionConnected(listener gnet.Listener, connection gnet.Connection) {
-	gnet.LogDebug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
-}
-
-func (e *echoProtoListenerHandler) OnConnectionDisconnect(listener gnet.Listener, connection gnet.Connection) {
-	gnet.LogDebug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
-}
 
 // 服务端监听到的连接接口
 type echoProtoServerHandler struct {
-}
-
-func (e *echoProtoServerHandler) CreateHeartBeatPacket(connection gnet.Connection) gnet.Packet {
-	return nil
+	gnet.DefaultConnectionHandler
 }
 
 func (e *echoProtoServerHandler) OnConnected(connection gnet.Connection, success bool) {
@@ -86,25 +94,26 @@ func (e *echoProtoServerHandler) OnConnected(connection gnet.Connection, success
 		// 先连发10个数据包
 		for i := 0; i < 10; i++ {
 			serialId++
-			packet := gnet.NewProtoPacket(gnet.PacketCommand(123),
+			packet := gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage),
 				&pb.TestMessage{
 				Name: fmt.Sprintf("hello client %v", serialId),
 				I32: int32(serialId),
 				})
-			connection.Send(packet)
+			connection.SendPacket(packet)
 		}
+		// 每隔1秒 发一个包
 		go func() {
 			autoSendTimer := time.NewTimer(time.Second)
 			for connection.IsConnected() {
 				select {
 				case <-autoSendTimer.C:
 					serialId++
-					packet := gnet.NewProtoPacket(gnet.PacketCommand(123),
+					packet := gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage),
 						&pb.TestMessage{
 							Name: fmt.Sprintf("hello client %v", serialId),
 							I32: int32(serialId),
 						})
-					connection.Send(packet)
+					connection.SendPacket(packet)
 					autoSendTimer.Reset(time.Second)
 				}
 			}
@@ -112,48 +121,42 @@ func (e *echoProtoServerHandler) OnConnected(connection gnet.Connection, success
 	}
 }
 
-func (e *echoProtoServerHandler) OnDisconnected(connection gnet.Connection ) {
-	gnet.LogDebug(fmt.Sprintf("Server OnDisconnected %v", connection.GetConnectionId()))
+// 服务器收到客户端的心跳包
+func onHeartBeatReq(connection gnet.Connection, packet *gnet.ProtoPacket) {
+	req := packet.Message().(*pb.HeartBeatReq)
+	gnet.LogDebug(fmt.Sprintf("Server onHeartBeatReq: %v", req))
+	connection.Send( gnet.PacketCommand(pb.CmdTest_Cmd_HeartBeat), &pb.HeartBeatRes{
+		RequestTimestamp: req.GetTimestamp(),
+		ResponseTimestamp: time.Now().UnixNano()/int64(time.Microsecond),
+	} )
 }
 
-func (e *echoProtoServerHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
-	protoPacket := packet.(*gnet.ProtoPacket)
-	if packet.Command() == 123 {
-		recvMessage := protoPacket.Message().(*pb.TestMessage)
-		gnet.LogDebug(fmt.Sprintf("Server OnRecvPacket %v: %v", connection.GetConnectionId(), recvMessage))
-	}
+// 服务器收到客户端的TestMessage
+func onTestMessageServer(connection gnet.Connection, packet *gnet.ProtoPacket) {
+	req := packet.Message().(*pb.TestMessage)
+	gnet.LogDebug(fmt.Sprintf("Server onTestMessage: %v", req))
 }
 
 
 // 客户端连接接口
 type echoProtoClientHandler struct {
+	gnet.DefaultConnectionHandler
 	echoCount int
 }
 
-func (e *echoProtoClientHandler) CreateHeartBeatPacket(connection gnet.Connection) gnet.Packet {
-	return gnet.NewProtoPacket(gnet.PacketCommand(1),
-		&pb.HeartBeatRequest{
-			Timestamp: time.Now().UnixNano()/int64(time.Microsecond),
-		})
+// 收到心跳包回复
+func (e *echoProtoClientHandler) onHeartBeatRes(connection gnet.Connection, packet *gnet.ProtoPacket) {
+	res := packet.Message().(*pb.HeartBeatRes)
+	gnet.LogDebug(fmt.Sprintf("client onHeartBeatRes: %v", res))
 }
 
-func (e *echoProtoClientHandler) OnConnected(connection gnet.Connection, success bool) {
-	gnet.LogDebug(fmt.Sprintf("Client OnConnected %v %v", connection.GetConnectionId(), success))
-}
-
-func (e *echoProtoClientHandler) OnDisconnected(connection gnet.Connection ) {
-	gnet.LogDebug(fmt.Sprintf("Client OnDisconnected %v", connection.GetConnectionId()))
-}
-
-func (e *echoProtoClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
-	protoPacket := packet.(*gnet.ProtoPacket)
-	recvMessage := protoPacket.Message().(*pb.TestMessage)
-	gnet.LogDebug(fmt.Sprintf("Client OnRecvPacket %v: %v", connection.GetConnectionId(), recvMessage))
+func (e *echoProtoClientHandler) onTestMessage(connection gnet.Connection, packet *gnet.ProtoPacket) {
+	res := packet.Message().(*pb.TestMessage)
+	gnet.LogDebug(fmt.Sprintf("client onTestMessage: %v", res))
 	e.echoCount++
-	echoPacket := gnet.NewProtoPacket(gnet.PacketCommand(123),
+	connection.Send(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage),
 		&pb.TestMessage{
-		Name: fmt.Sprintf("hello server %v", e.echoCount),
-		I32: int32(e.echoCount),
+			Name: fmt.Sprintf("hello server %v", e.echoCount),
+			I32: int32(e.echoCount),
 		})
-	connection.Send(echoPacket)
 }

@@ -1,6 +1,7 @@
 package gnet
 
 import (
+	"google.golang.org/protobuf/proto"
 	"net"
 	"sync/atomic"
 )
@@ -13,9 +14,13 @@ type Connection interface {
 	// 是否是发起连接的一方
 	IsConnector() bool
 
+	// 发包(protobuf)
+	// NOTE:调用Send(command,message)之后,不要再对message进行读写!
+	Send(command PacketCommand, message proto.Message) bool
+
 	// 发包
-	// NOTE:调用Send(packet)之后,不要再对packet进行读写!
-	Send(packet Packet) bool
+	// NOTE:调用SendPacket(packet)之后,不要再对packet进行读写!
+	SendPacket(packet Packet) bool
 
 	// 是否连接成功
 	IsConnected() bool
@@ -79,11 +84,6 @@ func (this *baseConnection) GetConnectionId() uint32 {
 func (this *baseConnection) IsConnector() bool {
 	return this.isConnector
 }
-
-//// 发送数据
-//func (this *baseConnection) Send(data []byte) bool {
-//	return this.sendBuffer.Write(data)
-//}
 
 // 是否连接成功
 func (this *baseConnection) IsConnected() bool {
