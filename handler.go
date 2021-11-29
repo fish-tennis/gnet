@@ -33,8 +33,10 @@ type PacketHandler func(connection Connection, packet* ProtoPacket)
 
 // ProtoPacket默认ConnectionHandler
 type DefaultConnectionHandler struct {
-	// 消息回调map
+	// 注册消息的处理函数map
 	packetHandlers map[PacketCommand]PacketHandler
+	// 未注册消息的处理函数
+	unRegisterHandler PacketHandler
 	// handler一般总是和codec配合使用
 	protoCodec *ProtoCodec
 	// 心跳包消息号(只对connector有效)
@@ -50,11 +52,21 @@ func (this *DefaultConnectionHandler) OnDisconnected(connection Connection) {
 }
 
 func (this *DefaultConnectionHandler) OnRecvPacket(connection Connection, packet Packet) {
+	defer func() {
+		if err := recover(); err != nil {
+			LogError("fatal %v", err.(error))
+			LogStack()
+		}
+	}()
 	if protoPacket,ok := packet.(*ProtoPacket); ok {
 		if packetHandler,ok2 := this.packetHandlers[protoPacket.command]; ok2 {
 			if packetHandler != nil {
 				packetHandler(connection, protoPacket)
+				return
 			}
+		}
+		if this.unRegisterHandler != nil {
+			this.unRegisterHandler(connection, protoPacket)
 		}
 	}
 }
@@ -85,4 +97,9 @@ func (this *DefaultConnectionHandler) Register(packetCommand PacketCommand, hand
 func (this *DefaultConnectionHandler) RegisterHeartBeat(packetCommand PacketCommand, creator ProtoMessageCreator) {
 	this.heartBeatCommand = packetCommand
 	this.heartBeatCreator = creator
+}
+
+// 未注册消息的处理函数
+func (this *DefaultConnectionHandler) SetUnRegisterHandler(unRegisterHandler PacketHandler) {
+	this.unRegisterHandler = unRegisterHandler
 }
