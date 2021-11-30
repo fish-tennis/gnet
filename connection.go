@@ -39,6 +39,12 @@ type Connection interface {
 
 	// 关闭连接
 	Close()
+
+	// 获取关联数据
+	GetTag() interface{}
+
+	// 设置关联数据
+	SetTag(tag interface{})
 }
 
 // 连接设置
@@ -74,6 +80,8 @@ type baseConnection struct {
 	handler ConnectionHandler
 	// 编解码接口
 	codec Codec
+	// 关联数据
+	tag interface{}
 }
 
 // 连接唯一id
@@ -98,6 +106,15 @@ func (this *baseConnection) GetCodec() Codec {
 // 设置编解码接口
 func (this *baseConnection) SetCodec(codec Codec) {
 	this.codec = codec
+}
+
+// 获取关联数据
+func (this *baseConnection) GetTag() interface{} {
+	return this.tag
+}
+// 设置关联数据
+func (this *baseConnection) SetTag(tag interface{}) {
+	this.tag = tag
 }
 
 var (

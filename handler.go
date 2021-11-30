@@ -86,11 +86,16 @@ func NewDefaultConnectionHandler(protoCodec *ProtoCodec) *DefaultConnectionHandl
 }
 
 // 注册消息号和消息回调,消息构造的映射
+// handler在TcpConnection的read协程中被调用
 func (this *DefaultConnectionHandler) Register(packetCommand PacketCommand, handler PacketHandler, creator ProtoMessageCreator) {
 	this.packetHandlers[packetCommand] = handler
 	if this.protoCodec != nil && creator != nil {
 		this.protoCodec.Register(packetCommand, creator)
 	}
+}
+
+func (this *DefaultConnectionHandler) GetPacketHandler(packetCommand PacketCommand) PacketHandler {
+	return this.packetHandlers[packetCommand]
 }
 
 // 注册心跳包(只对connector有效)
@@ -100,6 +105,7 @@ func (this *DefaultConnectionHandler) RegisterHeartBeat(packetCommand PacketComm
 }
 
 // 未注册消息的处理函数
+// unRegisterHandler在TcpConnection的read协程中被调用
 func (this *DefaultConnectionHandler) SetUnRegisterHandler(unRegisterHandler PacketHandler) {
 	this.unRegisterHandler = unRegisterHandler
 }
