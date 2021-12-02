@@ -37,6 +37,9 @@ type DefaultConnectionHandler struct {
 	packetHandlers map[PacketCommand]PacketHandler
 	// 未注册消息的处理函数
 	unRegisterHandler PacketHandler
+	// 连接回调
+	onConnectedFunc func(connection Connection, success bool)
+	onDisconnectedFunc func(connection Connection)
 	// handler一般总是和codec配合使用
 	protoCodec *ProtoCodec
 	// 心跳包消息号(只对connector有效)
@@ -46,9 +49,15 @@ type DefaultConnectionHandler struct {
 }
 
 func (this *DefaultConnectionHandler) OnConnected(connection Connection, success bool) {
+	if this.onConnectedFunc != nil {
+		this.onConnectedFunc(connection, success)
+	}
 }
 
 func (this *DefaultConnectionHandler) OnDisconnected(connection Connection) {
+	if this.onDisconnectedFunc != nil {
+		this.onDisconnectedFunc(connection)
+	}
 }
 
 func (this *DefaultConnectionHandler) OnRecvPacket(connection Connection, packet Packet) {
@@ -85,6 +94,10 @@ func NewDefaultConnectionHandler(protoCodec *ProtoCodec) *DefaultConnectionHandl
 	}
 }
 
+func (this *DefaultConnectionHandler) GetCodec() Codec {
+	return this.protoCodec
+}
+
 // 注册消息号和消息回调,消息构造的映射
 // handler在TcpConnection的read协程中被调用
 func (this *DefaultConnectionHandler) Register(packetCommand PacketCommand, handler PacketHandler, creator ProtoMessageCreator) {
@@ -108,4 +121,14 @@ func (this *DefaultConnectionHandler) RegisterHeartBeat(packetCommand PacketComm
 // unRegisterHandler在TcpConnection的read协程中被调用
 func (this *DefaultConnectionHandler) SetUnRegisterHandler(unRegisterHandler PacketHandler) {
 	this.unRegisterHandler = unRegisterHandler
+}
+
+// 设置连接回调
+func (this *DefaultConnectionHandler) SetOnConnectedFunc(onConnectedFunc func(connection Connection, success bool)) {
+	this.onConnectedFunc = onConnectedFunc
+}
+
+// 设置连接断开回调
+func (this *DefaultConnectionHandler) SetOnDisconnectedFunc(onDisconnectedFunc func(connection Connection)) {
+	this.onDisconnectedFunc = onDisconnectedFunc
 }

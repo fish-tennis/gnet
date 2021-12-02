@@ -283,6 +283,9 @@ func (this *TcpConnection) Close() {
 			LogDebug("close %v", this.GetConnectionId())
 			//this.conn = nil
 		}
+		if this.handler != nil {
+			this.handler.OnDisconnected(this)
+		}
 		if this.onClose != nil {
 			this.onClose(this)
 		}
