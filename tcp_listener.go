@@ -42,21 +42,21 @@ func NewTcpListener(acceptConnectionConfig ConnectionConfig, acceptConnectionCod
 }
 
 func (this *TcpListener) GetConnection(connectionId uint32) Connection {
-	this.connectionMapLock.Lock()
+	this.connectionMapLock.RLock()
 	conn := this.connectionMap[connectionId]
-	this.connectionMapLock.Unlock()
+	this.connectionMapLock.RUnlock()
 	return conn
 }
 
 // 广播消息
 func (this *TcpListener) Broadcast(packet Packet)  {
-	this.connectionMapLock.Lock()
+	this.connectionMapLock.RLock()
 	for _,conn := range this.connectionMap {
 		if conn.isConnected {
 			conn.SendPacket(packet.Clone())
 		}
 	}
-	this.connectionMapLock.Unlock()
+	this.connectionMapLock.RUnlock()
 }
 
 // 开启监听
@@ -98,11 +98,11 @@ func (this *TcpListener) Close() {
 			this.netListener.Close()
 		}
 		connMap := make(map[uint32]*TcpConnection)
-		this.connectionMapLock.Lock()
+		this.connectionMapLock.RLock()
 		for k,v := range this.connectionMap {
 			connMap[k] = v
 		}
-		this.connectionMapLock.Unlock()
+		this.connectionMapLock.RUnlock()
 		// 关闭管理的连接
 		for _,conn := range connMap {
 			conn.Close()
