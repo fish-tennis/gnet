@@ -8,6 +8,7 @@
 - 主要针对游戏,不做大而全的设计,不打算做成通用网络库
 - 针对游戏应用场景优化,高性能
 - 容易扩展
+- 能应用于商业项目
 
 ## 功能
 - 多线程,非阻塞,异步发消息
@@ -73,3 +74,7 @@ func (e *echoClientHandler) OnRecvPacket(connection Connection, packet Packet) {
 由于墙的问题,可以设置 GOPROXY=https://goproxy.cn
 
 无法下载google.golang.org/protobuf的解决方法:在Go的root目录,git clone https://github.com/protocolbuffers/protobuf-go.git, clone到GO的root目录/src/google.golang.org/protobuf
+
+## 项目演示
+
+[分布式游戏服务器框架gserver](https://github.com/fish-tennis/gserver)
