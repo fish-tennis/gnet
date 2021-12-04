@@ -1,6 +1,7 @@
 package gnet
 
 import (
+	"context"
 	"net"
 	"sync"
 )
@@ -60,7 +61,7 @@ func (this *TcpListener) Broadcast(packet Packet)  {
 }
 
 // 开启监听
-func (this *TcpListener) Start(listenAddress string, closeNotify chan struct{}) bool {
+func (this *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 	var err error
 	this.netListener,err = net.Listen("tcp", listenAddress)
 	if err != nil {
@@ -71,17 +72,18 @@ func (this *TcpListener) Start(listenAddress string, closeNotify chan struct{}) 
 	// 监听协程
 	this.isRunning = true
 	this.netMgrWg.Add(1)
-	go func() {
+	go func(ctx context.Context) {
 		defer this.netMgrWg.Done()
-		this.acceptLoop(closeNotify)
-	}()
+		this.acceptLoop(ctx)
+	}(ctx)
 
 	// 关闭响应协程
 	this.netMgrWg.Add(1)
 	go func() {
 		defer this.netMgrWg.Done()
 		select {
-		case <-closeNotify:
+		// 关闭通知
+		case <-ctx.Done():
 			LogDebug("recv closeNotify %v", this.GetListenerId())
 			this.Close()
 		}
@@ -114,7 +116,7 @@ func (this *TcpListener) Close() {
 }
 
 // accept协程
-func (this *TcpListener) acceptLoop(closeNotify chan struct{}) {
+func (this *TcpListener) acceptLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
 			LogError("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
@@ -148,7 +150,7 @@ func (this *TcpListener) acceptLoop(closeNotify chan struct{}) {
 			this.connectionMap[newTcpConn.GetConnectionId()] = newTcpConn
 			this.connectionMapLock.Unlock()
 			newTcpConn.netMgrWg = this.netMgrWg
-			newTcpConn.Start(closeNotify)
+			newTcpConn.Start(ctx)
 
 			if this.handler != nil {
 				this.handler.OnConnectionConnected(this, newTcpConn)

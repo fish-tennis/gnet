@@ -1,6 +1,9 @@
 package gnet
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
 
 // 网络管理类,提供对外接口
 type NetMgr struct {
@@ -13,11 +16,8 @@ type NetMgr struct {
 	connectorMap map[uint32]Connection
 	connectorMapLock sync.RWMutex
 
-	// 关闭通知
-	closeNotify chan struct{}
 	// 初始化一次
 	initOnce sync.Once
-
 	// 管理协程的关闭
 	wg sync.WaitGroup
 }
@@ -40,16 +40,15 @@ func GetNetMgr() *NetMgr {
 func (this *NetMgr) init() {
 	this.listenerMap = make(map[uint32]Listener)
 	this.connectorMap = make(map[uint32]Connection)
-	this.closeNotify = make(chan struct{})
 	this.wg = sync.WaitGroup{}
 }
 
 // 新监听对象
-func (this *NetMgr) NewListener(address string, acceptConnectionConfig ConnectionConfig, acceptConnectionCodec Codec,
+func (this *NetMgr) NewListener(ctx context.Context, address string, acceptConnectionConfig ConnectionConfig, acceptConnectionCodec Codec,
 	acceptConnectionHandler ConnectionHandler, listenerHandler ListenerHandler) Listener {
 	newListener := NewTcpListener(acceptConnectionConfig, acceptConnectionCodec, acceptConnectionHandler, listenerHandler)
 	newListener.netMgrWg = &this.wg
-	if !newListener.Start(address, this.closeNotify) {
+	if !newListener.Start(ctx, address) {
 		LogDebug("NewListener Start Failed")
 		return nil
 	}
@@ -66,7 +65,7 @@ func (this *NetMgr) NewListener(address string, acceptConnectionConfig Connectio
 }
 
 // 新连接对象
-func (this *NetMgr) NewConnector(address string, connectionConfig ConnectionConfig, codec Codec, handler ConnectionHandler) Connection {
+func (this *NetMgr) NewConnector(ctx context.Context, address string, connectionConfig ConnectionConfig, codec Codec, handler ConnectionHandler) Connection {
 	newConnector := NewTcpConnector(connectionConfig, codec, handler)
 	newConnector.netMgrWg = &this.wg
 	if !newConnector.Connect(address) {
@@ -76,7 +75,7 @@ func (this *NetMgr) NewConnector(address string, connectionConfig ConnectionConf
 	this.connectorMapLock.Lock()
 	this.connectorMap[newConnector.GetConnectionId()] = newConnector
 	this.connectorMapLock.Unlock()
-	newConnector.Start(this.closeNotify)
+	newConnector.Start(ctx)
 
 	newConnector.onClose = func(connection Connection) {
 		this.connectorMapLock.Lock()
@@ -86,11 +85,12 @@ func (this *NetMgr) NewConnector(address string, connectionConfig ConnectionConf
 	return newConnector
 }
 
+// 关闭
+// waitForAllNetGoroutine:是否阻塞等待所有网络协程结束
 func (this *NetMgr) Shutdown(waitForAllNetGoroutine bool) {
-	// 触发关闭通知,所有select <-closeNotify的地方将收到通知
-	close(this.closeNotify)
 	if waitForAllNetGoroutine {
+		// 等待所有网络协程结束
 		this.wg.Wait()
-		LogDebug("AllNetGoroutine close")
+		LogDebug("all net goroutine closed")
 	}
 }

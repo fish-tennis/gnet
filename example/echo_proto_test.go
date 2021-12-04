@@ -1,11 +1,11 @@
 package example
 
 import (
+	"context"
 	"fmt"
 	"github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/pb"
 	"google.golang.org/protobuf/proto"
-	"sync"
 	"testing"
 	"time"
 )
@@ -18,6 +18,10 @@ func TestEchoProto(t *testing.T) {
 			gnet.LogStack()
 		}
 	}()
+
+	// 10秒后触发关闭通知,所有监听<-ctx.Done()的地方会收到通知
+	ctx,cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
 
 	netMgr := gnet.GetNetMgr()
 	connectionConfig := gnet.ConnectionConfig{
@@ -43,7 +47,7 @@ func TestEchoProto(t *testing.T) {
 	serverHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessageServer, func() proto.Message {
 		return &pb.TestMessage{}
 	})
-	if netMgr.NewListener(listenAddress, connectionConfig, serverCodec, serverHandler, nil) == nil {
+	if netMgr.NewListener(ctx, listenAddress, connectionConfig, serverCodec, serverHandler, nil) == nil {
 		panic("listen failed")
 	}
 	time.Sleep(time.Second)
@@ -64,19 +68,10 @@ func TestEchoProto(t *testing.T) {
 	clientHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), clientHandler.onTestMessage, func() proto.Message {
 		return &pb.TestMessage{}
 	})
-	if netMgr.NewConnector(listenAddress, connectionConfig, clientCodec, clientHandler) == nil {
+	if netMgr.NewConnector(ctx, listenAddress, connectionConfig, clientCodec, clientHandler) == nil {
 		panic("connect failed")
 	}
 
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	exitTimer := time.NewTimer(10*time.Second)
-	select {
-	case <-exitTimer.C:
-		gnet.LogDebug("test timeout")
-		wg.Done()
-	}
-	wg.Wait()
 	netMgr.Shutdown(true)
 }
 

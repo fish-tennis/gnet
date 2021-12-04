@@ -1,9 +1,9 @@
 package example
 
 import (
+	"context"
 	"fmt"
 	"github.com/fish-tennis/gnet"
-	"sync"
 	"testing"
 	"time"
 )
@@ -16,6 +16,10 @@ func TestEchoData(t *testing.T) {
 			gnet.LogStack()
 		}
 	}()
+
+	// 10秒后触发关闭通知,所有监听<-ctx.Done()的地方会收到通知
+	ctx,cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
 
 	netMgr := gnet.GetNetMgr()
 	connectionConfig := gnet.ConnectionConfig{
@@ -30,20 +34,11 @@ func TestEchoData(t *testing.T) {
 	listenAddress := "127.0.0.1:10002"
 	//codec := gnet.NewXorCodec([]byte{0,1,2,3,4,5,6})
 	codec := gnet.NewDefaultCodec()
-	netMgr.NewListener(listenAddress, connectionConfig, codec, &echoServerHandler{}, &echoListenerHandler{})
+	netMgr.NewListener(ctx, listenAddress, connectionConfig, codec, &echoServerHandler{}, &echoListenerHandler{})
 	time.Sleep(time.Second)
 
-	netMgr.NewConnector(listenAddress, connectionConfig, codec, &echoClientHandler{})
+	netMgr.NewConnector(ctx, listenAddress, connectionConfig, codec, &echoClientHandler{})
 
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	exitTimer := time.NewTimer(10*time.Second)
-	select {
-	case <-exitTimer.C:
-		gnet.LogDebug("test timeout")
-		wg.Done()
-	}
-	wg.Wait()
 	netMgr.Shutdown(true)
 }
 

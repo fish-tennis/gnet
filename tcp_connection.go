@@ -1,6 +1,7 @@
 package gnet
 
 import (
+	"context"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
@@ -88,7 +89,7 @@ func (this *TcpConnection) Connect(address string) bool {
 }
 
 // 开启读写协程
-func (this *TcpConnection) Start(closeNotify chan struct{}) {
+func (this *TcpConnection) Start(ctx context.Context) {
 	// 开启收包协程
 	this.netMgrWg.Add(1)
 	go func() {
@@ -99,11 +100,11 @@ func (this *TcpConnection) Start(closeNotify chan struct{}) {
 
 	// 开启发包协程
 	this.netMgrWg.Add(1)
-	go func() {
+	go func(ctx context.Context) {
 		defer this.netMgrWg.Done()
-		this.writeLoop(closeNotify)
+		this.writeLoop(ctx)
 		this.Close()
-	}()
+	}(ctx)
 }
 
 // 收包过程
@@ -155,7 +156,7 @@ func (this *TcpConnection) readLoop() {
 }
 
 // 发包过程
-func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
+func (this *TcpConnection) writeLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
 			LogError("writeLoop fatal %v: %v", this.GetConnectionId(), err.(error))
@@ -229,7 +230,7 @@ func (this *TcpConnection) writeLoop(closeNotify chan struct{}) {
 				}
 			}
 
-		case <-closeNotify:
+		case <-ctx.Done():
 			// 收到外部的关闭通知
 			LogDebug("recv closeNotify %v", this.GetConnectionId())
 			return

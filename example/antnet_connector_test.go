@@ -1,11 +1,11 @@
 package example
 
 import (
+	"context"
 	"fmt"
 	"github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/pb"
 	"google.golang.org/protobuf/proto"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -29,6 +29,10 @@ func TestAntnetConnector(t *testing.T) {
 		listenAddress = "127.0.0.1:10002"
 	)
 
+	// 超时后触发关闭通知,所有监听<-ctx.Done()的地方会收到通知
+	ctx,cancel := context.WithTimeout(context.Background(), testTime)
+	defer cancel()
+
 	// 关闭日志
 	//gnet.SetLogWriter(&gnet.NoneLogWriter{})
 	//gnet.SetLogLevel(gnet.ErrorLevel)
@@ -50,20 +54,11 @@ func TestAntnetConnector(t *testing.T) {
 	codec := gnet.NewAntnetCodec(true, protoMap)
 
 	for i := 0; i < clientCount; i++ {
-		if netMgr.NewConnector(listenAddress, connectionConfig, codec, &antnetConnectorHandler{}) == nil {
+		if netMgr.NewConnector(ctx, listenAddress, connectionConfig, codec, &antnetConnectorHandler{}) == nil {
 			panic("connect error")
 		}
 	}
 
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	exitTimer := time.NewTimer(testTime)
-	select {
-	case <-exitTimer.C:
-		gnet.LogDebug("test timeout")
-		wg.Done()
-	}
-	wg.Wait()
 	netMgr.Shutdown(true)
 
 	println("*********************************************************")
