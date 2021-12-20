@@ -19,35 +19,35 @@ type PacketCommand uint16
 // 包头
 type PacketHeader struct {
 	// (flags << 24) | len
-	lenAndFlags uint32
+	LenAndFlags uint32
 }
 
 func NewPacketHeader(len uint32,flags uint8) *PacketHeader {
 	return &PacketHeader{
-		lenAndFlags: uint32(flags)<<24 | len,
+		LenAndFlags: uint32(flags)<<24 | len,
 	}
 }
 
 // 包体长度,不包含包头的长度
 // [0,0x00FFFFFF]
 func (this *PacketHeader) Len() uint32 {
-	return this.lenAndFlags & 0x00FFFFFF
+	return this.LenAndFlags & 0x00FFFFFF
 }
 
 // 标记 [0,0xFF]
 func (this *PacketHeader) Flags() uint32 {
-	return this.lenAndFlags >> 24
+	return this.LenAndFlags >> 24
 }
 
 // 从字节流读取数据,len(messageHeaderData)>=MessageHeaderSize
 // 使用小端字节序
 func (this *PacketHeader) ReadFrom(messageHeaderData []byte) {
-	this.lenAndFlags = binary.LittleEndian.Uint32(messageHeaderData)
+	this.LenAndFlags = binary.LittleEndian.Uint32(messageHeaderData)
 }
 
 // 写入字节流,使用小端字节序
 func (this *PacketHeader) WriteTo(messageHeaderData []byte) {
-	binary.LittleEndian.PutUint32(messageHeaderData, this.lenAndFlags)
+	binary.LittleEndian.PutUint32(messageHeaderData, this.LenAndFlags)
 }
 
 

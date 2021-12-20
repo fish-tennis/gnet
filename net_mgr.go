@@ -2,6 +2,7 @@ package gnet
 
 import (
 	"context"
+	"strings"
 	"sync"
 )
 

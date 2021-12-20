@@ -8,6 +8,10 @@ import (
 // proto.Message构造函数
 type ProtoMessageCreator func() proto.Message
 
+type ProtoRegister interface {
+	Register(command PacketCommand, creator ProtoMessageCreator )
+}
+
 // proto.Message编解码
 type ProtoCodec struct {
 	RingBufferCodec
@@ -19,16 +23,16 @@ type ProtoCodec struct {
 	ProtoPacketBytesDecoder func(packetData []byte) []byte
 
 	// 消息号和proto.Message构造函数的映射表
-	messageCreatorMap map[PacketCommand]ProtoMessageCreator
+	MessageCreatorMap map[PacketCommand]ProtoMessageCreator
 }
 
 func NewProtoCodec(messageCreatorMap map[PacketCommand]ProtoMessageCreator) *ProtoCodec {
 	codec := &ProtoCodec{
-		RingBufferCodec:RingBufferCodec{},
-		messageCreatorMap: messageCreatorMap,
+		RingBufferCodec:   RingBufferCodec{},
+		MessageCreatorMap: messageCreatorMap,
 	}
-	if codec.messageCreatorMap == nil {
-		codec.messageCreatorMap = make(map[PacketCommand]ProtoMessageCreator)
+	if codec.MessageCreatorMap == nil {
+		codec.MessageCreatorMap = make(map[PacketCommand]ProtoMessageCreator)
 	}
 	codec.DataEncoder = codec.EncodePacket
 	codec.DataDecoder = codec.DecodePacket
@@ -37,7 +41,7 @@ func NewProtoCodec(messageCreatorMap map[PacketCommand]ProtoMessageCreator) *Pro
 
 // 注册消息
 func (this *ProtoCodec) Register(command PacketCommand, creator ProtoMessageCreator ) {
-	this.messageCreatorMap[command] = creator
+	this.MessageCreatorMap[command] = creator
 }
 
 func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]byte {
@@ -74,7 +78,7 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader *Packet
 		return nil
 	}
 	command := binary.LittleEndian.Uint16(decodedPacketData[:2])
-	if messageCreator,ok := this.messageCreatorMap[PacketCommand(command)]; ok {
+	if messageCreator,ok := this.MessageCreatorMap[PacketCommand(command)]; ok {
 		newProtoMessage := messageCreator()
 		err := proto.Unmarshal(decodedPacketData[2:], newProtoMessage)
 		if err != nil {
