@@ -2,7 +2,6 @@ package gnet
 
 import (
 	"context"
-	"strings"
 	"sync"
 )
 
@@ -66,9 +65,10 @@ func (this *NetMgr) NewListener(ctx context.Context, address string, acceptConne
 }
 
 // 新连接对象
-func (this *NetMgr) NewConnector(ctx context.Context, address string, connectionConfig ConnectionConfig, codec Codec, handler ConnectionHandler) Connection {
+func (this *NetMgr) NewConnector(ctx context.Context, address string, connectionConfig ConnectionConfig, codec Codec, handler ConnectionHandler, tag interface{}) Connection {
 	newConnector := NewTcpConnector(connectionConfig, codec, handler)
 	newConnector.netMgrWg = &this.wg
+	newConnector.SetTag(tag)
 	if !newConnector.Connect(address) {
 		newConnector.Close()
 		return nil
