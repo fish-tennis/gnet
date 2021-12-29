@@ -37,7 +37,7 @@ func TestEchoData(t *testing.T) {
 	netMgr.NewListener(ctx, listenAddress, connectionConfig, codec, &echoServerHandler{}, &echoListenerHandler{})
 	time.Sleep(time.Second)
 
-	netMgr.NewConnector(ctx, listenAddress, connectionConfig, codec, &echoClientHandler{})
+	netMgr.NewConnector(ctx, listenAddress, connectionConfig, codec, &echoClientHandler{}, nil)
 
 	netMgr.Shutdown(true)
 }

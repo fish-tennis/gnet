@@ -68,7 +68,7 @@ func TestEchoProto(t *testing.T) {
 	clientHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), clientHandler.onTestMessage, func() proto.Message {
 		return &pb.TestMessage{}
 	})
-	if netMgr.NewConnector(ctx, listenAddress, connectionConfig, clientCodec, clientHandler) == nil {
+	if netMgr.NewConnector(ctx, listenAddress, connectionConfig, clientCodec, clientHandler, nil) == nil {
 		panic("connect failed")
 	}
 

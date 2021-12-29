@@ -73,7 +73,7 @@ func TestTestServer(t *testing.T) {
 	time.Sleep(time.Second)
 
 	for i := 0; i < clientCount; i++ {
-		netMgr.NewConnector(ctx, listenAddress, connectionConfig, codec, &testClientHandler{})
+		netMgr.NewConnector(ctx, listenAddress, connectionConfig, codec, &testClientHandler{}, nil)
 	}
 
 	netMgr.Shutdown(true)

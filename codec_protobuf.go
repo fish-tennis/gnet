@@ -45,27 +45,31 @@ func (this *ProtoCodec) Register(command PacketCommand, creator ProtoMessageCrea
 }
 
 func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]byte {
-	if protoPacket,ok := packet.(*ProtoPacket); ok {
-		protoMessage := protoPacket.Message()
-		// 先写入消息号
-		commandBytes := make([]byte,2)
-		binary.LittleEndian.PutUint16(commandBytes, uint16(protoPacket.Command()))
-		messageBytes,err := proto.Marshal(protoMessage)
+	protoMessage := packet.Message()
+	// 先写入消息号
+	commandBytes := make([]byte,2)
+	binary.LittleEndian.PutUint16(commandBytes, uint16(packet.Command()))
+	var messageBytes []byte
+	if protoMessage != nil {
+		var err error
+		messageBytes,err = proto.Marshal(protoMessage)
 		if err != nil {
 			LogError("proto encode err:%v cmd:%v", err, packet.Command())
 			return nil
 		}
-		// 这里可以继续对messageBytes进行编码,如异或,加密,压缩等
-		if this.ProtoPacketBytesEncoder != nil {
-			return this.ProtoPacketBytesEncoder([][]byte{commandBytes,messageBytes})
-		}
-		return [][]byte{commandBytes,messageBytes}
-		//fullData := make([]byte, len(commandBytes)+len(messageBytes))
-		//n := copy(fullData, commandBytes)
-		//copy(fullData[n:], messageBytes)
-		//return fullData
+	} else {
+		// 支持提前序列化好的数据
+		messageBytes = packet.GetStreamData()
 	}
-	return nil
+	// 这里可以继续对messageBytes进行编码,如异或,加密,压缩等
+	if this.ProtoPacketBytesEncoder != nil {
+		return this.ProtoPacketBytesEncoder([][]byte{commandBytes,messageBytes})
+	}
+	return [][]byte{commandBytes,messageBytes}
+	//fullData := make([]byte, len(commandBytes)+len(messageBytes))
+	//n := copy(fullData, commandBytes)
+	//copy(fullData[n:], messageBytes)
+	//return fullData
 }
 
 func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader *PacketHeader, packetData []byte) Packet {
@@ -79,11 +83,14 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader *Packet
 	}
 	command := binary.LittleEndian.Uint16(decodedPacketData[:2])
 	if messageCreator,ok := this.MessageCreatorMap[PacketCommand(command)]; ok {
-		newProtoMessage := messageCreator()
-		err := proto.Unmarshal(decodedPacketData[2:], newProtoMessage)
-		if err != nil {
-			LogError("proto decode err:%v cmd:%v", err, command)
-			return nil
+		var newProtoMessage proto.Message
+		if messageCreator != nil {
+			newProtoMessage = messageCreator()
+			err := proto.Unmarshal(decodedPacketData[2:], newProtoMessage)
+			if err != nil {
+				LogError("proto decode err:%v cmd:%v", err, command)
+				return nil
+			}
 		}
 		return &ProtoPacket{
 			command: PacketCommand(command),

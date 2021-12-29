@@ -44,6 +44,8 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 		sendBuffer := tcpConnection.sendBuffer
 		var encodedData [][]byte
 		if this.DataEncoder != nil {
+			// 编码接口可能把消息分解成了几段字节流数组,如消息头和消息体
+			// 如果只是返回一个[]byte结果的话,那么编码接口还需要把消息头和消息体进行合并,从而多一次内存分配和拷贝
 			encodedData = this.DataEncoder(connection, packet)
 		} else {
 			encodedData = [][]byte{packet.GetStreamData()}

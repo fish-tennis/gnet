@@ -59,10 +59,10 @@ type Packet interface {
 	// 消息号也不是必须放在这里的,但是游戏项目一般都是用消息号,为了减少封装层次,就放这里了
 	Command() PacketCommand
 
-	// 默认使用protobuf,现在做游戏还有不用protobuf的吗
+	// 默认使用protobuf
 	Message() proto.Message
 
-	// 预留一个二进制数据的接口,如果项目使用protobuf,该不需要该接口了
+	// 预留一个二进制数据的接口,支持外部直接传入序列号的字节流数据
 	GetStreamData() []byte
 
 	// deep copy
