@@ -54,7 +54,7 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]b
 		var err error
 		messageBytes,err = proto.Marshal(protoMessage)
 		if err != nil {
-			LogError("proto encode err:%v cmd:%v", err, packet.Command())
+			logger.Error("proto encode err:%v cmd:%v", err, packet.Command())
 			return nil
 		}
 	} else {
@@ -88,7 +88,7 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader *Packet
 			newProtoMessage = messageCreator()
 			err := proto.Unmarshal(decodedPacketData[2:], newProtoMessage)
 			if err != nil {
-				LogError("proto decode err:%v cmd:%v", err, command)
+				logger.Error("proto decode err:%v cmd:%v", err, command)
 				return nil
 			}
 		}
@@ -97,6 +97,6 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader *Packet
 			message: newProtoMessage,
 		}
 	}
-	LogError("unsupport command:%v", command)
+	logger.Error("unsupport command:%v", command)
 	return nil
 }

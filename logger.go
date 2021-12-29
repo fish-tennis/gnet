@@ -2,130 +2,83 @@ package gnet
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"runtime"
-	"time"
 )
 
-// 日志级别
-type LogLevel int8
-
+// 日志级别,参考zap
 const (
-	DebugLevel LogLevel = iota
+	DebugLevel int8 = iota-1
 	InfoLevel
 	WarnLevel
 	ErrorLevel
 	FatalLevel
 )
 
-// 日志写接口
-type LogWriter interface {
-	Write(str string)
+type Logger interface {
+	Debug(format string, args ...interface{})
+	Info(format string, args ...interface{})
+	Warn(format string, args ...interface{})
+	Error(format string, args ...interface{})
 }
 
-// 日志
-type Logger struct {
-	writer LogWriter
-	level LogLevel
+type stdLogger struct {
+	std *log.Logger
 }
 
-func (this *Logger) write(levelStr,format string, args ...interface{}) {
-	var prefix string
-	// call LogDebug
-	// LogDebug
-	// Logger.Debug
-	// Logger.write
-	_, file, line, ok := runtime.Caller(3)
-	if ok {
-		prefix = fmt.Sprintf("[%s][%s][%s:%d]:", levelStr, time.Now().Format("2006-01-02 15:04:05"), file, line)
-	} else {
-		prefix = fmt.Sprintf("[%s][%s]:", levelStr, time.Now().Format("2006-01-02 15:04:05"))
+func (s *stdLogger) Debug(format string, args ...interface{}) {
+	if logLevel > DebugLevel {
+		return
 	}
-	if len(args) > 0 {
-		this.writer.Write(prefix + fmt.Sprintf(format, args...))
-	} else {
-		this.writer.Write(prefix + format)
+	s.std.Output(2, "[D] "+fmt.Sprintf(format, args...))
+}
+
+func (s *stdLogger) Info(format string, args ...interface{}) {
+	if logLevel > InfoLevel {
+		return
 	}
+	s.std.Output(2, "[I] "+fmt.Sprintf(format, args...))
 }
 
-func (this *Logger) Debug(format string, args ...interface{}) {
-	if this.level <= DebugLevel {
-		this.write("D", format, args...)
+func (s *stdLogger) Warn(format string, args ...interface{}) {
+	if logLevel > WarnLevel {
+		return
 	}
+	s.std.Output(2, "[W] "+fmt.Sprintf(format, args...))
 }
 
-func (this *Logger) Info(format string, args ...interface{}) {
-	if this.level <= InfoLevel {
-		this.write("I", format, args...)
+func (s *stdLogger) Error(format string, args ...interface{}) {
+	if logLevel > ErrorLevel {
+		return
 	}
+	s.std.Output(2, "[E] "+fmt.Sprintf(format, args...))
 }
 
-func (this *Logger) Warn(format string, args ...interface{}) {
-	if this.level <= WarnLevel {
-		this.write("W", format, args...)
+func newStdLogger() Logger {
+	return &stdLogger{
+		std: log.New(os.Stderr, "", log.LstdFlags | log.Llongfile),
 	}
-}
-
-func (this *Logger) Error(format string, args ...interface{}) {
-	if this.level <= ErrorLevel {
-		this.write("E", format, args...)
-	}
-}
-
-func (this *Logger) Fatal(format string, args ...interface{}) {
-	if this.level <= FatalLevel {
-		this.write("F", format, args...)
-	}
-}
-
-// 控制台输出日志
-type ConsoleLogWriter struct {
-}
-
-func (this *ConsoleLogWriter) Write(str string) {
-	fmt.Println(str)
-}
-
-// 什么都不处理,可用于关闭日志
-type NoneLogWriter struct {
-}
-
-func (this *NoneLogWriter) Write(str string) {
 }
 
 var (
-	// 单例
-	logger = &Logger{
-		writer: &ConsoleLogWriter{},
-		level: DebugLevel,
-	}
+	// 默认使用系统库的log接口
+	logger = newStdLogger()
+	// 默认InfoLevel
+	logLevel = int8(0)
 )
 
-func SetLogWriter(w LogWriter) {
-	logger.writer = w
+func GetLogger() Logger {
+	return logger
 }
 
-func SetLogLevel(level LogLevel) {
-	logger.level = level
+func SetLogger(w Logger, level int8) {
+	logger = w
+	logLevel = level
 }
 
-func LogDebug(format string, args ...interface{}) {
-	logger.Debug(format, args...)
-}
-
-func LogInfo(format string, args ...interface{}) {
-	logger.Info(format, args...)
-}
-
-func LogWarn(format string, args ...interface{}) {
-	logger.Warn(format, args...)
-}
-
-func LogError(format string, args ...interface{}) {
-	logger.Error(format, args...)
-}
-
-func LogFatal(format string, args ...interface{}) {
-	logger.Fatal(format, args...)
+func SetLogLevel(level int8) {
+	logLevel = level
 }
 
 func LogStack() {

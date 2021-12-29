@@ -31,7 +31,7 @@ var (
 func TestTestServer(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
-			gnet.LogDebug("fatal %v", err.(error))
+			logger.Debug("fatal %v", err.(error))
 			gnet.LogStack()
 		}
 	}()
@@ -92,11 +92,11 @@ type testServerListenerHandler struct {
 }
 
 func (e *testServerListenerHandler) OnConnectionConnected(listener gnet.Listener, connection gnet.Connection) {
-	gnet.LogDebug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
+	logger.Debug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
 }
 
 func (e *testServerListenerHandler) OnConnectionDisconnect(listener gnet.Listener, connection gnet.Connection) {
-	gnet.LogDebug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
+	logger.Debug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
 }
 
 // 服务器端的客户端接口

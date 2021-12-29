@@ -33,7 +33,7 @@ netMgr.NewListener("127.0.0.1:10001", connectionConfig, codec, &echoServerHandle
 
 创建一个Connector:
 ```go
-netMgr.NewConnector("127.0.0.1:10001", connectionConfig, codec, &echoClientHandler{})
+netMgr.NewConnector("127.0.0.1:10001", connectionConfig, codec, &echoClientHandler{}, nil)
 ```
 ### 数据包Packet(https://github.com/fish-tennis/gnet/blob/main/packet.go)
 游戏行业的常规做法,数据包由消息号和proto消息构成,同时预留一个二进制数据的接口(不使用proto消息的应用可以使用该接口,如示例[不使用proto的echo](https://github.com/fish-tennis/gnet/blob/main/example/echo_data_test.go))
@@ -51,11 +51,15 @@ ListenerHandler:当监听到新连接和连接断开时,提供回调接口
 
 ConnectionHandler:在连接成功或失败,连接断开,收到数据包时,提供回调接口
 
-应用层的逻辑主要处理OnRecvPacket接口
+默认的ConnectionHandler用法:
 
 ```go
-func (e *echoClientHandler) OnRecvPacket(connection Connection, packet Packet) {
-	connection.Send(packet)
+handler := NewDefaultConnectionHandler(codec)
+// 注册消息结构体和对于的回调函数
+handler.Register(123,OnTest,func() proto.Message {return new(pb.TestMessage)})
+func OnTest(conn Connection, packet Packet) {
+    testMessage := packet.Message().(*pb.TestMessage)
+    // do something
 }
 ```
 

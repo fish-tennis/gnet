@@ -65,7 +65,7 @@ func (this *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 	var err error
 	this.netListener,err = net.Listen("tcp", listenAddress)
 	if err != nil {
-		LogError("Listen Failed %v: %v", this.GetListenerId(), err)
+		logger.Error("Listen Failed %v: %v", this.GetListenerId(), err)
 		return false
 	}
 
@@ -84,7 +84,7 @@ func (this *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 		select {
 		// 关闭通知
 		case <-ctx.Done():
-			LogDebug("recv closeNotify %v", this.GetListenerId())
+			logger.Debug("recv closeNotify %v", this.GetListenerId())
 			this.Close()
 		}
 	}()
@@ -119,7 +119,7 @@ func (this *TcpListener) Close() {
 func (this *TcpListener) acceptLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
-			LogError("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
+			logger.Error("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
 			LogStack()
 		}
 	}()
@@ -129,7 +129,7 @@ func (this *TcpListener) acceptLoop(ctx context.Context) {
 		newConn,err := this.netListener.Accept()
 		if err != nil {
 			// TODO:检查哪些err 不需要break
-			LogDebug("%v accept err:%v", this.GetListenerId(), err)
+			logger.Debug("%v accept err:%v", this.GetListenerId(), err)
 			break
 		}
 		this.netMgrWg.Add(1)
@@ -137,7 +137,7 @@ func (this *TcpListener) acceptLoop(ctx context.Context) {
 			defer func() {
 				this.netMgrWg.Done()
 				if err := recover(); err != nil {
-					LogError("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
+					logger.Error("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
 					LogStack()
 				}
 			}()

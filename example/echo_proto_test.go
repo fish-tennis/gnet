@@ -14,11 +14,12 @@ import (
 func TestEchoProto(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
-			gnet.LogDebug("fatal %v", err.(error))
+			logger.Debug("fatal %v", err.(error))
 			gnet.LogStack()
 		}
 	}()
 
+	gnet.SetLogLevel(gnet.DebugLevel)
 	// 10秒后触发关闭通知,所有监听<-ctx.Done()的地方会收到通知
 	ctx,cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
@@ -82,7 +83,7 @@ type echoProtoServerHandler struct {
 }
 
 func (e *echoProtoServerHandler) OnConnected(connection gnet.Connection, success bool) {
-	gnet.LogDebug(fmt.Sprintf("Server OnConnected %v %v", connection.GetConnectionId(), success))
+	logger.Debug(fmt.Sprintf("Server OnConnected %v %v", connection.GetConnectionId(), success))
 	if success {
 		// 开一个协程,服务器自动给客户端发消息
 		serialId := 0
@@ -119,7 +120,7 @@ func (e *echoProtoServerHandler) OnConnected(connection gnet.Connection, success
 // 服务器收到客户端的心跳包
 func onHeartBeatReq(connection gnet.Connection, packet *gnet.ProtoPacket) {
 	req := packet.Message().(*pb.HeartBeatReq)
-	gnet.LogDebug(fmt.Sprintf("Server onHeartBeatReq: %v", req))
+	logger.Debug(fmt.Sprintf("Server onHeartBeatReq: %v", req))
 	connection.Send( gnet.PacketCommand(pb.CmdTest_Cmd_HeartBeat), &pb.HeartBeatRes{
 		RequestTimestamp: req.GetTimestamp(),
 		ResponseTimestamp: time.Now().UnixNano()/int64(time.Microsecond),
@@ -129,7 +130,7 @@ func onHeartBeatReq(connection gnet.Connection, packet *gnet.ProtoPacket) {
 // 服务器收到客户端的TestMessage
 func onTestMessageServer(connection gnet.Connection, packet *gnet.ProtoPacket) {
 	req := packet.Message().(*pb.TestMessage)
-	gnet.LogDebug(fmt.Sprintf("Server onTestMessage: %v", req))
+	logger.Debug(fmt.Sprintf("Server onTestMessage: %v", req))
 }
 
 
@@ -142,12 +143,12 @@ type echoProtoClientHandler struct {
 // 收到心跳包回复
 func (e *echoProtoClientHandler) onHeartBeatRes(connection gnet.Connection, packet *gnet.ProtoPacket) {
 	res := packet.Message().(*pb.HeartBeatRes)
-	gnet.LogDebug(fmt.Sprintf("client onHeartBeatRes: %v", res))
+	logger.Debug(fmt.Sprintf("client onHeartBeatRes: %v", res))
 }
 
 func (e *echoProtoClientHandler) onTestMessage(connection gnet.Connection, packet *gnet.ProtoPacket) {
 	res := packet.Message().(*pb.TestMessage)
-	gnet.LogDebug(fmt.Sprintf("client onTestMessage: %v", res))
+	logger.Debug(fmt.Sprintf("client onTestMessage: %v", res))
 	e.echoCount++
 	connection.Send(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage),
 		&pb.TestMessage{

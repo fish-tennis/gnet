@@ -8,11 +8,15 @@ import (
 	"time"
 )
 
+var (
+	logger = gnet.GetLogger()
+)
+
 // 不使用protobuf的测试
 func TestEchoData(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
-			gnet.LogDebug("fatal %v", err.(error))
+			logger.Debug("fatal %v", err.(error))
 			gnet.LogStack()
 		}
 	}()
@@ -48,11 +52,11 @@ type echoListenerHandler struct {
 }
 
 func (e *echoListenerHandler) OnConnectionConnected(listener gnet.Listener, connection gnet.Connection) {
-	gnet.LogDebug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
+	logger.Debug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
 }
 
 func (e *echoListenerHandler) OnConnectionDisconnect(listener gnet.Listener, connection gnet.Connection) {
-	gnet.LogDebug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
+	logger.Debug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
 }
 
 // 服务端监听到的连接接口
@@ -60,7 +64,7 @@ type echoServerHandler struct {
 }
 
 func (e *echoServerHandler) OnConnected(connection gnet.Connection, success bool) {
-	gnet.LogDebug(fmt.Sprintf("Server OnConnected %v %v", connection.GetConnectionId(), success))
+	logger.Debug(fmt.Sprintf("Server OnConnected %v %v", connection.GetConnectionId(), success))
 	if success {
 		// 开一个协程,服务器自动给客户端发消息
 		serialId := 0
@@ -86,11 +90,11 @@ func (e *echoServerHandler) OnConnected(connection gnet.Connection, success bool
 }
 
 func (e *echoServerHandler) OnDisconnected(connection gnet.Connection ) {
-	gnet.LogDebug(fmt.Sprintf("Server OnDisconnected %v", connection.GetConnectionId()))
+	logger.Debug(fmt.Sprintf("Server OnDisconnected %v", connection.GetConnectionId()))
 }
 
 func (e *echoServerHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
-	gnet.LogDebug(fmt.Sprintf("Server OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetStreamData())))
+	logger.Debug(fmt.Sprintf("Server OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetStreamData())))
 }
 
 func (e *echoServerHandler) CreateHeartBeatPacket(connection gnet.Connection, ) gnet.Packet { return nil }
@@ -102,15 +106,15 @@ type echoClientHandler struct {
 }
 
 func (e *echoClientHandler) OnConnected(connection gnet.Connection, success bool) {
-	gnet.LogDebug(fmt.Sprintf("Client OnConnected %v %v", connection.GetConnectionId(), success))
+	logger.Debug(fmt.Sprintf("Client OnConnected %v %v", connection.GetConnectionId(), success))
 }
 
 func (e *echoClientHandler) OnDisconnected(connection gnet.Connection ) {
-	gnet.LogDebug(fmt.Sprintf("Client OnDisconnected %v", connection.GetConnectionId()))
+	logger.Debug(fmt.Sprintf("Client OnDisconnected %v", connection.GetConnectionId()))
 }
 
 func (e *echoClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
-	gnet.LogDebug(fmt.Sprintf("Client OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetStreamData())))
+	logger.Debug(fmt.Sprintf("Client OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetStreamData())))
 	e.echoCount++
 	echoPacket := gnet.NewDataPacket([]byte(fmt.Sprintf("hello server %v", e.echoCount)))
 	connection.SendPacket(echoPacket)

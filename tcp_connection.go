@@ -74,7 +74,7 @@ func (this *TcpConnection) Connect(address string) bool {
 	conn, err := net.DialTimeout("tcp", address, time.Second)
 	if err != nil {
 		this.isConnected = false
-		LogError("Connect failed %v: %v", this.GetConnectionId(), err)
+		logger.Error("Connect failed %v: %v", this.GetConnectionId(), err)
 		if this.handler != nil {
 			this.handler.OnConnected(this,false)
 		}
@@ -111,18 +111,18 @@ func (this *TcpConnection) Start(ctx context.Context) {
 func (this *TcpConnection) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			LogError("readLoop fatal %v: %v", this.GetConnectionId(), err.(error))
+			logger.Error("readLoop fatal %v: %v", this.GetConnectionId(), err.(error))
 			LogStack()
 		}
 	}()
 
-	LogDebug("readLoop begin %v", this.GetConnectionId())
+	logger.Debug("readLoop begin %v", this.GetConnectionId())
 	this.recvBuffer = this.createRecvBuffer()
 	for this.isConnected {
 		writeBuffer := this.recvBuffer.WriteBuffer()
 		if len(writeBuffer) == 0 {
 			// 一般不会运行到这里来,除非recvBuffer的大小设置太小:小于了某个数据包的长度
-			LogError("%v recvBuffer full", this.GetConnectionId())
+			logger.Error("%v recvBuffer full", this.GetConnectionId())
 			return
 		}
 		n,err := this.conn.Read(writeBuffer)
@@ -130,7 +130,7 @@ func (this *TcpConnection) readLoop() {
 			if err != io.EOF {
 				// ...
 			}
-			LogDebug("readLoop %v err:%v", this.GetConnectionId(), err)
+			logger.Debug("readLoop %v err:%v", this.GetConnectionId(), err)
 			break
 		}
 		//LogDebug("%v Read:%v", this.GetConnectionId(), n)
@@ -138,7 +138,7 @@ func (this *TcpConnection) readLoop() {
 		for this.isConnected {
 			newPacket,decodeError := this.codec.Decode(this, this.recvBuffer.ReadBuffer())
 			if decodeError != nil {
-				LogError("%v decodeError:%v", this.GetConnectionId(), decodeError)
+				logger.Error("%v decodeError:%v", this.GetConnectionId(), decodeError)
 				return
 			}
 			if newPacket == nil {
@@ -152,20 +152,20 @@ func (this *TcpConnection) readLoop() {
 			}
 		}
 	}
-	LogDebug("readLoop end %v", this.GetConnectionId())
+	logger.Debug("readLoop end %v", this.GetConnectionId())
 }
 
 // 发包过程
 func (this *TcpConnection) writeLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
-			LogError("writeLoop fatal %v: %v", this.GetConnectionId(), err.(error))
+			logger.Error("writeLoop fatal %v: %v", this.GetConnectionId(), err.(error))
 			LogStack()
 		}
-		LogDebug("writeLoop end %v", this.GetConnectionId())
+		logger.Debug("writeLoop end %v", this.GetConnectionId())
 	}()
 
-	LogDebug("writeLoop begin %v", this.GetConnectionId())
+	logger.Debug("writeLoop begin %v", this.GetConnectionId())
 	// 收包超时计时,用于检测掉线
 	recvTimeoutTimer := time.NewTimer(time.Second * time.Duration(this.config.RecvTimeout))
 	defer recvTimeoutTimer.Stop()
@@ -178,7 +178,7 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 		select {
 		case packet := <-this.sendPacketCache:
 			if packet == nil {
-				LogDebug("packet==nil %v", this.GetConnectionId())
+				logger.Debug("packet==nil %v", this.GetConnectionId())
 				return
 			}
 			// 数据包编码
@@ -186,7 +186,7 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 			delaySendDecodePacketData = this.codec.Encode(this, packet)
 			if len(delaySendDecodePacketData) > 0 {
 				// Encode里面写不完的数据延后处理
-				LogDebug("%v sendBuffer is full delaySize:%v", this.GetConnectionId(), len(delaySendDecodePacketData))
+				logger.Debug("%v sendBuffer is full delaySize:%v", this.GetConnectionId(), len(delaySendDecodePacketData))
 				break
 			}
 			packetCount := len(this.sendPacketCache)
@@ -196,13 +196,13 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 					// 这里不会阻塞
 					newPacket,ok := <-this.sendPacketCache
 					if !ok {
-						LogDebug("newPacket==nil %v", this.GetConnectionId())
+						logger.Debug("newPacket==nil %v", this.GetConnectionId())
 						return
 					}
 					// 数据包编码
 					delaySendDecodePacketData = this.codec.Encode(this, newPacket)
 					if len(delaySendDecodePacketData) > 0 {
-						LogDebug("%v sendBuffer is full delaySize:%v", this.GetConnectionId(), len(delaySendDecodePacketData))
+						logger.Debug("%v sendBuffer is full delaySize:%v", this.GetConnectionId(), len(delaySendDecodePacketData))
 						break
 					}
 				}
@@ -217,7 +217,7 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 				} else {
 					// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
 					// 需要主动关闭该连接,防止连接"泄漏"
-					LogDebug("recv timeout %v", this.GetConnectionId())
+					logger.Debug("recv timeout %v", this.GetConnectionId())
 					return
 				}
 			}
@@ -232,7 +232,7 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 
 		case <-ctx.Done():
 			// 收到外部的关闭通知
-			LogDebug("recv closeNotify %v", this.GetConnectionId())
+			logger.Debug("recv closeNotify %v", this.GetConnectionId())
 			return
 		}
 
@@ -244,7 +244,7 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 					// Q:什么情况会导致SetWriteDeadline返回err?
 					if setTimeoutErr != nil {
 						// ...
-						LogDebug("%v setTimeoutErr:%v", this.GetConnectionId(), setTimeoutErr)
+						logger.Debug("%v setTimeoutErr:%v", this.GetConnectionId(), setTimeoutErr)
 						return
 					}
 				}
@@ -254,7 +254,7 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 				writeCount, err := this.conn.Write(readBuffer)
 				if err != nil {
 					// ...
-					LogDebug("%v write Err:%v", this.GetConnectionId(), err)
+					logger.Debug("%v write Err:%v", this.GetConnectionId(), err)
 					return
 				}
 				this.sendBuffer.SetReaded(writeCount)
@@ -264,7 +264,7 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 					// 这里不一定能全部写完
 					if writedLen < len(delaySendDecodePacketData) {
 						delaySendDecodePacketData = delaySendDecodePacketData[writedLen:]
-						LogDebug("%v write delaybuffer :%v", this.GetConnectionId(), writedLen)
+						logger.Debug("%v write delaybuffer :%v", this.GetConnectionId(), writedLen)
 					} else {
 						delaySendDecodePacketData = nil
 					}
@@ -281,7 +281,7 @@ func (this *TcpConnection) Close() {
 		this.isConnected = false
 		if this.conn != nil {
 			this.conn.Close()
-			LogDebug("close %v", this.GetConnectionId())
+			logger.Debug("close %v", this.GetConnectionId())
 			//this.conn = nil
 		}
 		if this.handler != nil {

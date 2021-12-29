@@ -49,7 +49,7 @@ func (this *NetMgr) NewListener(ctx context.Context, address string, acceptConne
 	newListener := NewTcpListener(acceptConnectionConfig, acceptConnectionCodec, acceptConnectionHandler, listenerHandler)
 	newListener.netMgrWg = &this.wg
 	if !newListener.Start(ctx, address) {
-		LogDebug("NewListener Start Failed")
+		logger.Debug("NewListener Start Failed")
 		return nil
 	}
 	this.listenerMapLock.Lock()
@@ -93,6 +93,6 @@ func (this *NetMgr) Shutdown(waitForAllNetGoroutine bool) {
 	if waitForAllNetGoroutine {
 		// 等待所有网络协程结束
 		this.wg.Wait()
-		LogDebug("all net goroutine closed")
+		logger.Debug("all net goroutine closed")
 	}
 }
