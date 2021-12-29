@@ -4,6 +4,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"net"
 	"sync/atomic"
+	"time"
 )
 
 // 连接接口定义
@@ -21,6 +22,9 @@ type Connection interface {
 	// 发包
 	// NOTE:调用SendPacket(packet)之后,不要再对packet进行读写!
 	SendPacket(packet Packet) bool
+
+	// 超时发包,超时未发送则丢弃,适用于某些允许丢弃的数据包
+	TrySendPacket(packet Packet, timeout time.Duration) bool
 
 	// 是否连接成功
 	IsConnected() bool

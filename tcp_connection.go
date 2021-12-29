@@ -316,6 +316,24 @@ func (this *TcpConnection) SendPacket(packet Packet) bool {
 	return true
 }
 
+// 超时发包,超时未发送则丢弃,适用于某些允许丢弃的数据包
+// 可以防止某些"不重要的"数据包造成chan阻塞,比如游戏项目常见的聊天广播
+func (this *TcpConnection) TrySendPacket(packet Packet, timeout time.Duration) bool {
+	if timeout == 0 {
+		return this.SendPacket(packet)
+	}
+	sendTimeout := time.After(timeout)
+	for {
+		select {
+		case this.sendPacketCache <- packet:
+			return true
+		case <-sendTimeout:
+			return false
+		}
+	}
+	return false
+}
+
 // 创建用于批量发包的RingBuffer
 func (this *TcpConnection) createSendBuffer() *RingBuffer {
 	ringBufferSize := this.config.SendBufferSize
