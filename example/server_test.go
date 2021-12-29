@@ -35,6 +35,8 @@ func TestTestServer(t *testing.T) {
 			gnet.LogStack()
 		}
 	}()
+	// 关闭日志
+	gnet.SetLogLevel(gnet.ErrorLevel)
 
 	var (
 		// 模拟客户端数量
@@ -49,9 +51,6 @@ func TestTestServer(t *testing.T) {
 	ctx,cancel := context.WithTimeout(context.Background(), testTime)
 	defer cancel()
 
-	// 关闭日志
-	//gnet.SetLogWriter(&gnet.NoneLogWriter{})
-	gnet.SetLogLevel(gnet.ErrorLevel)
 	netMgr := gnet.GetNetMgr()
 	connectionConfig := gnet.ConnectionConfig{
 		SendPacketCacheCap:    32,

@@ -55,7 +55,7 @@ ConnectionHandler:在连接成功或失败,连接断开,收到数据包时,提�
 
 ```go
 handler := NewDefaultConnectionHandler(codec)
-// 注册消息结构体和对于的回调函数
+// 注册消息结构体和对应的回调函数
 handler.Register(123,OnTest,func() proto.Message {return new(pb.TestMessage)})
 func OnTest(conn Connection, packet Packet) {
     testMessage := packet.Message().(*pb.TestMessage)

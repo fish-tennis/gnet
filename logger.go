@@ -23,47 +23,49 @@ type Logger interface {
 	Error(format string, args ...interface{})
 }
 
-type stdLogger struct {
+type StdLogger struct {
 	std *log.Logger
+	callDepth int
 }
 
-func (s *stdLogger) Debug(format string, args ...interface{}) {
+func (s *StdLogger) Debug(format string, args ...interface{}) {
 	if logLevel > DebugLevel {
 		return
 	}
-	s.std.Output(2, "[D] "+fmt.Sprintf(format, args...))
+	s.std.Output(s.callDepth, "[D] "+fmt.Sprintf(format, args...))
 }
 
-func (s *stdLogger) Info(format string, args ...interface{}) {
+func (s *StdLogger) Info(format string, args ...interface{}) {
 	if logLevel > InfoLevel {
 		return
 	}
-	s.std.Output(2, "[I] "+fmt.Sprintf(format, args...))
+	s.std.Output(s.callDepth, "[I] "+fmt.Sprintf(format, args...))
 }
 
-func (s *stdLogger) Warn(format string, args ...interface{}) {
+func (s *StdLogger) Warn(format string, args ...interface{}) {
 	if logLevel > WarnLevel {
 		return
 	}
-	s.std.Output(2, "[W] "+fmt.Sprintf(format, args...))
+	s.std.Output(s.callDepth, "[W] "+fmt.Sprintf(format, args...))
 }
 
-func (s *stdLogger) Error(format string, args ...interface{}) {
+func (s *StdLogger) Error(format string, args ...interface{}) {
 	if logLevel > ErrorLevel {
 		return
 	}
-	s.std.Output(2, "[E] "+fmt.Sprintf(format, args...))
+	s.std.Output(s.callDepth, "[E] "+fmt.Sprintf(format, args...))
 }
 
-func newStdLogger() Logger {
-	return &stdLogger{
+func NewStdLogger(callDepth int) Logger {
+	return &StdLogger{
 		std: log.New(os.Stderr, "", log.LstdFlags | log.Llongfile),
+		callDepth: callDepth,
 	}
 }
 
 var (
 	// 默认使用系统库的log接口
-	logger = newStdLogger()
+	logger = NewStdLogger(2)
 	// 默认InfoLevel
 	logLevel = int8(0)
 )

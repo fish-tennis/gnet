@@ -20,6 +20,7 @@ func TestEchoData(t *testing.T) {
 			gnet.LogStack()
 		}
 	}()
+	gnet.SetLogLevel(gnet.DebugLevel)
 
 	// 10秒后触发关闭通知,所有监听<-ctx.Done()的地方会收到通知
 	ctx,cancel := context.WithTimeout(context.Background(), time.Second*10)
