@@ -320,7 +320,12 @@ func (this *TcpConnection) SendPacket(packet Packet) bool {
 // 可以防止某些"不重要的"数据包造成chan阻塞,比如游戏项目常见的聊天广播
 func (this *TcpConnection) TrySendPacket(packet Packet, timeout time.Duration) bool {
 	if timeout == 0 {
-		return this.SendPacket(packet)
+		// 非阻塞方式写chan
+		select {
+		case this.sendPacketCache <- packet:
+			return true
+		}
+		return false
 	}
 	sendTimeout := time.After(timeout)
 	for {
