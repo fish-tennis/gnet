@@ -324,8 +324,9 @@ func (this *TcpConnection) TrySendPacket(packet Packet, timeout time.Duration) b
 		select {
 		case this.sendPacketCache <- packet:
 			return true
+		default:
+			return false
 		}
-		return false
 	}
 	sendTimeout := time.After(timeout)
 	for {
