@@ -56,16 +56,20 @@ type ConnectionConfig struct {
 	// 发包缓存chan大小(缓存数据包chan容量)
 	SendPacketCacheCap uint32
 	// 发包Buffer大小(byte)
+	// 不能小于PacketHeaderSize
 	SendBufferSize uint32
 	// 收包Buffer大小(byte)
+	// 不能小于PacketHeaderSize
 	RecvBufferSize uint32
-	// 最大包大小设置(byte)
+	// 最大包体大小设置(byte),不包含PacketHeader
+	// 允许该值大于SendBufferSize和RecvBufferSize
 	MaxPacketSize uint32
 	// 收包超时设置(秒)
 	RecvTimeout uint32
 	// 心跳包发送间隔(秒),对connector有效
 	HeartBeatInterval uint32
 	// 发包超时设置(秒)
+	// net.Conn.SetWriteDeadline
 	WriteTimeout uint32
 	// TODO:其他流量控制设置
 }

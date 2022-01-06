@@ -35,6 +35,28 @@ func (this *RingBuffer) UnReadLength() int {
 	return this.w - this.r
 }
 
+// 读取指定长度的数据
+func (this *RingBuffer) ReadFull(readLen int) []byte {
+	if this.UnReadLength() < readLen {
+		return nil
+	}
+	readBuffer := this.ReadBuffer()
+	if len(readBuffer) >= readLen {
+		// 数据连续,不产生copy
+		this.SetReaded(readLen)
+		return readBuffer[0:readLen]
+	} else {
+		// 数据非连续,需要重新分配数组,并进行2次拷贝
+		data := make([]byte, readLen)
+		// 先拷贝RingBuffer的尾部
+		n := copy(data, readBuffer)
+		// 再拷贝RingBuffer的头部
+		copy(data[n:], this.buffer)
+		this.SetReaded(readLen)
+		return data
+	}
+}
+
 //// 读位置
 //func (this *RingBuffer) ReadIndex() int {
 //	return this.r%len(this.buffer)

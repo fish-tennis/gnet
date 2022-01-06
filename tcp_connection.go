@@ -119,6 +119,7 @@ func (this *TcpConnection) readLoop() {
 	logger.Debug("readLoop begin %v", this.GetConnectionId())
 	this.recvBuffer = this.createRecvBuffer()
 	for this.isConnected {
+		// 可写入的连续buffer
 		writeBuffer := this.recvBuffer.WriteBuffer()
 		if len(writeBuffer) == 0 {
 			// 一般不会运行到这里来,除非recvBuffer的大小设置太小:小于了某个数据包的长度

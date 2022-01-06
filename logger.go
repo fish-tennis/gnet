@@ -13,7 +13,6 @@ const (
 	InfoLevel
 	WarnLevel
 	ErrorLevel
-	FatalLevel
 )
 
 type Logger interface {
@@ -67,7 +66,7 @@ var (
 	// 默认使用系统库的log接口
 	logger = NewStdLogger(2)
 	// 默认InfoLevel
-	logLevel = int8(0)
+	logLevel = InfoLevel
 )
 
 func GetLogger() Logger {

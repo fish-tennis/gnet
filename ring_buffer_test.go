@@ -30,4 +30,11 @@ func TestReadWrite(t *testing.T) {
 	println(fmt.Sprintf("readBuffer:%v", rb.ReadBuffer()))
 	println(fmt.Sprintf("unReadLen:%v", rb.UnReadLength()))
 	println(fmt.Sprintf("WriteBuffer:%v", rb.WriteBuffer()))
+
+	readData := rb.ReadFull(rb.UnReadLength()+1)
+	println(fmt.Sprintf("%v", readData))
+	readData = rb.ReadFull(2)
+	println(fmt.Sprintf("%v", readData))
+	readData = rb.ReadFull(rb.UnReadLength())
+	println(fmt.Sprintf("%v", readData))
 }

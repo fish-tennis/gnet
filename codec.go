@@ -1,5 +1,7 @@
 package gnet
 
+import "io"
+
 // 连接的编解码接口
 type Codec interface {
 	// 包头长度
@@ -139,7 +141,7 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 				packetHeaderData = readBuffer[0:packetHeaderSize]
 			}
 		} else {
-			// TODO: 优化思路: packetHeaderData用sync.pool创建
+			// TODO: packetHeaderData可以作为类的成员变量,没必要每次新分配
 			packetHeaderData = make([]byte, packetHeaderSize)
 			// 先拷贝RingBuffer的尾部
 			n := copy(packetHeaderData, readBuffer)
@@ -151,32 +153,50 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 		}
 		header := &PacketHeader{}
 		header.ReadFrom(packetHeaderData)
-		// TODO: 优化思路: 从sync.pool创建的packetHeaderData回收到sync.pool
-		//packetHeaderData = nil
-		if int(header.Len()) > recvBuffer.Size() - packetHeaderSize {
-			return nil, ErrPacketLength
+		// 数据包长度超出设置
+		if tcpConnection.config.MaxPacketSize > 0 && header.Len() > tcpConnection.config.MaxPacketSize {
+			return nil, ErrPacketLengthExceed
 		}
-		if header.Len() > tcpConnection.config.MaxPacketSize {
-			return nil, ErrPacketLength
-		}
-		if recvBuffer.UnReadLength() < packetHeaderSize + int(header.Len()) {
-			return
-		}
-		recvBuffer.SetReaded(packetHeaderSize)
-		readBuffer = recvBuffer.ReadBuffer()
 		var packetData []byte
-		if len(readBuffer) >= int(header.Len()) {
-			// 这里不产生copy
-			packetData = readBuffer[0:header.Len()]
+		// 数据包没有超出RingBuffer大小
+		if int(header.Len()) <= recvBuffer.Size() - packetHeaderSize {
+			if recvBuffer.UnReadLength() < packetHeaderSize + int(header.Len()) {
+				// 包体数据还没收完整
+				return
+			}
+			// 跳过PacketHeader
+			recvBuffer.SetReaded(packetHeaderSize)
+			// 从RingBuffer中读取完整包体数据
+			packetData = recvBuffer.ReadFull(int(header.Len()))
 		} else {
-			// TODO: 优化思路,用sync.pool创建,Q:何时回收?
-			packetData = make([]byte, header.Len())
-			// 先拷贝RingBuffer的尾部
-			n := copy(packetData, readBuffer)
-			// 再拷贝RingBuffer的头部
-			copy(packetData[n:], recvBuffer.buffer)
+			// 数据包超出了RingBuffer大小
+			// 为什么要处理数据包超出RingBuffer大小的情况?
+			// 因为RingBuffer是一种内存换时间的解决方案,对于处理大量连接的应用场景,内存也是要考虑的因素
+			// 有一些应用场景,大部分数据包都不大,但是有少量数据包非常大,如果RingBuffer必须设置的比最大数据包还要大,可能消耗过多内存
+
+			// 跳过PacketHeader
+			recvBuffer.SetReaded(packetHeaderSize)
+			// 剩余的包体数据,RingBuffer里面可能已经收了一部分包体数据
+			remainDataSize := int(header.Len())  - recvBuffer.UnReadLength()
+			remainData := make([]byte, remainDataSize)
+			// 阻塞读取剩余的包体数据
+			readLen,_ := io.ReadFull(tcpConnection.conn, remainData)
+			if readLen != remainDataSize {
+				return nil,ErrReadRemainPacket
+			}
+			if recvBuffer.UnReadLength() == 0 {
+				// 包体数据全部是从io.ReadFull读取到的
+				packetData = remainData
+			} else {
+				// 有一部分数据在RingBuffer里面,重组数据
+				packetData = make([]byte, header.Len())
+				dataInRingBuffer := recvBuffer.ReadFull(recvBuffer.UnReadLength())
+				// 先拷贝RingBuffer里面已经收到的一部分包体数据
+				n := copy(packetData, dataInRingBuffer)
+				// 再拷贝io.ReadFull读取到的
+				copy(packetData[n:], remainData)
+			}
 		}
-		recvBuffer.SetReaded(int(header.Len()))
 		if this.DataDecoder != nil {
 			// 包体的解码接口
 			newPacket = this.DataDecoder(connection, header, packetData)
