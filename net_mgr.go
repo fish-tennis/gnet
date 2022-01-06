@@ -65,7 +65,7 @@ func (this *NetMgr) NewListener(ctx context.Context, address string, acceptConne
 }
 
 // 新连接对象
-func (this *NetMgr) NewConnector(ctx context.Context, address string, connectionConfig ConnectionConfig,
+func (this *NetMgr) NewConnector(ctx context.Context, address string, connectionConfig *ConnectionConfig,
 	codec Codec, handler ConnectionHandler, tag interface{}) Connection {
 	newConnector := NewTcpConnector(connectionConfig, codec, handler)
 	newConnector.netMgrWg = &this.wg

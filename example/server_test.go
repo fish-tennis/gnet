@@ -3,7 +3,7 @@ package example
 import (
 	"context"
 	"fmt"
-	"github.com/fish-tennis/gnet"
+	. "github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/pb"
 	"google.golang.org/protobuf/proto"
 	"sync/atomic"
@@ -32,11 +32,11 @@ func TestTestServer(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
 			logger.Debug("fatal %v", err.(error))
-			gnet.LogStack()
+			LogStack()
 		}
 	}()
-	// 关闭日志
-	gnet.SetLogLevel(gnet.ErrorLevel)
+	// 关闭普通日志
+	SetLogLevel(ErrorLevel)
 
 	var (
 		// 模拟客户端数量
@@ -51,8 +51,8 @@ func TestTestServer(t *testing.T) {
 	ctx,cancel := context.WithTimeout(context.Background(), testTime)
 	defer cancel()
 
-	netMgr := gnet.GetNetMgr()
-	connectionConfig := gnet.ConnectionConfig{
+	netMgr := GetNetMgr()
+	connectionConfig := ConnectionConfig{
 		SendPacketCacheCap:    32,
 		// 因为测试的数据包比较小,所以这里也设置的不大
 		SendBufferSize: 1024,
@@ -62,17 +62,17 @@ func TestTestServer(t *testing.T) {
 		WriteTimeout:   0,
 	}
 
-	protoMap := make(map[gnet.PacketCommand]gnet.ProtoMessageCreator)
-	protoMap[gnet.PacketCommand(123)] = func() proto.Message {
+	protoMap := make(map[PacketCommand]ProtoMessageCreator)
+	protoMap[PacketCommand(123)] = func() proto.Message {
 		return &pb.TestMessage{}
 	}
-	codec := gnet.NewProtoCodec(protoMap)
+	codec := NewProtoCodec(protoMap)
 
 	netMgr.NewListener(ctx, listenAddress, connectionConfig, codec, &testServerClientHandler{}, &testServerListenerHandler{})
 	time.Sleep(time.Second)
 
 	for i := 0; i < clientCount; i++ {
-		netMgr.NewConnector(ctx, listenAddress, connectionConfig, codec, &testClientHandler{}, nil)
+		netMgr.NewConnector(ctx, listenAddress, &connectionConfig, codec, &testClientHandler{}, nil)
 	}
 
 	netMgr.Shutdown(true)
@@ -90,11 +90,11 @@ func TestTestServer(t *testing.T) {
 type testServerListenerHandler struct {
 }
 
-func (e *testServerListenerHandler) OnConnectionConnected(listener gnet.Listener, connection gnet.Connection) {
+func (e *testServerListenerHandler) OnConnectionConnected(listener Listener, connection Connection) {
 	logger.Debug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
 }
 
-func (e *testServerListenerHandler) OnConnectionDisconnect(listener gnet.Listener, connection gnet.Connection) {
+func (e *testServerListenerHandler) OnConnectionDisconnect(listener Listener, connection Connection) {
 	logger.Debug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
 }
 
@@ -103,21 +103,21 @@ type testServerClientHandler struct {
 
 }
 
-func (t *testServerClientHandler) CreateHeartBeatPacket(connection gnet.Connection) gnet.Packet {
+func (t *testServerClientHandler) CreateHeartBeatPacket(connection Connection) Packet {
 	return nil
 }
 
-func (t *testServerClientHandler) OnConnected(connection gnet.Connection, success bool) {
+func (t *testServerClientHandler) OnConnected(connection Connection, success bool) {
 	// 模拟客户端登录游戏时,会密集收到一堆消息
 	for i := 0; i < 30; i++ {
-		toPacket := gnet.NewProtoPacket( 123,
+		toPacket := NewProtoPacket( 123,
 			&pb.TestMessage{
 				Name: "hello client",
 				I32: int32(i),
 			})
 		connection.SendPacket(toPacket)
 	}
-	toPacket := gnet.NewProtoPacket( 123,
+	toPacket := NewProtoPacket( 123,
 		&pb.TestMessage{
 			Name: "response",
 			I32: int32(0),
@@ -125,22 +125,22 @@ func (t *testServerClientHandler) OnConnected(connection gnet.Connection, succes
 	connection.SendPacket(toPacket)
 }
 
-func (t *testServerClientHandler) OnDisconnected(connection gnet.Connection) {
+func (t *testServerClientHandler) OnDisconnected(connection Connection) {
 }
 
-func (t *testServerClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
+func (t *testServerClientHandler) OnRecvPacket(connection Connection, packet Packet) {
 	atomic.AddInt64(&serverRecvPacketCount,1)
 	// 收到客户端的消息,服务器给客户端回4个消息
 	// 因为游戏的特点是:服务器下传数据比客户端上传数据要多
 	for i := 0; i < 3; i++ {
-		toPacket := gnet.NewProtoPacket( 123,
+		toPacket := NewProtoPacket( 123,
 			&pb.TestMessage{
 				Name: "hello client this is server",
 				I32: int32(i),
 			})
 		connection.SendPacket(toPacket)
 	}
-	toPacket := gnet.NewProtoPacket( 123,
+	toPacket := NewProtoPacket( 123,
 		&pb.TestMessage{
 			Name: "response",
 			I32: int32(0),
@@ -153,22 +153,22 @@ type testClientHandler struct {
 
 }
 
-func (t *testClientHandler) CreateHeartBeatPacket(connection gnet.Connection) gnet.Packet {
+func (t *testClientHandler) CreateHeartBeatPacket(connection Connection) Packet {
 	return nil
 }
 
-func (t *testClientHandler) OnConnected(connection gnet.Connection, success bool) {
+func (t *testClientHandler) OnConnected(connection Connection, success bool) {
 }
 
-func (t *testClientHandler) OnDisconnected(connection gnet.Connection) {
+func (t *testClientHandler) OnDisconnected(connection Connection) {
 }
 
-func (t *testClientHandler) OnRecvPacket(connection gnet.Connection, packet gnet.Packet) {
+func (t *testClientHandler) OnRecvPacket(connection Connection, packet Packet) {
 	atomic.AddInt64(&clientRecvPacketCount,1)
-	protoPacket := packet.(*gnet.ProtoPacket)
+	protoPacket := packet.(*ProtoPacket)
 	recvMessage := protoPacket.Message().(*pb.TestMessage)
 	if recvMessage.GetName() == "response" {
-		toPacket := gnet.NewProtoPacket( 123,
+		toPacket := NewProtoPacket( 123,
 			&pb.TestMessage{
 				Name: "hello server",
 				I32: int32(0),

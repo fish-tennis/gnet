@@ -44,7 +44,7 @@ func TestPacketSize(t *testing.T) {
 	}
 
 	clientHandler := NewDefaultConnectionHandler(defaultCodec)
-	clientConnector := GetNetMgr().NewConnector(ctx, listenAddress, connectionConfig, defaultCodec, clientHandler, nil)
+	clientConnector := GetNetMgr().NewConnector(ctx, listenAddress, &connectionConfig, defaultCodec, clientHandler, nil)
 	if clientConnector == nil {
 		panic("connect failed")
 	}

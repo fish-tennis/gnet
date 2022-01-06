@@ -24,13 +24,17 @@ type TcpConnection struct {
 	sendBuffer *RingBuffer
 	// 收包RingBuffer
 	recvBuffer *RingBuffer
+	//
+	tmpReadPacketHeader PacketHeader
+	tmpReadPacketHeaderData []byte
+	curReadPacketHeader *PacketHeader
 	//packetHeaderDataEncode []byte
 	//packetHeaderDataDecode []byte
 	// 外部传进来的WaitGroup
 	netMgrWg *sync.WaitGroup
 }
 
-func NewTcpConnector(config ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
+func NewTcpConnector(config *ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
 	if config.MaxPacketSize == 0 {
 		config.MaxPacketSize = MaxPacketDataSize
 	}
@@ -49,7 +53,7 @@ func NewTcpConnector(config ConnectionConfig, codec Codec, handler ConnectionHan
 	}
 }
 
-func NewTcpConnectionAccept(conn net.Conn, config ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
+func NewTcpConnectionAccept(conn net.Conn, config *ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
 	if config.MaxPacketSize == 0 {
 		config.MaxPacketSize = MaxPacketDataSize
 	}
@@ -118,11 +122,12 @@ func (this *TcpConnection) readLoop() {
 
 	logger.Debug("readLoop begin %v", this.GetConnectionId())
 	this.recvBuffer = this.createRecvBuffer()
+	this.tmpReadPacketHeaderData = make([]byte,this.codec.PacketHeaderSize())
 	for this.isConnected {
 		// 可写入的连续buffer
 		writeBuffer := this.recvBuffer.WriteBuffer()
 		if len(writeBuffer) == 0 {
-			// 一般不会运行到这里来,除非recvBuffer的大小设置太小:小于了某个数据包的长度
+			// 不会运行到这里来,除非recvBuffer的大小设置太小:小于了包头的长度
 			logger.Error("%v recvBuffer full", this.GetConnectionId())
 			return
 		}

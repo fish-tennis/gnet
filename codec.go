@@ -88,13 +88,13 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 			}
 		}
 		writeBuffer = sendBuffer.WriteBuffer()
-		writetedDataLen := 0
+		writedDataLen := 0
 		for i,data := range encodedData {
 			writed,_ := sendBuffer.Write(data)
-			writetedDataLen += writed
+			writedDataLen += writed
 			if writed < len(data) {
 				// 写不下的包体数据,返回给TcpConnection延后处理
-				remainData := make([]byte, encodedDataLen-writetedDataLen)
+				remainData := make([]byte, encodedDataLen-writedDataLen)
 				n := copy(remainData, data[writed:])
 				for j := i+1; j < len(encodedData); j++ {
 					n += copy(remainData[n:], encodedData[j])
@@ -124,48 +124,63 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPacket Packet, err error) {
 	if tcpConnection,ok := connection.(*TcpConnection); ok {
 		// TcpConnection用了RingBuffer,解码时,尽可能的不产生copy
-		packetHeaderSize := int(this.PacketHeaderSize())
 		recvBuffer := tcpConnection.recvBuffer
-		if recvBuffer.UnReadLength() < packetHeaderSize {
-			return
-		}
-		var packetHeaderData []byte
-		readBuffer := recvBuffer.ReadBuffer()
-		if len(readBuffer) >= packetHeaderSize {
-			if this.HeaderDecoder != nil {
-				// 如果header需要解码,那么这里就必须copy了,因为这时还不能确定收到完整的包,所以不能对原始数据进行修改
-				packetHeaderData = make([]byte, packetHeaderSize)
-				copy(packetHeaderData, readBuffer)
-			} else {
+		// 先解码包头
+		if tcpConnection.curReadPacketHeader == nil {
+			packetHeaderSize := int(this.PacketHeaderSize())
+			if recvBuffer.UnReadLength() < packetHeaderSize {
+				return
+			}
+			var packetHeaderData []byte
+			readBuffer := recvBuffer.ReadBuffer()
+			if len(readBuffer) >= packetHeaderSize {
 				// 这里不产生copy
 				packetHeaderData = readBuffer[0:packetHeaderSize]
+				//if this.HeaderDecoder != nil {
+				//	// 如果header需要解码,那么这里就必须copy了,因为这时还不能确定收到完整的包,所以不能对原始数据进行修改
+				//	//packetHeaderData = make([]byte, packetHeaderSize)
+				//	packetHeaderData = tcpConnection.tmpReadPacketHeaderData
+				//	copy(packetHeaderData, readBuffer)
+				//} else {
+				//	// 这里不产生copy
+				//	packetHeaderData = readBuffer[0:packetHeaderSize]
+				//}
+			} else {
+				//packetHeaderData = make([]byte, packetHeaderSize)
+				packetHeaderData = tcpConnection.tmpReadPacketHeaderData
+				// 先拷贝RingBuffer的尾部
+				n := copy(packetHeaderData, readBuffer)
+				// 再拷贝RingBuffer的头部
+				copy(packetHeaderData[n:], recvBuffer.buffer)
 			}
-		} else {
-			// TODO: packetHeaderData可以作为类的成员变量,没必要每次新分配
-			packetHeaderData = make([]byte, packetHeaderSize)
-			// 先拷贝RingBuffer的尾部
-			n := copy(packetHeaderData, readBuffer)
-			// 再拷贝RingBuffer的头部
-			copy(packetHeaderData[n:], recvBuffer.buffer)
+			recvBuffer.SetReaded(packetHeaderSize)
+			if this.HeaderDecoder != nil {
+				this.HeaderDecoder(connection, packetHeaderData)
+			}
+			tcpConnection.curReadPacketHeader = &tcpConnection.tmpReadPacketHeader
+			tcpConnection.curReadPacketHeader.ReadFrom(packetHeaderData)
+			// 数据包长度超出设置
+			if tcpConnection.config.MaxPacketSize > 0 && tcpConnection.curReadPacketHeader.Len() > tcpConnection.config.MaxPacketSize {
+				return nil, ErrPacketLengthExceed
+			}
 		}
-		if this.HeaderDecoder != nil {
-			this.HeaderDecoder(connection, packetHeaderData)
-		}
-		header := &PacketHeader{}
-		header.ReadFrom(packetHeaderData)
+
+		//header := &PacketHeader{}
+		header := tcpConnection.curReadPacketHeader
+		//header.ReadFrom(packetHeaderData)
 		// 数据包长度超出设置
 		if tcpConnection.config.MaxPacketSize > 0 && header.Len() > tcpConnection.config.MaxPacketSize {
 			return nil, ErrPacketLengthExceed
 		}
 		var packetData []byte
 		// 数据包没有超出RingBuffer大小
-		if int(header.Len()) <= recvBuffer.Size() - packetHeaderSize {
-			if recvBuffer.UnReadLength() < packetHeaderSize + int(header.Len()) {
+		if int(header.Len()) <= recvBuffer.Size() {
+			if recvBuffer.UnReadLength() < int(header.Len()) {
 				// 包体数据还没收完整
 				return
 			}
-			// 跳过PacketHeader
-			recvBuffer.SetReaded(packetHeaderSize)
+			//// 跳过PacketHeader
+			//recvBuffer.SetReaded(packetHeaderSize)
 			// 从RingBuffer中读取完整包体数据
 			packetData = recvBuffer.ReadFull(int(header.Len()))
 		} else {
@@ -174,8 +189,8 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 			// 因为RingBuffer是一种内存换时间的解决方案,对于处理大量连接的应用场景,内存也是要考虑的因素
 			// 有一些应用场景,大部分数据包都不大,但是有少量数据包非常大,如果RingBuffer必须设置的比最大数据包还要大,可能消耗过多内存
 
-			// 跳过PacketHeader
-			recvBuffer.SetReaded(packetHeaderSize)
+			//// 跳过PacketHeader
+			//recvBuffer.SetReaded(packetHeaderSize)
 			// 剩余的包体数据,RingBuffer里面可能已经收了一部分包体数据
 			remainDataSize := int(header.Len())  - recvBuffer.UnReadLength()
 			remainData := make([]byte, remainDataSize)
@@ -203,6 +218,7 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 		} else {
 			newPacket = NewDataPacket(packetData)
 		}
+		tcpConnection.curReadPacketHeader = nil
 		return
 	}
 	//if len(data) >= PacketHeaderSize {

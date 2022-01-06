@@ -141,7 +141,7 @@ func (this *TcpListener) acceptLoop(ctx context.Context) {
 					LogStack()
 				}
 			}()
-			newTcpConn := NewTcpConnectionAccept(newConn, this.acceptConnectionConfig, this.acceptConnectionCodec, this.acceptConnectionHandler)
+			newTcpConn := NewTcpConnectionAccept(newConn, &this.acceptConnectionConfig, this.acceptConnectionCodec, this.acceptConnectionHandler)
 			newTcpConn.isConnected = true
 			if newTcpConn.handler != nil {
 				newTcpConn.handler.OnConnected(newTcpConn,true)

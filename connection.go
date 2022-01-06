@@ -79,7 +79,7 @@ type baseConnection struct {
 	// 连接唯一id
 	connectionId uint32
 	// 连接设置
-	config ConnectionConfig
+	config *ConnectionConfig
 	// 是否是连接方
 	isConnector bool
 	// 是否连接成功
