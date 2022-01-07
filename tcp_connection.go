@@ -24,12 +24,10 @@ type TcpConnection struct {
 	sendBuffer *RingBuffer
 	// 收包RingBuffer
 	recvBuffer *RingBuffer
-	//
+	// 解码时,用到的一些临时变量
 	tmpReadPacketHeader PacketHeader
 	tmpReadPacketHeaderData []byte
 	curReadPacketHeader *PacketHeader
-	//packetHeaderDataEncode []byte
-	//packetHeaderDataDecode []byte
 	// 外部传进来的WaitGroup
 	netMgrWg *sync.WaitGroup
 }
@@ -396,4 +394,8 @@ func (this *TcpConnection) RemoteAddr() net.Addr {
 		return nil
 	}
 	return this.conn.RemoteAddr()
+}
+
+func (this *TcpConnection) GetSendPacketChanLen() int {
+	return len(this.sendPacketCache)
 }

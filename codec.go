@@ -50,6 +50,7 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 			// 如果只是返回一个[]byte结果的话,那么编码接口还需要把消息头和消息体进行合并,从而多一次内存分配和拷贝
 			encodedData = this.DataEncoder(connection, packet)
 		} else {
+			// 支持在应用层做数据包的序列化和编码
 			encodedData = [][]byte{packet.GetStreamData()}
 		}
 		encodedDataLen := 0
@@ -136,15 +137,6 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 			if len(readBuffer) >= packetHeaderSize {
 				// 这里不产生copy
 				packetHeaderData = readBuffer[0:packetHeaderSize]
-				//if this.HeaderDecoder != nil {
-				//	// 如果header需要解码,那么这里就必须copy了,因为这时还不能确定收到完整的包,所以不能对原始数据进行修改
-				//	//packetHeaderData = make([]byte, packetHeaderSize)
-				//	packetHeaderData = tcpConnection.tmpReadPacketHeaderData
-				//	copy(packetHeaderData, readBuffer)
-				//} else {
-				//	// 这里不产生copy
-				//	packetHeaderData = readBuffer[0:packetHeaderSize]
-				//}
 			} else {
 				//packetHeaderData = make([]byte, packetHeaderSize)
 				packetHeaderData = tcpConnection.tmpReadPacketHeaderData
@@ -179,8 +171,6 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 				// 包体数据还没收完整
 				return
 			}
-			//// 跳过PacketHeader
-			//recvBuffer.SetReaded(packetHeaderSize)
 			// 从RingBuffer中读取完整包体数据
 			packetData = recvBuffer.ReadFull(int(header.Len()))
 		} else {
@@ -189,8 +179,6 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 			// 因为RingBuffer是一种内存换时间的解决方案,对于处理大量连接的应用场景,内存也是要考虑的因素
 			// 有一些应用场景,大部分数据包都不大,但是有少量数据包非常大,如果RingBuffer必须设置的比最大数据包还要大,可能消耗过多内存
 
-			//// 跳过PacketHeader
-			//recvBuffer.SetReaded(packetHeaderSize)
 			// 剩余的包体数据,RingBuffer里面可能已经收了一部分包体数据
 			remainDataSize := int(header.Len())  - recvBuffer.UnReadLength()
 			remainData := make([]byte, remainDataSize)

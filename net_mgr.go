@@ -58,7 +58,7 @@ func (this *NetMgr) NewListener(ctx context.Context, address string, acceptConne
 
 	newListener.onClose = func(listener Listener) {
 		this.listenerMapLock.Lock()
-		delete(this.listenerMap, newListener.GetListenerId())
+		delete(this.listenerMap, listener.GetListenerId())
 		this.listenerMapLock.Unlock()
 	}
 	return newListener
