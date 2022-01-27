@@ -5,6 +5,7 @@ import (
 	"net"
 	"sync"
 	"syscall"
+	"time"
 )
 
 // TCP监听
@@ -134,6 +135,7 @@ func (this *TcpListener) acceptLoop(ctx context.Context) {
 			if err == syscall.EMFILE {
 				logger.Error("accept failed id:%v syscall.EMFILE", this.GetListenerId())
 				// 这个错误只是导致新连接暂时无法连接,不应该退出监听,当有连接释放后,新连接又可以连接上
+				time.Sleep(time.Millisecond)
 				continue
 			}
 			break

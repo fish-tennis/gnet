@@ -76,7 +76,7 @@ func (this *TcpConnection) Connect(address string) bool {
 	conn, err := net.DialTimeout("tcp", address, time.Second)
 	if err != nil {
 		this.isConnected = false
-		logger.Error("Connect failed %v: %v", this.GetConnectionId(), err)
+		logger.Error("Connect failed %v: %v", this.GetConnectionId(), err.Error())
 		if this.handler != nil {
 			this.handler.OnConnected(this,false)
 		}
@@ -95,7 +95,13 @@ func (this *TcpConnection) Start(ctx context.Context) {
 	// 开启收包协程
 	this.netMgrWg.Add(1)
 	go func() {
-		defer this.netMgrWg.Done()
+		defer func() {
+			this.netMgrWg.Done()
+			if err := recover(); err != nil {
+				logger.Error("read fatal %v: %v", this.GetConnectionId(), err.(error))
+				LogStack()
+			}
+		}()
 		this.readLoop()
 		this.Close()
 	}()
@@ -103,7 +109,13 @@ func (this *TcpConnection) Start(ctx context.Context) {
 	// 开启发包协程
 	this.netMgrWg.Add(1)
 	go func(ctx context.Context) {
-		defer this.netMgrWg.Done()
+		defer func() {
+			this.netMgrWg.Done()
+			if err := recover(); err != nil {
+				logger.Error("write fatal %v: %v", this.GetConnectionId(), err.(error))
+				LogStack()
+			}
+		}()
 		this.writeLoop(ctx)
 		this.Close()
 	}(ctx)
@@ -132,9 +144,8 @@ func (this *TcpConnection) readLoop() {
 		n,err := this.conn.Read(writeBuffer)
 		if err != nil {
 			if err != io.EOF {
-				// ...
+				logger.Debug("readLoop %v err:%v", this.GetConnectionId(), err.Error())
 			}
-			logger.Debug("readLoop %v err:%v", this.GetConnectionId(), err)
 			break
 		}
 		//LogDebug("%v Read:%v", this.GetConnectionId(), n)
@@ -142,7 +153,7 @@ func (this *TcpConnection) readLoop() {
 		for this.isConnected {
 			newPacket,decodeError := this.codec.Decode(this, this.recvBuffer.ReadBuffer())
 			if decodeError != nil {
-				logger.Error("%v decodeError:%v", this.GetConnectionId(), decodeError)
+				logger.Error("%v decodeError:%v", this.GetConnectionId(), decodeError.Error())
 				return
 			}
 			if newPacket == nil {
@@ -164,7 +175,7 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
 			logger.Error("writeLoop fatal %v: %v", this.GetConnectionId(), err.(error))
-			LogStack()
+			//LogStack()
 		}
 		logger.Debug("writeLoop end %v", this.GetConnectionId())
 	}()
@@ -248,7 +259,7 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 					// Q:什么情况会导致SetWriteDeadline返回err?
 					if setTimeoutErr != nil {
 						// ...
-						logger.Debug("%v setTimeoutErr:%v", this.GetConnectionId(), setTimeoutErr)
+						logger.Debug("%v setTimeoutErr:%v", this.GetConnectionId(), setTimeoutErr.Error())
 						return
 					}
 				}
@@ -258,7 +269,7 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 				writeCount, err := this.conn.Write(readBuffer)
 				if err != nil {
 					// ...
-					logger.Debug("%v write Err:%v", this.GetConnectionId(), err)
+					logger.Debug("%v write Err:%v", this.GetConnectionId(), err.Error())
 					return
 				}
 				this.sendBuffer.SetReaded(writeCount)
