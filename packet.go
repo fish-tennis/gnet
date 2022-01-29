@@ -74,12 +74,20 @@ type Packet interface {
 type ProtoPacket struct {
 	command PacketCommand
 	message proto.Message
+	data []byte
 }
 
 func NewProtoPacket(command PacketCommand, message proto.Message) *ProtoPacket {
 	return &ProtoPacket{
 		command: command,
 		message: message,
+	}
+}
+
+func NewProtoPacketWithData(command PacketCommand, data []byte) *ProtoPacket {
+	return &ProtoPacket{
+		command: command,
+		data: data,
 	}
 }
 
@@ -91,9 +99,9 @@ func (this *ProtoPacket) Message() proto.Message {
 	return this.message
 }
 
-// ProtoPacket没有用这个函数,这里只是为了满足Packet的接口
+// 某些特殊需求会直接使用序列化好的数据
 func (this *ProtoPacket) GetStreamData() []byte {
-	return nil
+	return this.data
 }
 
 // deep copy

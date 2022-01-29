@@ -83,18 +83,23 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader *Packet
 	}
 	command := binary.LittleEndian.Uint16(decodedPacketData[:2])
 	if messageCreator,ok := this.MessageCreatorMap[PacketCommand(command)]; ok {
-		var newProtoMessage proto.Message
 		if messageCreator != nil {
-			newProtoMessage = messageCreator()
+			newProtoMessage := messageCreator()
 			err := proto.Unmarshal(decodedPacketData[2:], newProtoMessage)
 			if err != nil {
 				logger.Error("proto decode err:%v cmd:%v", err, command)
 				return nil
 			}
-		}
-		return &ProtoPacket{
-			command: PacketCommand(command),
-			message: newProtoMessage,
+			return &ProtoPacket{
+				command: PacketCommand(command),
+				message: newProtoMessage,
+			}
+		} else {
+			// 支持只注册了消息号,没注册proto结构体的用法
+			return &ProtoPacket{
+				command: PacketCommand(command),
+				data: decodedPacketData[2:],
+			}
 		}
 	}
 	logger.Error("unsupport command:%v", command)
