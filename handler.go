@@ -27,6 +27,10 @@ type ListenerHandler interface {
 	OnConnectionDisconnect(listener Listener, connection Connection)
 }
 
+type PacketHandlerRegister interface {
+	Register(packetCommand PacketCommand, handler PacketHandler, creator ProtoMessageCreator)
+}
+
 
 // ProtoPacket消息回调
 type PacketHandler func(connection Connection, packet* ProtoPacket)
