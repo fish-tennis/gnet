@@ -1,8 +1,10 @@
 package gnet
 
 import (
+	"context"
 	"google.golang.org/protobuf/proto"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -35,6 +37,8 @@ type Connection interface {
 	// 设置编解码接口
 	SetCodec(codec Codec)
 
+	GetHandler() ConnectionHandler
+
 	// LocalAddr returns the local network address.
 	LocalAddr() net.Addr
 
@@ -49,6 +53,10 @@ type Connection interface {
 
 	// 设置关联数据
 	SetTag(tag interface{})
+
+	Connect(address string) bool
+
+	Start(ctx context.Context, netMgrWg *sync.WaitGroup, onClose func(connection Connection))
 }
 
 // 连接设置
@@ -125,6 +133,10 @@ func (this *baseConnection) SetTag(tag interface{}) {
 	this.tag = tag
 }
 
+func (this *baseConnection) GetHandler() ConnectionHandler {
+	return this.handler
+}
+
 var (
 	connectionIdCounter uint32 = 0
 )
@@ -132,3 +144,7 @@ var (
 func newConnectionId() uint32 {
 	return atomic.AddUint32(&connectionIdCounter, 1)
 }
+
+type ConnectionCreator func(config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection
+
+type AcceptConnectionCreator func(conn net.Conn, config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection

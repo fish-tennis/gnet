@@ -7,46 +7,55 @@ import (
 )
 
 const (
-	// 包头长度
-	DefaultPacketHeaderSize = int(unsafe.Sizeof(PacketHeader{}))
-	// 数据包长度限制
+	// 默认包头长度
+	DefaultPacketHeaderSize = int(unsafe.Sizeof(DefaultPacketHeader{}))
+	// 数据包长度限制(16M)
 	MaxPacketDataSize = 0x00FFFFFF
 )
+
+// 包头接口
+type PacketHeader interface {
+	Len() uint32
+	ReadFrom(messageHeaderData []byte)
+	WriteTo(messageHeaderData []byte)
+}
 
 // 消息号
 type PacketCommand uint16
 
-// 包头
-type PacketHeader struct {
+// 默认包头,支持小于16M的数据包
+type DefaultPacketHeader struct {
 	// (flags << 24) | len
+	// flags [0,255)
+	// len [0,16M)
 	LenAndFlags uint32
 }
 
-func NewPacketHeader(len uint32,flags uint8) *PacketHeader {
-	return &PacketHeader{
+func NewDefaultPacketHeader(len uint32,flags uint8) *DefaultPacketHeader {
+	return &DefaultPacketHeader{
 		LenAndFlags: uint32(flags)<<24 | len,
 	}
 }
 
 // 包体长度,不包含包头的长度
 // [0,0x00FFFFFF]
-func (this *PacketHeader) Len() uint32 {
+func (this *DefaultPacketHeader) Len() uint32 {
 	return this.LenAndFlags & 0x00FFFFFF
 }
 
 // 标记 [0,0xFF]
-func (this *PacketHeader) Flags() uint32 {
-	return this.LenAndFlags >> 24
+func (this *DefaultPacketHeader) Flags() uint8 {
+	return uint8(this.LenAndFlags >> 24)
 }
 
 // 从字节流读取数据,len(messageHeaderData)>=MessageHeaderSize
 // 使用小端字节序
-func (this *PacketHeader) ReadFrom(messageHeaderData []byte) {
+func (this *DefaultPacketHeader) ReadFrom(messageHeaderData []byte) {
 	this.LenAndFlags = binary.LittleEndian.Uint32(messageHeaderData)
 }
 
 // 写入字节流,使用小端字节序
-func (this *PacketHeader) WriteTo(messageHeaderData []byte) {
+func (this *DefaultPacketHeader) WriteTo(messageHeaderData []byte) {
 	binary.LittleEndian.PutUint32(messageHeaderData, this.LenAndFlags)
 }
 

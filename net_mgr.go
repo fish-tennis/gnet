@@ -2,6 +2,7 @@ package gnet
 
 import (
 	"context"
+	"net"
 	"sync"
 )
 
@@ -46,7 +47,16 @@ func (this *NetMgr) init() {
 // 新监听对象
 func (this *NetMgr) NewListener(ctx context.Context, address string, acceptConnectionConfig ConnectionConfig, acceptConnectionCodec Codec,
 	acceptConnectionHandler ConnectionHandler, listenerHandler ListenerHandler) Listener {
+	return this.NewListenerCustom(ctx, address, acceptConnectionConfig, acceptConnectionCodec,
+		acceptConnectionHandler, listenerHandler, func(_conn net.Conn, _config *ConnectionConfig, _codec Codec, _handler ConnectionHandler) Connection {
+			return NewTcpConnectionAccept(_conn, _config, _codec, _handler)
+		})
+}
+
+func (this *NetMgr) NewListenerCustom(ctx context.Context, address string, acceptConnectionConfig ConnectionConfig, acceptConnectionCodec Codec,
+	acceptConnectionHandler ConnectionHandler, listenerHandler ListenerHandler, acceptConnectionCreator AcceptConnectionCreator) Listener {
 	newListener := NewTcpListener(acceptConnectionConfig, acceptConnectionCodec, acceptConnectionHandler, listenerHandler)
+	newListener.acceptConnectionCreator = acceptConnectionCreator
 	newListener.netMgrWg = &this.wg
 	if !newListener.Start(ctx, address) {
 		logger.Debug("NewListener Start Failed")
@@ -67,8 +77,14 @@ func (this *NetMgr) NewListener(ctx context.Context, address string, acceptConne
 // 新连接对象
 func (this *NetMgr) NewConnector(ctx context.Context, address string, connectionConfig *ConnectionConfig,
 	codec Codec, handler ConnectionHandler, tag interface{}) Connection {
-	newConnector := NewTcpConnector(connectionConfig, codec, handler)
-	newConnector.netMgrWg = &this.wg
+	return this.NewConnectorCustom(ctx, address, connectionConfig, codec, handler, tag, func(_config *ConnectionConfig, _codec Codec, _handler ConnectionHandler) Connection {
+		return NewTcpConnector(_config, _codec, _handler)
+	})
+}
+
+func (this *NetMgr) NewConnectorCustom(ctx context.Context, address string, connectionConfig *ConnectionConfig,
+	codec Codec, handler ConnectionHandler, tag interface{}, connectionCreator ConnectionCreator) Connection {
+	newConnector := connectionCreator(connectionConfig, codec, handler)
 	newConnector.SetTag(tag)
 	if !newConnector.Connect(address) {
 		newConnector.Close()
@@ -77,13 +93,11 @@ func (this *NetMgr) NewConnector(ctx context.Context, address string, connection
 	this.connectorMapLock.Lock()
 	this.connectorMap[newConnector.GetConnectionId()] = newConnector
 	this.connectorMapLock.Unlock()
-	newConnector.Start(ctx)
-
-	newConnector.onClose = func(connection Connection) {
+	newConnector.Start(ctx, &this.wg, func(connection Connection) {
 		this.connectorMapLock.Lock()
 		delete(this.connectorMap, connection.GetConnectionId())
 		this.connectorMapLock.Unlock()
-	}
+	})
 	return newConnector
 }
 

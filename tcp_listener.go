@@ -18,7 +18,7 @@ type TcpListener struct {
 	acceptConnectionHandler ConnectionHandler
 
 	// 连接表
-	connectionMap map[uint32]*TcpConnection
+	connectionMap map[uint32]Connection
 	connectionMapLock sync.RWMutex
 
 	isRunning bool
@@ -26,6 +26,8 @@ type TcpListener struct {
 	closeOnce sync.Once
 	// 关闭回调
 	onClose func(listener Listener)
+
+	acceptConnectionCreator AcceptConnectionCreator
 
 	// 外部传进来的WaitGroup
 	netMgrWg *sync.WaitGroup
@@ -40,7 +42,7 @@ func NewTcpListener(acceptConnectionConfig ConnectionConfig, acceptConnectionCod
 		acceptConnectionConfig: acceptConnectionConfig,
 		acceptConnectionCodec: acceptConnectionCodec,
 		acceptConnectionHandler: acceptConnectionHandler,
-		connectionMap: make(map[uint32]*TcpConnection),
+		connectionMap: make(map[uint32]Connection),
 	}
 }
 
@@ -55,7 +57,7 @@ func (this *TcpListener) GetConnection(connectionId uint32) Connection {
 func (this *TcpListener) Broadcast(packet Packet)  {
 	this.connectionMapLock.RLock()
 	for _,conn := range this.connectionMap {
-		if conn.isConnected {
+		if conn.IsConnected() {
 			conn.SendPacket(packet.Clone())
 		}
 	}
@@ -101,7 +103,7 @@ func (this *TcpListener) Close() {
 		if this.netListener != nil {
 			this.netListener.Close()
 		}
-		connMap := make(map[uint32]*TcpConnection)
+		connMap := make(map[uint32]Connection)
 		this.connectionMapLock.RLock()
 		for k,v := range this.connectionMap {
 			connMap[k] = v
@@ -149,22 +151,20 @@ func (this *TcpListener) acceptLoop(ctx context.Context) {
 					LogStack()
 				}
 			}()
-			newTcpConn := NewTcpConnectionAccept(newConn, &this.acceptConnectionConfig, this.acceptConnectionCodec, this.acceptConnectionHandler)
-			newTcpConn.isConnected = true
-			if newTcpConn.handler != nil {
-				newTcpConn.handler.OnConnected(newTcpConn,true)
+			newTcpConn := this.acceptConnectionCreator(newConn, &this.acceptConnectionConfig, this.acceptConnectionCodec, this.acceptConnectionHandler)
+			if newTcpConn.GetHandler() != nil {
+				newTcpConn.GetHandler().OnConnected(newTcpConn,true)
 			}
 			this.connectionMapLock.Lock()
 			this.connectionMap[newTcpConn.GetConnectionId()] = newTcpConn
 			this.connectionMapLock.Unlock()
-			newTcpConn.netMgrWg = this.netMgrWg
-			newTcpConn.Start(ctx)
-
-			if this.handler != nil {
-				this.handler.OnConnectionConnected(this, newTcpConn)
-				newTcpConn.onClose = func(connection Connection) {
+			newTcpConn.Start(ctx, this.netMgrWg, func(connection Connection) {
+				if this.handler != nil {
 					this.handler.OnConnectionDisconnect(this, connection)
 				}
+			})
+			if this.handler != nil {
+				this.handler.OnConnectionConnected(this, newTcpConn)
 			}
 		}()
 	}

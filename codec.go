@@ -8,6 +8,11 @@ type Codec interface {
 	// 应用层可以自己扩展包头长度
 	PacketHeaderSize() uint32
 
+	// 创建消息头
+	// packet可能为nil
+	// packetData是packet encode后的数据,可能为nil
+	CreatePacketHeader(connection Connection, packet Packet, packetData []byte) PacketHeader
+
 	// 编码接口
 	Encode(connection Connection, packet Packet) []byte
 
@@ -30,11 +35,15 @@ type RingBufferCodec struct {
 	// 包头的解码接口,包头长度不能变
 	HeaderDecoder func(connection Connection, headerData []byte)
 	// 包体的解码接口
-	DataDecoder func(connection Connection, packetHeader *PacketHeader, packetData []byte) Packet
+	DataDecoder func(connection Connection, packetHeader PacketHeader, packetData []byte) Packet
 }
 
 func (this *RingBufferCodec) PacketHeaderSize() uint32 {
 	return uint32(DefaultPacketHeaderSize)
+}
+
+func (this *RingBufferCodec) CreatePacketHeader(connection Connection, packet Packet, packetData []byte) PacketHeader {
+	return NewDefaultPacketHeader(0,0)
 }
 
 // TcpConnection做了优化,在Encode的过程中就直接写入sendBuffer
@@ -57,7 +66,7 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 		for _,data := range encodedData {
 			encodedDataLen += len(data)
 		}
-		packetHeader := NewPacketHeader(uint32(encodedDataLen), 0)
+		packetHeader := NewDefaultPacketHeader(uint32(encodedDataLen), 0)
 		writeBuffer := sendBuffer.WriteBuffer()
 		if packetHeaderSize == DefaultPacketHeaderSize && len(writeBuffer) >= packetHeaderSize {
 			// 有足够的连续空间可写,则直接写入RingBuffer里
@@ -112,7 +121,7 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 	//	packetData = this.DataEncoder(connection, packet, packet.data)
 	//}
 	//encodedData = make([]byte, PacketHeaderSize + len(packetData))
-	//packetHeader := NewPacketHeader(uint32(len(packetData)), 0)
+	//packetHeader := NewDefaultPacketHeader(uint32(len(packetData)), 0)
 	//packetHeader.WriteTo(encodedData)
 	//if this.HeaderEncoder != nil {
 	//	this.HeaderEncoder(connection, packet, encodedData[0:PacketHeaderSize])
@@ -149,7 +158,7 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 			if this.HeaderDecoder != nil {
 				this.HeaderDecoder(connection, packetHeaderData)
 			}
-			tcpConnection.curReadPacketHeader = &tcpConnection.tmpReadPacketHeader
+			tcpConnection.curReadPacketHeader = tcpConnection.tmpReadPacketHeader
 			tcpConnection.curReadPacketHeader.ReadFrom(packetHeaderData)
 			// 数据包长度超出设置
 			if tcpConnection.config.MaxPacketSize > 0 && tcpConnection.curReadPacketHeader.Len() > tcpConnection.config.MaxPacketSize {

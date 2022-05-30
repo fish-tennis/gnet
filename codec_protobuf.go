@@ -72,7 +72,7 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]b
 	//return fullData
 }
 
-func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader *PacketHeader, packetData []byte) Packet {
+func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketHeader, packetData []byte) Packet {
 	decodedPacketData := packetData
 	// Q:这里可以对packetData进行解码,如异或,解密,解压等
 	if this.ProtoPacketBytesDecoder != nil {

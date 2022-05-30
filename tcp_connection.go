@@ -27,9 +27,9 @@ type TcpConnection struct {
 	// 解码时,用到的一些临时变量
 	tmpReadPacketHeader PacketHeader
 	tmpReadPacketHeaderData []byte
-	curReadPacketHeader *PacketHeader
-	// 外部传进来的WaitGroup
-	netMgrWg *sync.WaitGroup
+	curReadPacketHeader PacketHeader
+	//// 外部传进来的WaitGroup
+	//netMgrWg *sync.WaitGroup
 }
 
 func NewTcpConnector(config *ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
@@ -39,16 +39,9 @@ func NewTcpConnector(config *ConnectionConfig, codec Codec, handler ConnectionHa
 	if config.MaxPacketSize > MaxPacketDataSize {
 		config.MaxPacketSize = MaxPacketDataSize
 	}
-	return &TcpConnection{
-		baseConnection: baseConnection{
-			connectionId: newConnectionId(),
-			isConnector: true,
-			config: config,
-			codec: codec,
-			handler: handler,
-		},
-		sendPacketCache: make(chan Packet, config.SendPacketCacheCap),
-	}
+	newConnection := createTcpConnection(config, codec, handler)
+	newConnection.isConnector = true
+	return newConnection
 }
 
 func NewTcpConnectionAccept(conn net.Conn, config *ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
@@ -58,17 +51,25 @@ func NewTcpConnectionAccept(conn net.Conn, config *ConnectionConfig, codec Codec
 	if config.MaxPacketSize > MaxPacketDataSize {
 		config.MaxPacketSize = MaxPacketDataSize
 	}
-	return &TcpConnection{
+	newConnection := createTcpConnection(config, codec, handler)
+	newConnection.isConnector = false
+	newConnection.isConnected = true
+	newConnection.conn = conn
+	return newConnection
+}
+
+func createTcpConnection(config *ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
+	newConnection := &TcpConnection{
 		baseConnection: baseConnection{
 			connectionId: newConnectionId(),
-			isConnector: false,
 			config: config,
 			codec: codec,
 			handler: handler,
 		},
-		sendPacketCache: make(chan Packet, config.SendPacketCacheCap),
-		conn: conn,
+		sendPacketCache:     make(chan Packet, config.SendPacketCacheCap),
 	}
+	newConnection.tmpReadPacketHeader = codec.CreatePacketHeader(newConnection, nil, nil)
+	return newConnection
 }
 
 // 连接
@@ -91,12 +92,13 @@ func (this *TcpConnection) Connect(address string) bool {
 }
 
 // 开启读写协程
-func (this *TcpConnection) Start(ctx context.Context) {
+func (this *TcpConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onClose func(connection Connection)) {
+	this.onClose = onClose
 	// 开启收包协程
-	this.netMgrWg.Add(1)
+	netMgrWg.Add(1)
 	go func() {
 		defer func() {
-			this.netMgrWg.Done()
+			netMgrWg.Done()
 			if err := recover(); err != nil {
 				logger.Error("read fatal %v: %v", this.GetConnectionId(), err.(error))
 				LogStack()
@@ -107,10 +109,10 @@ func (this *TcpConnection) Start(ctx context.Context) {
 	}()
 
 	// 开启发包协程
-	this.netMgrWg.Add(1)
+	netMgrWg.Add(1)
 	go func(ctx context.Context) {
 		defer func() {
-			this.netMgrWg.Done()
+			netMgrWg.Done()
 			if err := recover(); err != nil {
 				logger.Error("write fatal %v: %v", this.GetConnectionId(), err.(error))
 				LogStack()
