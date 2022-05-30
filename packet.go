@@ -9,8 +9,8 @@ import (
 const (
 	// 包头长度
 	DefaultPacketHeaderSize = int(unsafe.Sizeof(PacketHeader{}))
-	// 数据包长度限制
-	MaxPacketDataSize = 0x00FFFFFF
+	// 数据包长度限制(256M)
+	MaxPacketDataSize = 0x0FFFFFFF
 )
 
 // 消息号
@@ -18,25 +18,27 @@ type PacketCommand uint16
 
 // 包头
 type PacketHeader struct {
-	// (flags << 24) | len
+	// (flags << 28) | len
+	// flags [0,16)
+	// len [0,256M)
 	LenAndFlags uint32
 }
 
-func NewPacketHeader(len uint32,flags uint8) *PacketHeader {
+func NewPacketHeader(len uint32, flags uint8) *PacketHeader {
 	return &PacketHeader{
-		LenAndFlags: uint32(flags)<<24 | len,
+		LenAndFlags: uint32(flags)<<28 | len,
 	}
 }
 
 // 包体长度,不包含包头的长度
-// [0,0x00FFFFFF]
+// [0,0x0FFFFFFF]
 func (this *PacketHeader) Len() uint32 {
-	return this.LenAndFlags & 0x00FFFFFF
+	return this.LenAndFlags & 0x0FFFFFFF
 }
 
-// 标记 [0,0xFF]
-func (this *PacketHeader) Flags() uint32 {
-	return this.LenAndFlags >> 24
+// 标记
+func (this *PacketHeader) Flags() uint8 {
+	return uint8(this.LenAndFlags >> 28)
 }
 
 // 从字节流读取数据,len(messageHeaderData)>=MessageHeaderSize
