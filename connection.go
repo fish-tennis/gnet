@@ -37,6 +37,7 @@ type Connection interface {
 	// 设置编解码接口
 	SetCodec(codec Codec)
 
+	// 获取回调接口
 	GetHandler() ConnectionHandler
 
 	// LocalAddr returns the local network address.
@@ -54,8 +55,10 @@ type Connection interface {
 	// 设置关联数据
 	SetTag(tag interface{})
 
+	// 连接目标地址
 	Connect(address string) bool
 
+	// 开启读写协程
 	Start(ctx context.Context, netMgrWg *sync.WaitGroup, onClose func(connection Connection))
 }
 
@@ -64,10 +67,8 @@ type ConnectionConfig struct {
 	// 发包缓存chan大小(缓存数据包chan容量)
 	SendPacketCacheCap uint32
 	// 发包Buffer大小(byte)
-	// 不能小于PacketHeaderSize
 	SendBufferSize uint32
 	// 收包Buffer大小(byte)
-	// 不能小于PacketHeaderSize
 	RecvBufferSize uint32
 	// 最大包体大小设置(byte),不包含PacketHeader
 	// 允许该值大于SendBufferSize和RecvBufferSize
@@ -138,11 +139,11 @@ func (this *baseConnection) GetHandler() ConnectionHandler {
 }
 
 var (
-	connectionIdCounter uint32 = 0
+	_connectionIdCounter uint32 = 0
 )
 
-func newConnectionId() uint32 {
-	return atomic.AddUint32(&connectionIdCounter, 1)
+func NewConnectionId() uint32 {
+	return atomic.AddUint32(&_connectionIdCounter, 1)
 }
 
 type ConnectionCreator func(config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection

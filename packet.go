@@ -16,8 +16,8 @@ const (
 // 包头接口
 type PacketHeader interface {
 	Len() uint32
-	ReadFrom(messageHeaderData []byte)
-	WriteTo(messageHeaderData []byte)
+	ReadFrom(packetHeaderData []byte)
+	WriteTo(packetHeaderData []byte)
 }
 
 // 消息号
@@ -50,13 +50,13 @@ func (this *DefaultPacketHeader) Flags() uint8 {
 
 // 从字节流读取数据,len(messageHeaderData)>=MessageHeaderSize
 // 使用小端字节序
-func (this *DefaultPacketHeader) ReadFrom(messageHeaderData []byte) {
-	this.LenAndFlags = binary.LittleEndian.Uint32(messageHeaderData)
+func (this *DefaultPacketHeader) ReadFrom(packetHeaderData []byte) {
+	this.LenAndFlags = binary.LittleEndian.Uint32(packetHeaderData)
 }
 
 // 写入字节流,使用小端字节序
-func (this *DefaultPacketHeader) WriteTo(messageHeaderData []byte) {
-	binary.LittleEndian.PutUint32(messageHeaderData, this.LenAndFlags)
+func (this *DefaultPacketHeader) WriteTo(packetHeaderData []byte) {
+	binary.LittleEndian.PutUint32(packetHeaderData, this.LenAndFlags)
 }
 
 

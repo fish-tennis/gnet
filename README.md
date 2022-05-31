@@ -68,6 +68,8 @@ func OnTest(conn Connection, packet Packet) {
 
 [不使用proto的echo](https://github.com/fish-tennis/gnet/blob/main/example/echo_data_test.go)
 
+[自定义消息结构](https://github.com/fish-tennis/gnet/blob/main/example/custom_packet_no_ringbuffer_test.go)
+
 [模拟一个简单的游戏应用场景的性能测试](https://github.com/fish-tennis/gnet/blob/main/example/server_test.go)
 
 ## 编译

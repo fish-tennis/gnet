@@ -114,20 +114,6 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 		}
 		return nil
 	}
-
-	//// 不优化的方案,每个包都需要进行一次内存分配和拷贝
-	//packetData := packet.data
-	//if this.DataEncoder != nil {
-	//	packetData = this.DataEncoder(connection, packet, packet.data)
-	//}
-	//encodedData = make([]byte, PacketHeaderSize + len(packetData))
-	//packetHeader := NewDefaultPacketHeader(uint32(len(packetData)), 0)
-	//packetHeader.WriteTo(encodedData)
-	//if this.HeaderEncoder != nil {
-	//	this.HeaderEncoder(connection, packet, encodedData[0:PacketHeaderSize])
-	//}
-	//copy(encodedData[PacketHeaderSize:], packetData)
-	//remainData = encodedData
 	return packet.GetStreamData()
 }
 
@@ -218,13 +204,6 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 		tcpConnection.curReadPacketHeader = nil
 		return
 	}
-	//if len(data) >= PacketHeaderSize {
-	//	header := &PacketHeader{}
-	//	header.ReadFrom(data)
-	//	if len(data) >= PacketHeaderSize+int(header.GetLen()) {
-	//		return NewPacket(data[PacketHeaderSize:PacketHeaderSize+int(header.GetLen())])
-	//	}
-	//}
 	return nil,ErrNotSupport
 }
 

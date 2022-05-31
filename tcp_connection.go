@@ -28,8 +28,6 @@ type TcpConnection struct {
 	tmpReadPacketHeader PacketHeader
 	tmpReadPacketHeaderData []byte
 	curReadPacketHeader PacketHeader
-	//// 外部传进来的WaitGroup
-	//netMgrWg *sync.WaitGroup
 }
 
 func NewTcpConnector(config *ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
@@ -61,10 +59,10 @@ func NewTcpConnectionAccept(conn net.Conn, config *ConnectionConfig, codec Codec
 func createTcpConnection(config *ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
 	newConnection := &TcpConnection{
 		baseConnection: baseConnection{
-			connectionId: newConnectionId(),
-			config: config,
-			codec: codec,
-			handler: handler,
+			connectionId: NewConnectionId(),
+			config:       config,
+			codec:        codec,
+			handler:      handler,
 		},
 		sendPacketCache:     make(chan Packet, config.SendPacketCacheCap),
 	}
