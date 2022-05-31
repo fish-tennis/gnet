@@ -34,6 +34,7 @@ type DefaultPacketHeader struct {
 func NewDefaultPacketHeader(len uint32,flags uint8) *DefaultPacketHeader {
 	return &DefaultPacketHeader{
 		LenAndFlags: uint32(flags)<<24 | len,
+	}
 }
 
 // 包体长度,不包含包头的长度
@@ -45,6 +46,7 @@ func (this *DefaultPacketHeader) Len() uint32 {
 // 标记 [0,0xFF]
 func (this *DefaultPacketHeader) Flags() uint8 {
 	return uint8(this.LenAndFlags >> 24)
+}
 
 // 从字节流读取数据,len(messageHeaderData)>=MessageHeaderSize
 // 使用小端字节序
