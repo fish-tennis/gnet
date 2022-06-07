@@ -115,10 +115,15 @@ func (this *ProtoPacket) GetStreamData() []byte {
 
 // deep copy
 func (this *ProtoPacket) Clone() Packet {
-	return &ProtoPacket{
+	newPacket := &ProtoPacket{
 		command: this.command,
 		message: proto.Clone(this.message),
 	}
+	if len(this.data) > 0 {
+		newPacket.data = make([]byte, len(this.data))
+		copy(newPacket.data, this.data)
+	}
+	return newPacket
 }
 
 

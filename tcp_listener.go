@@ -133,11 +133,16 @@ func (this *TcpListener) acceptLoop(ctx context.Context) {
 		newConn,err := this.netListener.Accept()
 		if err != nil {
 			logger.Error("%v accept err:%v", this.GetListenerId(), err)
+			if netError,ok := err.(net.Error); ok && netError.Temporary() {
+				logger.Error("accept temporary err:%v", this.GetListenerId())
+				time.Sleep(100*time.Millisecond)
+				continue
+			}
 			// 有可能是因为open file数量限制 而导致的accept失败
 			if err == syscall.EMFILE {
 				logger.Error("accept failed id:%v syscall.EMFILE", this.GetListenerId())
 				// 这个错误只是导致新连接暂时无法连接,不应该退出监听,当有连接释放后,新连接又可以连接上
-				time.Sleep(time.Millisecond)
+				time.Sleep(100*time.Millisecond)
 				continue
 			}
 			break
