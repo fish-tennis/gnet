@@ -14,7 +14,7 @@
 - 多线程,非阻塞,异步发消息
 - 简单易用的API
 - 默认支持protobuf
-- 使用无锁的环形buffer减少内存分配和拷贝的次数,以优化性能
+- 使用无锁的RingBuffer减少内存分配和拷贝的次数,以优化性能
 - TCP数据流分包,进行批量合并,以优化性能
 - 编解码接口易扩展
 
@@ -71,6 +71,10 @@ func OnTest(conn Connection, packet Packet) {
 [自定义消息结构](https://github.com/fish-tennis/gnet/blob/main/example/custom_packet_no_ringbuffer_test.go)
 
 [模拟一个简单的游戏应用场景的性能测试](https://github.com/fish-tennis/gnet/blob/main/example/server_test.go)
+
+
+## 优化原理
+
 
 ## 编译
 项目使用go.mod

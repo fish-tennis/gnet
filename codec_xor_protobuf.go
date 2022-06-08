@@ -1,14 +1,16 @@
 package gnet
 
+import "reflect"
+
 // proto+异或
 type XorProtoCodec struct {
 	*ProtoCodec
 	xorKey []byte
 }
 
-func NewXorProtoCodec(xorKey []byte, messageCreatorMap map[PacketCommand]ProtoMessageCreator) *XorProtoCodec {
+func NewXorProtoCodec(xorKey []byte, protoMessageTypeMap map[PacketCommand]reflect.Type) *XorProtoCodec {
 	codec := &XorProtoCodec{
-		ProtoCodec:NewProtoCodec(messageCreatorMap),
+		ProtoCodec:NewProtoCodec(protoMessageTypeMap),
 		xorKey: xorKey,
 	}
 	codec.ProtoPacketBytesEncoder = func(protoPacketBytes [][]byte) [][]byte {

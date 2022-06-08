@@ -1,5 +1,7 @@
 package gnet
 
+import "google.golang.org/protobuf/proto"
+
 // 连接回调
 type ConnectionHandler interface {
 	// 连接成功或失败
@@ -28,7 +30,7 @@ type ListenerHandler interface {
 }
 
 type PacketHandlerRegister interface {
-	Register(packetCommand PacketCommand, handler PacketHandler, creator ProtoMessageCreator)
+	Register(packetCommand PacketCommand, handler PacketHandler, protoMessage proto.Message)
 }
 
 
@@ -104,11 +106,11 @@ func (this *DefaultConnectionHandler) GetCodec() Codec {
 
 // 注册消息号和消息回调,消息构造的映射
 // handler在TcpConnection的read协程中被调用
-func (this *DefaultConnectionHandler) Register(packetCommand PacketCommand, handler PacketHandler, creator ProtoMessageCreator) {
+func (this *DefaultConnectionHandler) Register(packetCommand PacketCommand, handler PacketHandler, protoMessage proto.Message) {
 	this.PacketHandlers[packetCommand] = handler
-	if this.protoCodec != nil && creator != nil {
+	if this.protoCodec != nil {
 		if protoRegister,ok := this.protoCodec.(ProtoRegister); ok {
-			protoRegister.Register(packetCommand, creator)
+			protoRegister.Register(packetCommand, protoMessage)
 		}
 	}
 }

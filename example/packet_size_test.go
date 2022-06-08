@@ -4,7 +4,6 @@ import (
 	"context"
 	. "github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/pb"
-	"google.golang.org/protobuf/proto"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -36,9 +35,7 @@ func TestPacketSize(t *testing.T) {
 	serverHandler.Register(PacketCommand(123), func(connection Connection, packet *ProtoPacket) {
 		testMessage := packet.Message().(*pb.TestMessage)
 		logger.Info("recv%v:%s",testMessage.I32, testMessage.Name)
-	}, func() proto.Message {
-		return new (pb.TestMessage)
-	})
+	}, new(pb.TestMessage))
 	if GetNetMgr().NewListener(ctx, listenAddress, connectionConfig, defaultCodec, serverHandler, nil) == nil {
 		panic("listen failed")
 	}

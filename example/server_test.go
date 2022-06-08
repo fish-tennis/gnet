@@ -5,7 +5,7 @@ import (
 	"fmt"
 	. "github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/pb"
-	"google.golang.org/protobuf/proto"
+	"reflect"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -62,10 +62,8 @@ func TestTestServer(t *testing.T) {
 		WriteTimeout:   0,
 	}
 
-	protoMap := make(map[PacketCommand]ProtoMessageCreator)
-	protoMap[PacketCommand(123)] = func() proto.Message {
-		return &pb.TestMessage{}
-	}
+	protoMap := make(map[PacketCommand]reflect.Type)
+	protoMap[PacketCommand(123)] = reflect.TypeOf(new(pb.TestMessage)).Elem()
 	codec := NewProtoCodec(protoMap)
 
 	netMgr.NewListener(ctx, listenAddress, connectionConfig, codec, &testServerClientHandler{}, &testServerListenerHandler{})
@@ -78,10 +76,6 @@ func TestTestServer(t *testing.T) {
 	netMgr.Shutdown(true)
 
 	println("*********************************************************")
-	// antnet:             	serverRecv:113669 clientRecv:457562
-	// gnet 发包 RingBuffer:	serverRecv:199361 clientRecv:800342
-	// gnet 收发 RingBuffer:	serverRecv:478501 clientRecv:1916884
-	// gnet latest 	      :	serverRecv:497713 clientRecv:1993764
 	println(fmt.Sprintf("serverRecv:%v clientRecv:%v", serverRecvPacketCount, clientRecvPacketCount))
 	println("*********************************************************")
 }

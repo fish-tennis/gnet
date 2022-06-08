@@ -42,12 +42,8 @@ func TestEchoProto(t *testing.T) {
 		DefaultConnectionHandler: *NewDefaultConnectionHandler(serverCodec),
 	}
 	// 注册服务器的消息回调
-	serverHandler.Register(PacketCommand(pb.CmdTest_Cmd_HeartBeat), onHeartBeatReq, func() proto.Message {
-		return &pb.HeartBeatReq{}
-	})
-	serverHandler.Register(PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessageServer, func() proto.Message {
-		return &pb.TestMessage{}
-	})
+	serverHandler.Register(PacketCommand(pb.CmdTest_Cmd_HeartBeat), onHeartBeatReq, new(pb.HeartBeatReq))
+	serverHandler.Register(PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessageServer, new(pb.TestMessage))
 	if netMgr.NewListener(ctx, listenAddress, connectionConfig, serverCodec, serverHandler, nil) == nil {
 		panic("listen failed")
 	}
@@ -63,12 +59,10 @@ func TestEchoProto(t *testing.T) {
 		return &pb.HeartBeatReq{}
 	})
 	// 注册客户端的消息回调
-	clientHandler.Register(PacketCommand(pb.CmdTest_Cmd_HeartBeat), clientHandler.onHeartBeatRes, func() proto.Message {
-		return &pb.HeartBeatRes{}
-	})
-	clientHandler.Register(PacketCommand(pb.CmdTest_Cmd_TestMessage), clientHandler.onTestMessage, func() proto.Message {
-		return &pb.TestMessage{}
-	})
+	clientHandler.Register(PacketCommand(pb.CmdTest_Cmd_HeartBeat), clientHandler.onHeartBeatRes, new(pb.HeartBeatRes))
+	clientHandler.Register(PacketCommand(pb.CmdTest_Cmd_TestMessage), clientHandler.onTestMessage, new(pb.TestMessage))
+	// 测试没有注册proto.Message的消息
+	clientHandler.Register(PacketCommand(100), clientHandler.onTestDataMessage, nil)
 	if netMgr.NewConnector(ctx, listenAddress, &connectionConfig, clientCodec, clientHandler, nil) == nil {
 		panic("connect failed")
 	}
@@ -97,6 +91,10 @@ func (e *echoProtoServerHandler) OnConnected(connection Connection, success bool
 				})
 			connection.SendPacket(packet)
 		}
+		serialId++
+		// 测试没有注册proto.Message的消息
+		packet := NewProtoPacketWithData(PacketCommand(100), []byte("123456789testdata"))
+		connection.SendPacket(packet)
 		// 每隔1秒 发一个包
 		go func() {
 			autoSendTimer := time.NewTimer(time.Second)
@@ -149,6 +147,17 @@ func (e *echoProtoClientHandler) onHeartBeatRes(connection Connection, packet *P
 func (e *echoProtoClientHandler) onTestMessage(connection Connection, packet *ProtoPacket) {
 	res := packet.Message().(*pb.TestMessage)
 	logger.Debug(fmt.Sprintf("client onTestMessage: %v", res))
+	e.echoCount++
+	connection.Send(PacketCommand(pb.CmdTest_Cmd_TestMessage),
+		&pb.TestMessage{
+			Name: fmt.Sprintf("hello server %v", e.echoCount),
+			I32: int32(e.echoCount),
+		})
+}
+
+// 测试没有注册proto.Message的消息
+func (e *echoProtoClientHandler) onTestDataMessage(connection Connection, packet *ProtoPacket) {
+	logger.Debug(fmt.Sprintf("client onTestDataMessage: %v", string(packet.GetStreamData())))
 	e.echoCount++
 	connection.Send(PacketCommand(pb.CmdTest_Cmd_TestMessage),
 		&pb.TestMessage{

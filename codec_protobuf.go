@@ -3,13 +3,14 @@ package gnet
 import (
 	"encoding/binary"
 	"google.golang.org/protobuf/proto"
+	"reflect"
 )
 
 // proto.Message构造函数
 type ProtoMessageCreator func() proto.Message
 
 type ProtoRegister interface {
-	Register(command PacketCommand, creator ProtoMessageCreator )
+	Register(command PacketCommand, protoMessage proto.Message )
 }
 
 // proto.Message编解码
@@ -23,16 +24,16 @@ type ProtoCodec struct {
 	ProtoPacketBytesDecoder func(packetData []byte) []byte
 
 	// 消息号和proto.Message构造函数的映射表
-	MessageCreatorMap map[PacketCommand]ProtoMessageCreator
+	MessageCreatorMap map[PacketCommand]reflect.Type
 }
 
-func NewProtoCodec(messageCreatorMap map[PacketCommand]ProtoMessageCreator) *ProtoCodec {
+func NewProtoCodec(protoMessageTypeMap map[PacketCommand]reflect.Type) *ProtoCodec {
 	codec := &ProtoCodec{
 		RingBufferCodec:   RingBufferCodec{},
-		MessageCreatorMap: messageCreatorMap,
+		MessageCreatorMap: protoMessageTypeMap,
 	}
 	if codec.MessageCreatorMap == nil {
-		codec.MessageCreatorMap = make(map[PacketCommand]ProtoMessageCreator)
+		codec.MessageCreatorMap = make(map[PacketCommand]reflect.Type)
 	}
 	codec.DataEncoder = codec.EncodePacket
 	codec.DataDecoder = codec.DecodePacket
@@ -40,8 +41,12 @@ func NewProtoCodec(messageCreatorMap map[PacketCommand]ProtoMessageCreator) *Pro
 }
 
 // 注册消息
-func (this *ProtoCodec) Register(command PacketCommand, creator ProtoMessageCreator ) {
-	this.MessageCreatorMap[command] = creator
+func (this *ProtoCodec) Register(command PacketCommand, protoMessage proto.Message ) {
+	if protoMessage == nil {
+		this.MessageCreatorMap[command] = nil
+		return
+	}
+	this.MessageCreatorMap[command] = reflect.TypeOf(protoMessage).Elem()
 }
 
 func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]byte {
@@ -82,9 +87,9 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 		return nil
 	}
 	command := binary.LittleEndian.Uint16(decodedPacketData[:2])
-	if messageCreator,ok := this.MessageCreatorMap[PacketCommand(command)]; ok {
-		if messageCreator != nil {
-			newProtoMessage := messageCreator()
+	if protoMessageType,ok := this.MessageCreatorMap[PacketCommand(command)]; ok {
+		if protoMessageType != nil {
+			newProtoMessage := reflect.New(protoMessageType).Interface().(proto.Message)
 			err := proto.Unmarshal(decodedPacketData[2:], newProtoMessage)
 			if err != nil {
 				logger.Error("proto decode err:%v cmd:%v", err, command)
