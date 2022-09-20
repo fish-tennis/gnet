@@ -70,10 +70,11 @@ func OnTest(conn Connection, packet Packet) {
 
 依赖项: google.golang.org/protobuf
 
-由于墙的问题,可以设置 GOPROXY=https://goproxy.cn
+国内可以设置 GOPROXY=https://goproxy.cn
 
 无法下载google.golang.org/protobuf的解决方法:在Go的root目录,git clone https://github.com/protocolbuffers/protobuf-go.git, clone到GO的root目录/src/google.golang.org/protobuf
 
 ## 项目演示
+[游戏实体接口gentity](https://github.com/fish-tennis/gentity)
 
 [分布式游戏服务器框架gserver](https://github.com/fish-tennis/gserver)
