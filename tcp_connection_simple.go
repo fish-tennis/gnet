@@ -19,7 +19,7 @@ type TcpConnectionSimple struct {
 	// 关闭回调
 	onClose func(connection Connection)
 	// 最近收到完整数据包的时间(时间戳:秒)
-	lastRecvPacketTick uint32
+	lastRecvPacketTick int64
 	// 发包缓存chan
 	sendPacketCache chan Packet
 }
@@ -190,8 +190,11 @@ func (this *TcpConnectionSimple) writeLoop(ctx context.Context) {
 
 		case <-recvTimeoutTimer.C:
 			if this.config.RecvTimeout > 0 {
-				nextTimeoutTime := this.config.RecvTimeout + this.lastRecvPacketTick - GetCurrentTimeStamp()
+				nextTimeoutTime := int64(this.config.RecvTimeout) + this.lastRecvPacketTick - GetCurrentTimeStamp()
 				if nextTimeoutTime > 0 {
+					if nextTimeoutTime > int64(this.config.RecvTimeout) {
+						nextTimeoutTime = int64(this.config.RecvTimeout)
+					}
 					recvTimeoutTimer.Reset(time.Second * time.Duration(nextTimeoutTime))
 				} else {
 					// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了

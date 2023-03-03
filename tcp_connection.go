@@ -12,12 +12,14 @@ import (
 type TcpConnection struct {
 	baseConnection
 	conn net.Conn
+	// 读协程结束标记
+	readStopNotifyChan chan struct{}
 	// 防止执行多次关闭操作
 	closeOnce sync.Once
 	// 关闭回调
 	onClose func(connection Connection)
 	// 最近收到完整数据包的时间(时间戳:秒)
-	lastRecvPacketTick uint32
+	lastRecvPacketTick int64
 	// 发包缓存chan
 	sendPacketCache chan Packet
 	// 发包RingBuffer
@@ -64,6 +66,7 @@ func createTcpConnection(config *ConnectionConfig, codec Codec, handler Connecti
 			codec:        codec,
 			handler:      handler,
 		},
+		readStopNotifyChan: make(chan struct{}, 1),
 		sendPacketCache:     make(chan Packet, config.SendPacketCacheCap),
 	}
 	newConnection.tmpReadPacketHeader = codec.CreatePacketHeader(newConnection, nil, nil)
@@ -104,6 +107,8 @@ func (this *TcpConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, 
 		}()
 		this.readLoop()
 		this.Close()
+		// 读协程结束了,通知写协程也结束
+		this.readStopNotifyChan <- struct{}{}
 	}()
 
 	// 开启发包协程
@@ -226,13 +231,16 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 
 		case <-recvTimeoutTimer.C:
 			if this.config.RecvTimeout > 0 {
-				nextTimeoutTime := this.config.RecvTimeout + this.lastRecvPacketTick - GetCurrentTimeStamp()
+				nextTimeoutTime := int64(this.config.RecvTimeout) + this.lastRecvPacketTick - GetCurrentTimeStamp()
 				if nextTimeoutTime > 0 {
+					if nextTimeoutTime > int64(this.config.RecvTimeout) {
+						nextTimeoutTime = int64(this.config.RecvTimeout)
+					}
 					recvTimeoutTimer.Reset(time.Second * time.Duration(nextTimeoutTime))
 				} else {
 					// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
 					// 需要主动关闭该连接,防止连接"泄漏"
-					logger.Debug("recv timeout %v", this.GetConnectionId())
+					logger.Debug("recv timeout %v IsConnector %v", this.GetConnectionId(), this.IsConnector())
 					return
 				}
 			}
@@ -244,6 +252,10 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 					heartBeatTimer.Reset(time.Second * time.Duration(this.config.HeartBeatInterval))
 				}
 			}
+
+		case <-this.readStopNotifyChan:
+			logger.Debug("recv readStopNotify %v", this.GetConnectionId())
+			return
 
 		case <-ctx.Done():
 			// 收到外部的关闭通知
@@ -296,7 +308,7 @@ func (this *TcpConnection) Close() {
 		this.isConnected = false
 		if this.conn != nil {
 			this.conn.Close()
-			logger.Debug("close %v", this.GetConnectionId())
+			logger.Debug("close %v %v", this.GetConnectionId(), this.IsConnector())
 			//this.conn = nil
 		}
 		if this.handler != nil {
