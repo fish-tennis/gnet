@@ -166,10 +166,10 @@ func (this *TcpListener) acceptLoop(ctx context.Context) {
 			newTcpConn.Start(ctx, this.netMgrWg, func(connection Connection) {
 				if this.handler != nil {
 					this.handler.OnConnectionDisconnect(this, connection)
-					this.connectionMapLock.Lock()
-					delete(this.connectionMap, connection.GetConnectionId())
-					this.connectionMapLock.Unlock()
 				}
+				this.connectionMapLock.Lock()
+				delete(this.connectionMap, connection.GetConnectionId())
+				this.connectionMapLock.Unlock()
 			})
 			if this.handler != nil {
 				this.handler.OnConnectionConnected(this, newTcpConn)
