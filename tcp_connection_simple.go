@@ -14,6 +14,8 @@ import (
 type TcpConnectionSimple struct {
 	baseConnection
 	conn net.Conn
+	// 读协程结束标记
+	readStopNotifyChan chan struct{}
 	// 防止执行多次关闭操作
 	closeOnce sync.Once
 	// 关闭回调
@@ -85,6 +87,8 @@ func (this *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitG
 		}()
 		this.readLoop()
 		this.Close()
+		// 读协程结束了,通知写协程也结束
+		this.readStopNotifyChan <- struct{}{}
 	}()
 
 	// 开启发包协程
@@ -213,6 +217,10 @@ func (this *TcpConnectionSimple) writeLoop(ctx context.Context) {
 					heartBeatTimer.Reset(time.Second * time.Duration(this.config.HeartBeatInterval))
 				}
 			}
+
+		case <-this.readStopNotifyChan:
+			logger.Debug("recv readStopNotify %v", this.GetConnectionId())
+			return
 
 		case <-ctx.Done():
 			// 收到外部的关闭通知
