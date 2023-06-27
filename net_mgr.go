@@ -10,11 +10,11 @@ import (
 type NetMgr struct {
 
 	// 监听对象管理
-	listenerMap map[uint32]Listener
+	listenerMap     map[uint32]Listener
 	listenerMapLock sync.RWMutex
 
 	// 连接对象管理
-	connectorMap map[uint32]Connection
+	connectorMap     map[uint32]Connection
 	connectorMapLock sync.RWMutex
 
 	// 初始化一次
@@ -104,6 +104,7 @@ func (this *NetMgr) NewConnectorCustom(ctx context.Context, address string, conn
 // 关闭
 // waitForAllNetGoroutine:是否阻塞等待所有网络协程结束
 func (this *NetMgr) Shutdown(waitForAllNetGoroutine bool) {
+	logger.Debug("Shutdown %v", waitForAllNetGoroutine)
 	if waitForAllNetGoroutine {
 		// 等待所有网络协程结束
 		this.wg.Wait()

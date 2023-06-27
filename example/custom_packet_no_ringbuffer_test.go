@@ -24,7 +24,7 @@ func TestCustomPacketNoRingBuffer(t *testing.T) {
 
 	SetLogLevel(DebugLevel)
 	// 10秒后触发关闭通知,所有监听<-ctx.Done()的地方会收到通知
-	ctx,cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	netMgr := GetNetMgr()
@@ -109,13 +109,13 @@ func (this *CustomPacketHeader) WriteTo(packetHeaderData []byte) {
 // 包含一个消息号和[]byte的数据包
 type CustomDataPacket struct {
 	command uint16
-	data []byte
+	data    []byte
 }
 
 func NewCustomDataPacket(command uint16, data []byte) *CustomDataPacket {
 	return &CustomDataPacket{
 		command: command,
-		data: data,
+		data:    data,
 	}
 }
 
@@ -133,12 +133,11 @@ func (this *CustomDataPacket) GetStreamData() []byte {
 
 // deep copy
 func (this *CustomDataPacket) Clone() Packet {
-	newPacket := &CustomDataPacket{data: make([]byte,len(this.data))}
+	newPacket := &CustomDataPacket{data: make([]byte, len(this.data))}
 	newPacket.command = this.command
 	copy(newPacket.data, this.data)
 	return newPacket
 }
-
 
 // 自定义编解码
 type CustomCodec struct {
@@ -152,7 +151,7 @@ func (this *CustomCodec) CreatePacketHeader(connection Connection, packet Packet
 		}
 	}
 	return &CustomPacketHeader{
-		len: uint32(len(packetData)),
+		len:     uint32(len(packetData)),
 		command: uint16(packet.Command()),
 	}
 }
@@ -173,7 +172,7 @@ func (this *CustomCodec) Decode(connection Connection, data []byte) (newPacket P
 	packetHeader.ReadFrom(data[0:])
 	newPacket = &CustomDataPacket{
 		command: packetHeader.Command(),
-		data: data[this.PacketHeaderSize():],
+		data:    data[this.PacketHeaderSize():],
 	}
 	return
 }
@@ -187,7 +186,7 @@ func (e *echoCustomPacketServerHandler) OnConnected(connection Connection, succe
 	if success {
 		// 开一个协程,服务器自动给客户端发消息
 		serialId := 0
-		packetDataSize := 1024*1024*30
+		packetDataSize := 1024 * 1024 * 30
 		go func() {
 			autoSendTimer := time.NewTimer(time.Second)
 			for connection.IsConnected() {
@@ -208,7 +207,7 @@ func (e *echoCustomPacketServerHandler) OnConnected(connection Connection, succe
 	}
 }
 
-func (e *echoCustomPacketServerHandler) OnDisconnected(connection Connection ) {
+func (e *echoCustomPacketServerHandler) OnDisconnected(connection Connection) {
 	logger.Debug(fmt.Sprintf("Server OnDisconnected %v", connection.GetConnectionId()))
 }
 
@@ -221,7 +220,9 @@ func (e *echoCustomPacketServerHandler) OnRecvPacket(connection Connection, pack
 }
 
 // 服务器不需要发送心跳请求包
-func (e *echoCustomPacketServerHandler) CreateHeartBeatPacket(connection Connection, ) Packet { return nil }
+func (e *echoCustomPacketServerHandler) CreateHeartBeatPacket(connection Connection, ) Packet {
+	return nil
+}
 
 // 客户端连接接口
 type echoCustomPacketClientHandler struct {
@@ -232,7 +233,7 @@ func (e *echoCustomPacketClientHandler) OnConnected(connection Connection, succe
 	logger.Debug(fmt.Sprintf("Client OnConnected %v %v", connection.GetConnectionId(), success))
 }
 
-func (e *echoCustomPacketClientHandler) OnDisconnected(connection Connection ) {
+func (e *echoCustomPacketClientHandler) OnDisconnected(connection Connection) {
 	logger.Debug(fmt.Sprintf("Client OnDisconnected %v", connection.GetConnectionId()))
 }
 

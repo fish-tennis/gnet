@@ -9,7 +9,7 @@ import (
 
 // 日志级别,参考zap
 const (
-	DebugLevel int8 = iota-1
+	DebugLevel int8 = iota - 1
 	InfoLevel
 	WarnLevel
 	ErrorLevel
@@ -23,7 +23,7 @@ type Logger interface {
 }
 
 type StdLogger struct {
-	std *log.Logger
+	std       *log.Logger
 	callDepth int
 }
 
@@ -57,7 +57,7 @@ func (s *StdLogger) Error(format string, args ...interface{}) {
 
 func NewStdLogger(callDepth int) Logger {
 	return &StdLogger{
-		std: log.New(os.Stderr, "", log.LstdFlags | log.Llongfile),
+		std:       log.New(os.Stderr, "", log.LstdFlags|log.Llongfile),
 		callDepth: callDepth,
 	}
 }

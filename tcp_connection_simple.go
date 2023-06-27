@@ -48,7 +48,8 @@ func createTcpConnectionSimple(config *ConnectionConfig, codec Codec, handler Co
 			codec:        codec,
 			handler:      handler,
 		},
-		sendPacketCache:     make(chan Packet, config.SendPacketCacheCap),
+		readStopNotifyChan: make(chan struct{}, 1),
+		sendPacketCache: make(chan Packet, config.SendPacketCacheCap),
 	}
 	return newConnection
 }
@@ -60,14 +61,14 @@ func (this *TcpConnectionSimple) Connect(address string) bool {
 		this.isConnected = false
 		logger.Error("Connect failed %v: %v", this.GetConnectionId(), err.Error())
 		if this.handler != nil {
-			this.handler.OnConnected(this,false)
+			this.handler.OnConnected(this, false)
 		}
 		return false
 	}
 	this.conn = conn
 	this.isConnected = true
 	if this.handler != nil {
-		this.handler.OnConnected(this,true)
+		this.handler.OnConnected(this, true)
 	}
 	return true
 }
@@ -119,7 +120,7 @@ func (this *TcpConnectionSimple) readLoop() {
 	for this.isConnected {
 		// 先读取消息头
 		messageHeaderData := make([]byte, this.codec.PacketHeaderSize())
-		readHeaderSize,err := io.ReadFull(this.conn, messageHeaderData)
+		readHeaderSize, err := io.ReadFull(this.conn, messageHeaderData)
 		if err != nil {
 			if err != io.EOF {
 				logger.Debug("readLoop %v err:%v", this.GetConnectionId(), err.Error())
@@ -132,11 +133,11 @@ func (this *TcpConnectionSimple) readLoop() {
 		newPacketHeader := this.codec.CreatePacketHeader(this, nil, nil)
 		newPacketHeader.ReadFrom(messageHeaderData)
 		packetDataLen := int(newPacketHeader.Len())
-		fullPacketData := make([]byte, len(messageHeaderData) + packetDataLen)
+		fullPacketData := make([]byte, len(messageHeaderData)+packetDataLen)
 		copy(fullPacketData, messageHeaderData)
 		if packetDataLen > 0 {
 			// 读取消息体
-			readDataSize,err := io.ReadFull(this.conn, fullPacketData[readHeaderSize:])
+			readDataSize, err := io.ReadFull(this.conn, fullPacketData[readHeaderSize:])
 			if err != nil {
 				if err != io.EOF {
 					logger.Debug("readLoop %v err:%v", this.GetConnectionId(), err.Error())
@@ -147,7 +148,7 @@ func (this *TcpConnectionSimple) readLoop() {
 				break
 			}
 		}
-		newPacket,decodeError := this.codec.Decode(this, fullPacketData)
+		newPacket, decodeError := this.codec.Decode(this, fullPacketData)
 		if decodeError != nil {
 			logger.Error("%v decodeError:%v", this.GetConnectionId(), decodeError.Error())
 			return
@@ -241,7 +242,7 @@ func (this *TcpConnectionSimple) writePacket(packet Packet) bool {
 	// 先发送包头数据
 	for writeCount < len(packetHeaderData) {
 		if this.config.WriteTimeout > 0 {
-			setTimeoutErr := this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout)*time.Second))
+			setTimeoutErr := this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout) * time.Second))
 			// Q:什么情况会导致SetWriteDeadline返回err?
 			if setTimeoutErr != nil {
 				// ...
@@ -249,7 +250,7 @@ func (this *TcpConnectionSimple) writePacket(packet Packet) bool {
 				return false
 			}
 		}
-		n,err := this.conn.Write(packetHeaderData[writeCount:])
+		n, err := this.conn.Write(packetHeaderData[writeCount:])
 		if err != nil {
 			logger.Error("%v send error:%v", this.GetConnectionId(), err.Error())
 			return false
@@ -261,7 +262,7 @@ func (this *TcpConnectionSimple) writePacket(packet Packet) bool {
 	// 再发送包体数据
 	for writeCount < len(packetData) {
 		if this.config.WriteTimeout > 0 {
-			setTimeoutErr := this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout)*time.Second))
+			setTimeoutErr := this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout) * time.Second))
 			// Q:什么情况会导致SetWriteDeadline返回err?
 			if setTimeoutErr != nil {
 				// ...
@@ -269,7 +270,7 @@ func (this *TcpConnectionSimple) writePacket(packet Packet) bool {
 				return false
 			}
 		}
-		n,err := this.conn.Write(packetData[writeCount:])
+		n, err := this.conn.Write(packetData[writeCount:])
 		if err != nil {
 			logger.Error("%v send error:%v", this.GetConnectionId(), err.Error())
 			return false

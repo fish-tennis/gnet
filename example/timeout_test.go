@@ -19,7 +19,7 @@ func TestTimeout(t *testing.T) {
 	SetLogLevel(DebugLevel)
 
 	// 1小时后触发关闭通知,所有监听<-ctx.Done()的地方会收到通知
-	ctx,cancel := context.WithTimeout(context.Background(), time.Hour*1)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour*1)
 	defer cancel()
 
 	go http.ListenAndServe(":10009", nil)
@@ -36,7 +36,7 @@ func TestTimeout(t *testing.T) {
 	}
 	listenAddress := "127.0.0.1:10002"
 	codec := NewDefaultCodec()
-	netMgr.NewListener(ctx, listenAddress, connectionConfig, codec, &DefaultConnectionHandler{}, &echoListenerHandler{})
+	listener := netMgr.NewListener(ctx, listenAddress, connectionConfig, codec, &DefaultConnectionHandler{}, &echoListenerHandler{})
 	time.Sleep(time.Second)
 
 	connectorConnectionConfig := ConnectionConfig{
@@ -55,9 +55,12 @@ func TestTimeout(t *testing.T) {
 	}
 
 	time.Sleep(time.Second)
-	for _,conn := range connectors {
+	for _, conn := range connectors {
 		conn.Close()
 	}
+
+	time.Sleep(5 * time.Second)
+	listener.Close()
 
 	netMgr.Shutdown(true)
 }

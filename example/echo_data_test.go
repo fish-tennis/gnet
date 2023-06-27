@@ -23,7 +23,7 @@ func TestEchoData(t *testing.T) {
 	SetLogLevel(DebugLevel)
 
 	// 10秒后触发关闭通知,所有监听<-ctx.Done()的地方会收到通知
-	ctx,cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	netMgr := GetNetMgr()
@@ -49,7 +49,6 @@ func TestEchoData(t *testing.T) {
 
 // 监听接口
 type echoListenerHandler struct {
-	
 }
 
 func (e *echoListenerHandler) OnConnectionConnected(listener Listener, connection Connection) {
@@ -90,7 +89,7 @@ func (e *echoServerHandler) OnConnected(connection Connection, success bool) {
 	}
 }
 
-func (e *echoServerHandler) OnDisconnected(connection Connection ) {
+func (e *echoServerHandler) OnDisconnected(connection Connection) {
 	logger.Debug(fmt.Sprintf("Server OnDisconnected %v", connection.GetConnectionId()))
 }
 
@@ -99,7 +98,6 @@ func (e *echoServerHandler) OnRecvPacket(connection Connection, packet Packet) {
 }
 
 func (e *echoServerHandler) CreateHeartBeatPacket(connection Connection, ) Packet { return nil }
-
 
 // 客户端连接接口
 type echoClientHandler struct {
@@ -110,7 +108,7 @@ func (e *echoClientHandler) OnConnected(connection Connection, success bool) {
 	logger.Debug(fmt.Sprintf("Client OnConnected %v %v", connection.GetConnectionId(), success))
 }
 
-func (e *echoClientHandler) OnDisconnected(connection Connection ) {
+func (e *echoClientHandler) OnDisconnected(connection Connection) {
 	logger.Debug(fmt.Sprintf("Client OnDisconnected %v", connection.GetConnectionId()))
 }
 

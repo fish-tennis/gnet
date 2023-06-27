@@ -12,13 +12,15 @@ import (
 type TcpListener struct {
 	baseListener
 
-	netListener net.Listener
-	acceptConnectionConfig ConnectionConfig
-	acceptConnectionCodec Codec
+	netListener             net.Listener
+	acceptConnectionConfig  ConnectionConfig
+	acceptConnectionCodec   Codec
 	acceptConnectionHandler ConnectionHandler
+	// accept协程结束标记
+	acceptStopNotifyChan chan struct{}
 
 	// 连接表
-	connectionMap map[uint32]Connection
+	connectionMap     map[uint32]Connection
 	connectionMapLock sync.RWMutex
 
 	isRunning bool
@@ -37,12 +39,13 @@ func NewTcpListener(acceptConnectionConfig ConnectionConfig, acceptConnectionCod
 	return &TcpListener{
 		baseListener: baseListener{
 			listenerId: newListenerId(),
-			handler: listenerHandler,
+			handler:    listenerHandler,
 		},
-		acceptConnectionConfig: acceptConnectionConfig,
-		acceptConnectionCodec: acceptConnectionCodec,
+		acceptConnectionConfig:  acceptConnectionConfig,
+		acceptConnectionCodec:   acceptConnectionCodec,
 		acceptConnectionHandler: acceptConnectionHandler,
-		connectionMap: make(map[uint32]Connection),
+		connectionMap:           make(map[uint32]Connection),
+		acceptStopNotifyChan:    make(chan struct{}, 1),
 	}
 }
 
@@ -54,9 +57,9 @@ func (this *TcpListener) GetConnection(connectionId uint32) Connection {
 }
 
 // 广播消息
-func (this *TcpListener) Broadcast(packet Packet)  {
+func (this *TcpListener) Broadcast(packet Packet) {
 	this.connectionMapLock.RLock()
-	for _,conn := range this.connectionMap {
+	for _, conn := range this.connectionMap {
 		if conn.IsConnected() {
 			conn.SendPacket(packet.Clone())
 		}
@@ -67,11 +70,12 @@ func (this *TcpListener) Broadcast(packet Packet)  {
 // 开启监听
 func (this *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 	var err error
-	this.netListener,err = net.Listen("tcp", listenAddress)
+	this.netListener, err = net.Listen("tcp", listenAddress)
 	if err != nil {
 		logger.Error("Listen Failed %v: %v", this.GetListenerId(), err)
 		return false
 	}
+	logger.Debug("TcpListener Start %v", this.GetListenerId())
 
 	// 监听协程
 	this.isRunning = true
@@ -79,17 +83,27 @@ func (this *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 	go func(ctx context.Context) {
 		defer this.netMgrWg.Done()
 		this.acceptLoop(ctx)
+		this.acceptStopNotifyChan <- struct{}{}
+		logger.Debug("acceptLoop end %v", this.GetListenerId())
 	}(ctx)
 
 	// 关闭响应协程
 	this.netMgrWg.Add(1)
 	go func() {
 		defer this.netMgrWg.Done()
-		select {
-		// 关闭通知
-		case <-ctx.Done():
-			logger.Debug("recv closeNotify %v", this.GetListenerId())
-			this.Close()
+		for this.isRunning {
+			select {
+			// 关闭通知
+			case <-ctx.Done():
+				logger.Debug("recv closeNotify %v", this.GetListenerId())
+				this.Close()
+				return
+
+			case <-this.acceptStopNotifyChan:
+				logger.Debug("recv acceptStopNotify %v", this.GetListenerId())
+				this.Close()
+				return
+			}
 		}
 	}()
 
@@ -105,12 +119,12 @@ func (this *TcpListener) Close() {
 		}
 		connMap := make(map[uint32]Connection)
 		this.connectionMapLock.RLock()
-		for k,v := range this.connectionMap {
+		for k, v := range this.connectionMap {
 			connMap[k] = v
 		}
 		this.connectionMapLock.RUnlock()
 		// 关闭管理的连接
-		for _,conn := range connMap {
+		for _, conn := range connMap {
 			conn.Close()
 		}
 		if this.onClose != nil {
@@ -130,19 +144,19 @@ func (this *TcpListener) acceptLoop(ctx context.Context) {
 
 	for this.isRunning {
 		// 阻塞accept,当netListener关闭时,会返回err
-		newConn,err := this.netListener.Accept()
+		newConn, err := this.netListener.Accept()
 		if err != nil {
 			logger.Error("%v accept err:%v", this.GetListenerId(), err)
-			if netError,ok := err.(net.Error); ok && netError.Temporary() {
+			if netError, ok := err.(net.Error); ok && netError.Temporary() {
 				logger.Error("accept temporary err:%v", this.GetListenerId())
-				time.Sleep(100*time.Millisecond)
+				time.Sleep(100 * time.Millisecond)
 				continue
 			}
 			// 有可能是因为open file数量限制 而导致的accept失败
 			if err == syscall.EMFILE {
 				logger.Error("accept failed id:%v syscall.EMFILE", this.GetListenerId())
 				// 这个错误只是导致新连接暂时无法连接,不应该退出监听,当有连接释放后,新连接又可以连接上
-				time.Sleep(100*time.Millisecond)
+				time.Sleep(100 * time.Millisecond)
 				continue
 			}
 			break
@@ -158,7 +172,7 @@ func (this *TcpListener) acceptLoop(ctx context.Context) {
 			}()
 			newTcpConn := this.acceptConnectionCreator(newConn, &this.acceptConnectionConfig, this.acceptConnectionCodec, this.acceptConnectionHandler)
 			if newTcpConn.GetHandler() != nil {
-				newTcpConn.GetHandler().OnConnected(newTcpConn,true)
+				newTcpConn.GetHandler().OnConnected(newTcpConn, true)
 			}
 			this.connectionMapLock.Lock()
 			this.connectionMap[newTcpConn.GetConnectionId()] = newTcpConn

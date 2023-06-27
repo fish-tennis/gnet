@@ -21,7 +21,7 @@ func TestEchoProto(t *testing.T) {
 
 	SetLogLevel(DebugLevel)
 	// 10秒后触发关闭通知,所有监听<-ctx.Done()的地方会收到通知
-	ctx,cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	netMgr := GetNetMgr()
@@ -70,7 +70,6 @@ func TestEchoProto(t *testing.T) {
 	netMgr.Shutdown(true)
 }
 
-
 // 服务端监听到的连接接口
 type echoProtoServerHandler struct {
 	DefaultConnectionHandler
@@ -86,8 +85,8 @@ func (e *echoProtoServerHandler) OnConnected(connection Connection, success bool
 			serialId++
 			packet := NewProtoPacket(PacketCommand(pb.CmdTest_Cmd_TestMessage),
 				&pb.TestMessage{
-				Name: fmt.Sprintf("hello client %v", serialId),
-				I32: int32(serialId),
+					Name: fmt.Sprintf("hello client %v", serialId),
+					I32:  int32(serialId),
 				})
 			connection.SendPacket(packet)
 		}
@@ -105,7 +104,7 @@ func (e *echoProtoServerHandler) OnConnected(connection Connection, success bool
 					packet := NewProtoPacket(PacketCommand(pb.CmdTest_Cmd_TestMessage),
 						&pb.TestMessage{
 							Name: fmt.Sprintf("hello client %v", serialId),
-							I32: int32(serialId),
+							I32:  int32(serialId),
 						})
 					connection.SendPacket(packet)
 					autoSendTimer.Reset(time.Second)
@@ -119,10 +118,10 @@ func (e *echoProtoServerHandler) OnConnected(connection Connection, success bool
 func onHeartBeatReq(connection Connection, packet *ProtoPacket) {
 	req := packet.Message().(*pb.HeartBeatReq)
 	logger.Debug(fmt.Sprintf("Server onHeartBeatReq: %v", req))
-	connection.Send( PacketCommand(pb.CmdTest_Cmd_HeartBeat), &pb.HeartBeatRes{
-		RequestTimestamp: req.GetTimestamp(),
-		ResponseTimestamp: time.Now().UnixNano()/int64(time.Microsecond),
-	} )
+	connection.Send(PacketCommand(pb.CmdTest_Cmd_HeartBeat), &pb.HeartBeatRes{
+		RequestTimestamp:  req.GetTimestamp(),
+		ResponseTimestamp: time.Now().UnixNano() / int64(time.Microsecond),
+	})
 }
 
 // 服务器收到客户端的TestMessage
@@ -130,7 +129,6 @@ func onTestMessageServer(connection Connection, packet *ProtoPacket) {
 	req := packet.Message().(*pb.TestMessage)
 	logger.Debug(fmt.Sprintf("Server onTestMessage: %v", req))
 }
-
 
 // 客户端连接接口
 type echoProtoClientHandler struct {
@@ -151,7 +149,7 @@ func (e *echoProtoClientHandler) onTestMessage(connection Connection, packet *Pr
 	connection.Send(PacketCommand(pb.CmdTest_Cmd_TestMessage),
 		&pb.TestMessage{
 			Name: fmt.Sprintf("hello server %v", e.echoCount),
-			I32: int32(e.echoCount),
+			I32:  int32(e.echoCount),
 		})
 }
 
@@ -162,6 +160,6 @@ func (e *echoProtoClientHandler) onTestDataMessage(connection Connection, packet
 	connection.Send(PacketCommand(pb.CmdTest_Cmd_TestMessage),
 		&pb.TestMessage{
 			Name: fmt.Sprintf("hello server %v", e.echoCount),
-			I32: int32(e.echoCount),
+			I32:  int32(e.echoCount),
 		})
 }

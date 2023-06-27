@@ -19,7 +19,6 @@ type ConnectionHandler interface {
 	CreateHeartBeatPacket(connection Connection) Packet
 }
 
-
 // 监听回调
 type ListenerHandler interface {
 	// accept a new connection
@@ -33,9 +32,8 @@ type PacketHandlerRegister interface {
 	Register(packetCommand PacketCommand, handler PacketHandler, protoMessage proto.Message)
 }
 
-
 // ProtoPacket消息回调
-type PacketHandler func(connection Connection, packet* ProtoPacket)
+type PacketHandler func(connection Connection, packet *ProtoPacket)
 
 // ProtoPacket默认ConnectionHandler
 type DefaultConnectionHandler struct {
@@ -44,7 +42,7 @@ type DefaultConnectionHandler struct {
 	// 未注册消息的处理函数
 	UnRegisterHandler PacketHandler
 	// 连接回调
-	onConnectedFunc func(connection Connection, success bool)
+	onConnectedFunc    func(connection Connection, success bool)
 	onDisconnectedFunc func(connection Connection)
 	// handler一般总是和codec配合使用
 	protoCodec Codec
@@ -73,8 +71,8 @@ func (this *DefaultConnectionHandler) OnRecvPacket(connection Connection, packet
 			LogStack()
 		}
 	}()
-	if protoPacket,ok := packet.(*ProtoPacket); ok {
-		if packetHandler,ok2 := this.PacketHandlers[protoPacket.command]; ok2 {
+	if protoPacket, ok := packet.(*ProtoPacket); ok {
+		if packetHandler, ok2 := this.PacketHandlers[protoPacket.command]; ok2 {
 			if packetHandler != nil {
 				packetHandler(connection, protoPacket)
 				return
@@ -109,7 +107,7 @@ func (this *DefaultConnectionHandler) GetCodec() Codec {
 func (this *DefaultConnectionHandler) Register(packetCommand PacketCommand, handler PacketHandler, protoMessage proto.Message) {
 	this.PacketHandlers[packetCommand] = handler
 	if this.protoCodec != nil {
-		if protoRegister,ok := this.protoCodec.(ProtoRegister); ok {
+		if protoRegister, ok := this.protoCodec.(ProtoRegister); ok {
 			protoRegister.Register(packetCommand, protoMessage)
 		}
 	}

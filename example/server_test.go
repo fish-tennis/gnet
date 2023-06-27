@@ -48,12 +48,12 @@ func TestTestServer(t *testing.T) {
 	)
 
 	// 超时后触发关闭通知,所有监听<-ctx.Done()的地方会收到通知
-	ctx,cancel := context.WithTimeout(context.Background(), testTime)
+	ctx, cancel := context.WithTimeout(context.Background(), testTime)
 	defer cancel()
 
 	netMgr := GetNetMgr()
 	connectionConfig := ConnectionConfig{
-		SendPacketCacheCap:    32,
+		SendPacketCacheCap: 32,
 		// 因为测试的数据包比较小,所以这里也设置的不大
 		SendBufferSize: 1024,
 		RecvBufferSize: 1024,
@@ -94,7 +94,6 @@ func (e *testServerListenerHandler) OnConnectionDisconnect(listener Listener, co
 
 // 服务器端的客户端接口
 type testServerClientHandler struct {
-
 }
 
 func (t *testServerClientHandler) CreateHeartBeatPacket(connection Connection) Packet {
@@ -104,17 +103,17 @@ func (t *testServerClientHandler) CreateHeartBeatPacket(connection Connection) P
 func (t *testServerClientHandler) OnConnected(connection Connection, success bool) {
 	// 模拟客户端登录游戏时,会密集收到一堆消息
 	for i := 0; i < 30; i++ {
-		toPacket := NewProtoPacket( 123,
+		toPacket := NewProtoPacket(123,
 			&pb.TestMessage{
 				Name: "hello client",
-				I32: int32(i),
+				I32:  int32(i),
 			})
 		connection.SendPacket(toPacket)
 	}
-	toPacket := NewProtoPacket( 123,
+	toPacket := NewProtoPacket(123,
 		&pb.TestMessage{
 			Name: "response",
-			I32: int32(0),
+			I32:  int32(0),
 		})
 	connection.SendPacket(toPacket)
 }
@@ -123,28 +122,27 @@ func (t *testServerClientHandler) OnDisconnected(connection Connection) {
 }
 
 func (t *testServerClientHandler) OnRecvPacket(connection Connection, packet Packet) {
-	atomic.AddInt64(&serverRecvPacketCount,1)
+	atomic.AddInt64(&serverRecvPacketCount, 1)
 	// 收到客户端的消息,服务器给客户端回4个消息
 	// 因为游戏的特点是:服务器下传数据比客户端上传数据要多
 	for i := 0; i < 3; i++ {
-		toPacket := NewProtoPacket( 123,
+		toPacket := NewProtoPacket(123,
 			&pb.TestMessage{
 				Name: "hello client this is server",
-				I32: int32(i),
+				I32:  int32(i),
 			})
 		connection.SendPacket(toPacket)
 	}
-	toPacket := NewProtoPacket( 123,
+	toPacket := NewProtoPacket(123,
 		&pb.TestMessage{
 			Name: "response",
-			I32: int32(0),
+			I32:  int32(0),
 		})
 	connection.SendPacket(toPacket)
 }
 
 // 客户端的网络接口
 type testClientHandler struct {
-
 }
 
 func (t *testClientHandler) CreateHeartBeatPacket(connection Connection) Packet {
@@ -158,14 +156,14 @@ func (t *testClientHandler) OnDisconnected(connection Connection) {
 }
 
 func (t *testClientHandler) OnRecvPacket(connection Connection, packet Packet) {
-	atomic.AddInt64(&clientRecvPacketCount,1)
+	atomic.AddInt64(&clientRecvPacketCount, 1)
 	protoPacket := packet.(*ProtoPacket)
 	recvMessage := protoPacket.Message().(*pb.TestMessage)
 	if recvMessage.GetName() == "response" {
-		toPacket := NewProtoPacket( 123,
+		toPacket := NewProtoPacket(123,
 			&pb.TestMessage{
 				Name: "hello server",
-				I32: int32(0),
+				I32:  int32(0),
 			})
 		connection.SendPacket(toPacket)
 	}

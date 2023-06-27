@@ -31,7 +31,7 @@ type DefaultPacketHeader struct {
 	LenAndFlags uint32
 }
 
-func NewDefaultPacketHeader(len uint32,flags uint8) *DefaultPacketHeader {
+func NewDefaultPacketHeader(len uint32, flags uint8) *DefaultPacketHeader {
 	return &DefaultPacketHeader{
 		LenAndFlags: uint32(flags)<<24 | len,
 	}
@@ -59,7 +59,6 @@ func (this *DefaultPacketHeader) WriteTo(packetHeaderData []byte) {
 	binary.LittleEndian.PutUint32(packetHeaderData, this.LenAndFlags)
 }
 
-
 // 数据包接口
 type Packet interface {
 	// 消息号
@@ -78,12 +77,11 @@ type Packet interface {
 	Clone() Packet
 }
 
-
 // proto数据包
 type ProtoPacket struct {
 	command PacketCommand
 	message proto.Message
-	data []byte
+	data    []byte
 }
 
 func NewProtoPacket(command PacketCommand, message proto.Message) *ProtoPacket {
@@ -96,7 +94,7 @@ func NewProtoPacket(command PacketCommand, message proto.Message) *ProtoPacket {
 func NewProtoPacketWithData(command PacketCommand, data []byte) *ProtoPacket {
 	return &ProtoPacket{
 		command: command,
-		data: data,
+		data:    data,
 	}
 }
 
@@ -126,7 +124,6 @@ func (this *ProtoPacket) Clone() Packet {
 	return newPacket
 }
 
-
 // 只包含一个[]byte的数据包
 type DataPacket struct {
 	data []byte
@@ -150,7 +147,7 @@ func (this *DataPacket) GetStreamData() []byte {
 
 // deep copy
 func (this *DataPacket) Clone() Packet {
-	newPacket := &DataPacket{data: make([]byte,len(this.data))}
+	newPacket := &DataPacket{data: make([]byte, len(this.data))}
 	copy(newPacket.data, this.data)
 	return newPacket
 }

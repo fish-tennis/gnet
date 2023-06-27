@@ -63,20 +63,20 @@ func (this *RingBuffer) ReadFull(readLen int) []byte {
 //}
 
 // 设置已读取长度
-func (this *RingBuffer) SetReaded(readedLength int ) {
+func (this *RingBuffer) SetReaded(readedLength int) {
 	this.r += readedLength
 }
 
 // 返回可读取的连续buffer(不产生copy)
 // NOTE:调用ReadBuffer之前,需要先确保UnReadLength()>0
 func (this *RingBuffer) ReadBuffer() []byte {
-	writeIndex := this.w%len(this.buffer)
-	readIndex := this.r%len(this.buffer)
+	writeIndex := this.w % len(this.buffer)
+	readIndex := this.r % len(this.buffer)
 	if readIndex < writeIndex {
 		// [_______r.....w_____]
 		//         <- n ->
 		// 可读部分是连续的
-		return this.buffer[readIndex:readIndex+this.w-this.r]
+		return this.buffer[readIndex : readIndex+this.w-this.r]
 	} else {
 		// [........w_______r........]
 		//                  <-  n1  ->
@@ -88,8 +88,8 @@ func (this *RingBuffer) ReadBuffer() []byte {
 
 // 返回可写入的连续buffer
 func (this *RingBuffer) WriteBuffer() []byte {
-	writeIndex := this.w%len(this.buffer)
-	readIndex := this.r%len(this.buffer)
+	writeIndex := this.w % len(this.buffer)
+	readIndex := this.r % len(this.buffer)
 	if readIndex < writeIndex {
 		// [_______r.....w_____]
 		// 可写部分被成尾部和头部两部分,先返回尾部那部分
@@ -107,7 +107,7 @@ func (this *RingBuffer) WriteBuffer() []byte {
 }
 
 // 设置已写入长度
-func (this *RingBuffer) SetWrited(writedLength int ) {
+func (this *RingBuffer) SetWrited(writedLength int) {
 	this.w += writedLength
 }
 
@@ -121,7 +121,7 @@ func (this *RingBuffer) Write(p []byte) (n int, err error) {
 	if canWriteSize <= 0 {
 		return 0, ErrBufferFull
 	}
-	writeIndex := this.w%bufferSize
+	writeIndex := this.w % bufferSize
 	// 有足够的空间可以把p写完
 	if canWriteSize >= len(p) {
 		n = copy(this.buffer[writeIndex:], p)

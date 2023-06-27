@@ -10,12 +10,12 @@ type XorProtoCodec struct {
 
 func NewXorProtoCodec(xorKey []byte, protoMessageTypeMap map[PacketCommand]reflect.Type) *XorProtoCodec {
 	codec := &XorProtoCodec{
-		ProtoCodec:NewProtoCodec(protoMessageTypeMap),
-		xorKey: xorKey,
+		ProtoCodec: NewProtoCodec(protoMessageTypeMap),
+		xorKey:     xorKey,
 	}
 	codec.ProtoPacketBytesEncoder = func(protoPacketBytes [][]byte) [][]byte {
 		keyIndex := 0
-		for _,data := range protoPacketBytes {
+		for _, data := range protoPacketBytes {
 			for i := 0; i < len(data); i++ {
 				data[i] = data[i] ^ codec.xorKey[keyIndex%len(codec.xorKey)]
 				keyIndex++
@@ -24,7 +24,7 @@ func NewXorProtoCodec(xorKey []byte, protoMessageTypeMap map[PacketCommand]refle
 		return protoPacketBytes
 	}
 	codec.ProtoPacketBytesDecoder = func(packetData []byte) []byte {
-		xorEncode(packetData,codec.xorKey)
+		xorEncode(packetData, codec.xorKey)
 		return packetData
 	}
 	return codec

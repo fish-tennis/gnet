@@ -43,14 +43,14 @@ func (this *RingBufferCodec) PacketHeaderSize() uint32 {
 }
 
 func (this *RingBufferCodec) CreatePacketHeader(connection Connection, packet Packet, packetData []byte) PacketHeader {
-	return NewDefaultPacketHeader(0,0)
+	return NewDefaultPacketHeader(0, 0)
 }
 
 // TcpConnection做了优化,在Encode的过程中就直接写入sendBuffer
 // 返回值:未能写入sendBuffer的数据(sendBuffer写满了的情况)
 func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte {
 	// 优化思路:编码后的数据直接写入RingBuffer.sendBuffer,可以减少一些内存分配
-	if tcpConnection,ok := connection.(*TcpConnection); ok {
+	if tcpConnection, ok := connection.(*TcpConnection); ok {
 		packetHeaderSize := int(this.PacketHeaderSize())
 		sendBuffer := tcpConnection.sendBuffer
 		var encodedData [][]byte
@@ -63,7 +63,7 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 			encodedData = [][]byte{packet.GetStreamData()}
 		}
 		encodedDataLen := 0
-		for _,data := range encodedData {
+		for _, data := range encodedData {
 			encodedDataLen += len(data)
 		}
 		packetHeader := NewDefaultPacketHeader(uint32(encodedDataLen), 0)
@@ -83,7 +83,7 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 			if this.HeaderEncoder != nil {
 				this.HeaderEncoder(connection, packet, packetHeaderData)
 			}
-			writedHeaderLen,_ := sendBuffer.Write(packetHeaderData)
+			writedHeaderLen, _ := sendBuffer.Write(packetHeaderData)
 			if writedHeaderLen < packetHeaderSize {
 				// 写不下的包头数据和包体数据,返回给TcpConnection延后处理
 				// 合理的设置发包缓存,一般不会运行到这里
@@ -91,7 +91,7 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 				// 没写完的header数据
 				n := copy(remainData, packetHeaderData[writedHeaderLen:])
 				// 编码后的包体数据
-				for _,data := range encodedData {
+				for _, data := range encodedData {
 					n += copy(remainData[n:], data)
 				}
 				return remainData
@@ -99,14 +99,14 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 		}
 		writeBuffer = sendBuffer.WriteBuffer()
 		writedDataLen := 0
-		for i,data := range encodedData {
-			writed,_ := sendBuffer.Write(data)
+		for i, data := range encodedData {
+			writed, _ := sendBuffer.Write(data)
 			writedDataLen += writed
 			if writed < len(data) {
 				// 写不下的包体数据,返回给TcpConnection延后处理
 				remainData := make([]byte, encodedDataLen-writedDataLen)
 				n := copy(remainData, data[writed:])
-				for j := i+1; j < len(encodedData); j++ {
+				for j := i + 1; j < len(encodedData); j++ {
 					n += copy(remainData[n:], encodedData[j])
 				}
 				return remainData
@@ -118,7 +118,7 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 }
 
 func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPacket Packet, err error) {
-	if tcpConnection,ok := connection.(*TcpConnection); ok {
+	if tcpConnection, ok := connection.(*TcpConnection); ok {
 		// TcpConnection用了RingBuffer,解码时,尽可能的不产生copy
 		recvBuffer := tcpConnection.recvBuffer
 		// 先解码包头
@@ -148,6 +148,7 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 			tcpConnection.curReadPacketHeader.ReadFrom(packetHeaderData)
 			// 数据包长度超出设置
 			if tcpConnection.config.MaxPacketSize > 0 && tcpConnection.curReadPacketHeader.Len() > tcpConnection.config.MaxPacketSize {
+				logger.Error("%v ErrPacketLengthExceed len:%v max:%v", tcpConnection.GetConnectionId(), tcpConnection.curReadPacketHeader.Len(), tcpConnection.config.MaxPacketSize)
 				return nil, ErrPacketLengthExceed
 			}
 		}
@@ -157,6 +158,7 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 		//header.ReadFrom(packetHeaderData)
 		// 数据包长度超出设置
 		if tcpConnection.config.MaxPacketSize > 0 && header.Len() > tcpConnection.config.MaxPacketSize {
+			logger.Error("%v ErrPacketLengthExceed len:%v max:%v", tcpConnection.GetConnectionId(), header.Len(), tcpConnection.config.MaxPacketSize)
 			return nil, ErrPacketLengthExceed
 		}
 		var packetData []byte
@@ -175,12 +177,12 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 			// 有一些应用场景,大部分数据包都不大,但是有少量数据包非常大,如果RingBuffer必须设置的比最大数据包还要大,可能消耗过多内存
 
 			// 剩余的包体数据,RingBuffer里面可能已经收了一部分包体数据
-			remainDataSize := int(header.Len())  - recvBuffer.UnReadLength()
+			remainDataSize := int(header.Len()) - recvBuffer.UnReadLength()
 			remainData := make([]byte, remainDataSize)
 			// 阻塞读取剩余的包体数据
-			readLen,_ := io.ReadFull(tcpConnection.conn, remainData)
+			readLen, _ := io.ReadFull(tcpConnection.conn, remainData)
 			if readLen != remainDataSize {
-				return nil,ErrReadRemainPacket
+				return nil, ErrReadRemainPacket
 			}
 			if recvBuffer.UnReadLength() == 0 {
 				// 包体数据全部是从io.ReadFull读取到的
@@ -204,9 +206,8 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 		tcpConnection.curReadPacketHeader = nil
 		return
 	}
-	return nil,ErrNotSupport
+	return nil, ErrNotSupport
 }
-
 
 // 默认编解码,只做长度和数据的解析
 type DefaultCodec struct {

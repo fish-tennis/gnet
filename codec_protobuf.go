@@ -10,7 +10,7 @@ import (
 type ProtoMessageCreator func() proto.Message
 
 type ProtoRegister interface {
-	Register(command PacketCommand, protoMessage proto.Message )
+	Register(command PacketCommand, protoMessage proto.Message)
 }
 
 // proto.Message编解码
@@ -41,7 +41,7 @@ func NewProtoCodec(protoMessageTypeMap map[PacketCommand]reflect.Type) *ProtoCod
 }
 
 // 注册消息
-func (this *ProtoCodec) Register(command PacketCommand, protoMessage proto.Message ) {
+func (this *ProtoCodec) Register(command PacketCommand, protoMessage proto.Message) {
 	if protoMessage == nil {
 		this.MessageCreatorMap[command] = nil
 		return
@@ -52,12 +52,12 @@ func (this *ProtoCodec) Register(command PacketCommand, protoMessage proto.Messa
 func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]byte {
 	protoMessage := packet.Message()
 	// 先写入消息号
-	commandBytes := make([]byte,2)
+	commandBytes := make([]byte, 2)
 	binary.LittleEndian.PutUint16(commandBytes, uint16(packet.Command()))
 	var messageBytes []byte
 	if protoMessage != nil {
 		var err error
-		messageBytes,err = proto.Marshal(protoMessage)
+		messageBytes, err = proto.Marshal(protoMessage)
 		if err != nil {
 			logger.Error("proto encode err:%v cmd:%v", err, packet.Command())
 			return nil
@@ -68,9 +68,9 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]b
 	}
 	// 这里可以继续对messageBytes进行编码,如异或,加密,压缩等
 	if this.ProtoPacketBytesEncoder != nil {
-		return this.ProtoPacketBytesEncoder([][]byte{commandBytes,messageBytes})
+		return this.ProtoPacketBytesEncoder([][]byte{commandBytes, messageBytes})
 	}
-	return [][]byte{commandBytes,messageBytes}
+	return [][]byte{commandBytes, messageBytes}
 	//fullData := make([]byte, len(commandBytes)+len(messageBytes))
 	//n := copy(fullData, commandBytes)
 	//copy(fullData[n:], messageBytes)
@@ -87,7 +87,7 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 		return nil
 	}
 	command := binary.LittleEndian.Uint16(decodedPacketData[:2])
-	if protoMessageType,ok := this.MessageCreatorMap[PacketCommand(command)]; ok {
+	if protoMessageType, ok := this.MessageCreatorMap[PacketCommand(command)]; ok {
 		if protoMessageType != nil {
 			newProtoMessage := reflect.New(protoMessageType).Interface().(proto.Message)
 			err := proto.Unmarshal(decodedPacketData[2:], newProtoMessage)
@@ -103,7 +103,7 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 			// 支持只注册了消息号,没注册proto结构体的用法
 			return &ProtoPacket{
 				command: PacketCommand(command),
-				data: decodedPacketData[2:],
+				data:    decodedPacketData[2:],
 			}
 		}
 	}

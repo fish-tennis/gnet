@@ -129,6 +129,7 @@ func (this *baseConnection) SetCodec(codec Codec) {
 func (this *baseConnection) GetTag() interface{} {
 	return this.tag
 }
+
 // 设置关联数据
 func (this *baseConnection) SetTag(tag interface{}) {
 	this.tag = tag
