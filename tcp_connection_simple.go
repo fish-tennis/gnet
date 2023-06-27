@@ -49,7 +49,7 @@ func createTcpConnectionSimple(config *ConnectionConfig, codec Codec, handler Co
 			handler:      handler,
 		},
 		readStopNotifyChan: make(chan struct{}, 1),
-		sendPacketCache: make(chan Packet, config.SendPacketCacheCap),
+		sendPacketCache:    make(chan Packet, config.SendPacketCacheCap),
 	}
 	return newConnection
 }

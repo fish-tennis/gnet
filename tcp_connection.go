@@ -202,7 +202,7 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 				return
 			}
 			hasError := false
-			delaySendDecodePacketData,hasError = this.writePacket(packet)
+			delaySendDecodePacketData, hasError = this.writePacket(packet)
 			if hasError {
 				return
 			}
