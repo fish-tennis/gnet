@@ -186,7 +186,7 @@ func (this *TcpConnectionSimple) writeLoop(ctx context.Context) {
 		select {
 		case packet := <-this.sendPacketCache:
 			if packet == nil {
-				logger.Debug("packet==nil %v", this.GetConnectionId())
+				logger.Error("packet==nil %v", this.GetConnectionId())
 				return
 			}
 			if !this.writePacket(packet) {
@@ -194,29 +194,13 @@ func (this *TcpConnectionSimple) writeLoop(ctx context.Context) {
 			}
 
 		case <-recvTimeoutTimer.C:
-			if this.config.RecvTimeout > 0 {
-				nextTimeoutTime := int64(this.config.RecvTimeout) + this.lastRecvPacketTick - GetCurrentTimeStamp()
-				if nextTimeoutTime > 0 {
-					if nextTimeoutTime > int64(this.config.RecvTimeout) {
-						nextTimeoutTime = int64(this.config.RecvTimeout)
-					}
-					recvTimeoutTimer.Reset(time.Second * time.Duration(nextTimeoutTime))
-				} else {
-					// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
-					// 需要主动关闭该连接,防止连接"泄漏"
-					logger.Debug("recv timeout %v", this.GetConnectionId())
-					return
-				}
+			if !this.checkRecvTimeout(recvTimeoutTimer) {
+				return
 			}
 
 		case <-heartBeatTimer.C:
-			if this.isConnector && this.config.HeartBeatInterval > 0 && this.handler != nil {
-				if heartBeatPacket := this.handler.CreateHeartBeatPacket(this); heartBeatPacket != nil {
-					if !this.writePacket(heartBeatPacket) {
-						return
-					}
-					heartBeatTimer.Reset(time.Second * time.Duration(this.config.HeartBeatInterval))
-				}
+			if !this.onHeartBeatTimeUp(heartBeatTimer) {
+				return
 			}
 
 		case <-this.readStopNotifyChan:
@@ -276,6 +260,36 @@ func (this *TcpConnectionSimple) writePacket(packet Packet) bool {
 			return false
 		}
 		writeCount += n
+	}
+	return true
+}
+
+func (this *TcpConnectionSimple) checkRecvTimeout(recvTimeoutTimer *time.Timer) bool {
+	if this.config.RecvTimeout > 0 {
+		nextTimeoutTime := int64(this.config.RecvTimeout) + this.lastRecvPacketTick - GetCurrentTimeStamp()
+		if nextTimeoutTime > 0 {
+			if nextTimeoutTime > int64(this.config.RecvTimeout) {
+				nextTimeoutTime = int64(this.config.RecvTimeout)
+			}
+			recvTimeoutTimer.Reset(time.Second * time.Duration(nextTimeoutTime))
+		} else {
+			// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
+			// 需要主动关闭该连接,防止连接"泄漏"
+			logger.Debug("recv timeout %v", this.GetConnectionId())
+			return false
+		}
+	}
+	return true
+}
+
+func (this *TcpConnectionSimple) onHeartBeatTimeUp(heartBeatTimer *time.Timer) bool {
+	if this.isConnector && this.config.HeartBeatInterval > 0 && this.handler != nil {
+		if heartBeatPacket := this.handler.CreateHeartBeatPacket(this); heartBeatPacket != nil {
+			if !this.writePacket(heartBeatPacket) {
+				return false
+			}
+			heartBeatTimer.Reset(time.Second * time.Duration(this.config.HeartBeatInterval))
+		}
 	}
 	return true
 }

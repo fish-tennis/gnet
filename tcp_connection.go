@@ -208,28 +208,12 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 			}
 
 		case <-recvTimeoutTimer.C:
-			if this.config.RecvTimeout > 0 {
-				nextTimeoutTime := int64(this.config.RecvTimeout) + this.lastRecvPacketTick - GetCurrentTimeStamp()
-				if nextTimeoutTime > 0 {
-					if nextTimeoutTime > int64(this.config.RecvTimeout) {
-						nextTimeoutTime = int64(this.config.RecvTimeout)
-					}
-					recvTimeoutTimer.Reset(time.Second * time.Duration(nextTimeoutTime))
-				} else {
-					// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
-					// 需要主动关闭该连接,防止连接"泄漏"
-					logger.Debug("recv timeout %v IsConnector %v", this.GetConnectionId(), this.IsConnector())
-					return
-				}
+			if !this.checkRecvTimeout(recvTimeoutTimer) {
+				return
 			}
 
 		case <-heartBeatTimer.C:
-			if this.isConnector && this.config.HeartBeatInterval > 0 && this.handler != nil {
-				if heartBeatPacket := this.handler.CreateHeartBeatPacket(this); heartBeatPacket != nil {
-					delaySendDecodePacketData = this.codec.Encode(this, heartBeatPacket)
-					heartBeatTimer.Reset(time.Second * time.Duration(this.config.HeartBeatInterval))
-				}
-			}
+			delaySendDecodePacketData = this.onHeartBeatTimeUp(heartBeatTimer)
 
 		case <-this.readStopNotifyChan:
 			logger.Debug("recv readStopNotify %v", this.GetConnectionId())
@@ -320,6 +304,34 @@ func (this *TcpConnection) sendEncodedBuffer(delaySendDecodePacketData []byte) e
 		//LogDebug("%v write count:%v unread:%v", this.GetConnectionId(), writeCount, sendBuffer.UnReadLength())
 	}
 	return nil
+}
+
+func (this *TcpConnection) checkRecvTimeout(recvTimeoutTimer *time.Timer) bool {
+	if this.config.RecvTimeout > 0 {
+		nextTimeoutTime := int64(this.config.RecvTimeout) + this.lastRecvPacketTick - GetCurrentTimeStamp()
+		if nextTimeoutTime > 0 {
+			if nextTimeoutTime > int64(this.config.RecvTimeout) {
+				nextTimeoutTime = int64(this.config.RecvTimeout)
+			}
+			recvTimeoutTimer.Reset(time.Second * time.Duration(nextTimeoutTime))
+		} else {
+			// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
+			// 需要主动关闭该连接,防止连接"泄漏"
+			logger.Debug("recv timeout %v IsConnector %v", this.GetConnectionId(), this.IsConnector())
+			return false
+		}
+	}
+	return true
+}
+
+func (this *TcpConnection) onHeartBeatTimeUp(heartBeatTimer *time.Timer) (delaySendDecodePacketData []byte) {
+	if this.isConnector && this.config.HeartBeatInterval > 0 && this.handler != nil {
+		if heartBeatPacket := this.handler.CreateHeartBeatPacket(this); heartBeatPacket != nil {
+			delaySendDecodePacketData = this.codec.Encode(this, heartBeatPacket)
+			heartBeatTimer.Reset(time.Second * time.Duration(this.config.HeartBeatInterval))
+		}
+	}
+	return
 }
 
 // 关闭
