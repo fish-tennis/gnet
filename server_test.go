@@ -1,9 +1,8 @@
-package example
+package gnet
 
 import (
 	"context"
 	"fmt"
-	. "github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/pb"
 	"reflect"
 	"sync/atomic"

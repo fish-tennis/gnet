@@ -1,15 +1,10 @@
-package example
+package gnet
 
 import (
 	"context"
 	"fmt"
-	. "github.com/fish-tennis/gnet"
 	"testing"
 	"time"
-)
-
-var (
-	logger = GetLogger()
 )
 
 // 不使用protobuf的测试

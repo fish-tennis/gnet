@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -35,7 +36,7 @@ func NewTcpConnectionSimple(config *ConnectionConfig, codec Codec, handler Conne
 func NewTcpConnectionSimpleAccept(conn net.Conn, config *ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnectionSimple {
 	newConnection := createTcpConnectionSimple(config, codec, handler)
 	newConnection.isConnector = false
-	newConnection.isConnected = true
+	atomic.StoreInt32(&newConnection.isConnected, 1)
 	newConnection.conn = conn
 	return newConnection
 }
@@ -58,7 +59,7 @@ func createTcpConnectionSimple(config *ConnectionConfig, codec Codec, handler Co
 func (this *TcpConnectionSimple) Connect(address string) bool {
 	conn, err := net.DialTimeout("tcp", address, time.Second)
 	if err != nil {
-		this.isConnected = false
+		atomic.StoreInt32(&this.isConnected, 0)
 		logger.Error("Connect failed %v: %v", this.GetConnectionId(), err.Error())
 		if this.handler != nil {
 			this.handler.OnConnected(this, false)
@@ -66,7 +67,7 @@ func (this *TcpConnectionSimple) Connect(address string) bool {
 		return false
 	}
 	this.conn = conn
-	this.isConnected = true
+	atomic.StoreInt32(&this.isConnected, 1)
 	if this.handler != nil {
 		this.handler.OnConnected(this, true)
 	}
@@ -117,7 +118,7 @@ func (this *TcpConnectionSimple) readLoop() {
 	}()
 
 	logger.Debug("readLoop begin %v", this.GetConnectionId())
-	for this.isConnected {
+	for this.IsConnected() {
 		// 先读取消息头
 		messageHeaderData := make([]byte, this.codec.PacketHeaderSize())
 		readHeaderSize, err := io.ReadFull(this.conn, messageHeaderData)
@@ -182,7 +183,7 @@ func (this *TcpConnectionSimple) writeLoop(ctx context.Context) {
 	// 心跳包计时
 	heartBeatTimer := time.NewTimer(time.Second * time.Duration(this.config.HeartBeatInterval))
 	defer heartBeatTimer.Stop()
-	for this.isConnected {
+	for this.IsConnected() {
 		select {
 		case packet := <-this.sendPacketCache:
 			if packet == nil {
@@ -297,7 +298,7 @@ func (this *TcpConnectionSimple) onHeartBeatTimeUp(heartBeatTimer *time.Timer) b
 // 关闭
 func (this *TcpConnectionSimple) Close() {
 	this.closeOnce.Do(func() {
-		this.isConnected = false
+		atomic.StoreInt32(&this.isConnected, 0)
 		if this.conn != nil {
 			this.conn.Close()
 			logger.Debug("close %v", this.GetConnectionId())
@@ -315,7 +316,7 @@ func (this *TcpConnectionSimple) Close() {
 // 异步发送proto包
 // NOTE:调用Send(command,message)之后,不要再对message进行读写!
 func (this *TcpConnectionSimple) Send(command PacketCommand, message proto.Message) bool {
-	if !this.isConnected {
+	if !this.IsConnected() {
 		return false
 	}
 	packet := NewProtoPacket(command, message)
@@ -327,7 +328,7 @@ func (this *TcpConnectionSimple) Send(command PacketCommand, message proto.Messa
 // 异步发送数据
 // NOTE:调用SendPacket(packet)之后,不要再对packet进行读写!
 func (this *TcpConnectionSimple) SendPacket(packet Packet) bool {
-	if !this.isConnected {
+	if !this.IsConnected() {
 		return false
 	}
 	// NOTE:当sendPacketCache满时,这里会阻塞

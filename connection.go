@@ -92,7 +92,7 @@ type baseConnection struct {
 	// 是否是连接方
 	isConnector bool
 	// 是否连接成功
-	isConnected bool
+	isConnected int32
 	// 接口
 	handler ConnectionHandler
 	// 编解码接口
@@ -112,7 +112,7 @@ func (this *baseConnection) IsConnector() bool {
 
 // 是否连接成功
 func (this *baseConnection) IsConnected() bool {
-	return this.isConnected
+	return atomic.LoadInt32(&this.isConnected) > 0
 }
 
 // 获取编解码接口

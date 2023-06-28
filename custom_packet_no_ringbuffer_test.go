@@ -1,10 +1,9 @@
-package example
+package gnet
 
 import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	. "github.com/fish-tennis/gnet"
 	"google.golang.org/protobuf/proto"
 	"net"
 	"testing"

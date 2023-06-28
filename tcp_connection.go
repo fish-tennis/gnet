@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -53,7 +54,7 @@ func NewTcpConnectionAccept(conn net.Conn, config *ConnectionConfig, codec Codec
 	}
 	newConnection := createTcpConnection(config, codec, handler)
 	newConnection.isConnector = false
-	newConnection.isConnected = true
+	atomic.StoreInt32(&newConnection.isConnected, 1)
 	newConnection.conn = conn
 	return newConnection
 }
@@ -77,7 +78,7 @@ func createTcpConnection(config *ConnectionConfig, codec Codec, handler Connecti
 func (this *TcpConnection) Connect(address string) bool {
 	conn, err := net.DialTimeout("tcp", address, time.Second)
 	if err != nil {
-		this.isConnected = false
+		atomic.StoreInt32(&this.isConnected, 0)
 		logger.Error("Connect failed %v: %v", this.GetConnectionId(), err.Error())
 		if this.handler != nil {
 			this.handler.OnConnected(this, false)
@@ -85,7 +86,7 @@ func (this *TcpConnection) Connect(address string) bool {
 		return false
 	}
 	this.conn = conn
-	this.isConnected = true
+	atomic.StoreInt32(&this.isConnected, 1)
 	if this.handler != nil {
 		this.handler.OnConnected(this, true)
 	}
@@ -138,7 +139,7 @@ func (this *TcpConnection) readLoop() {
 	logger.Debug("readLoop begin %v", this.GetConnectionId())
 	this.recvBuffer = this.createRecvBuffer()
 	this.tmpReadPacketHeaderData = make([]byte, this.codec.PacketHeaderSize())
-	for this.isConnected {
+	for this.IsConnected() {
 		// 可写入的连续buffer
 		writeBuffer := this.recvBuffer.WriteBuffer()
 		if len(writeBuffer) == 0 {
@@ -155,7 +156,7 @@ func (this *TcpConnection) readLoop() {
 		}
 		//LogDebug("%v Read:%v", this.GetConnectionId(), n)
 		this.recvBuffer.SetWrited(n)
-		for this.isConnected {
+		for this.IsConnected() {
 			newPacket, decodeError := this.codec.Decode(this, this.recvBuffer.ReadBuffer())
 			if decodeError != nil {
 				logger.Error("%v decodeError:%v", this.GetConnectionId(), decodeError.Error())
@@ -193,7 +194,7 @@ func (this *TcpConnection) writeLoop(ctx context.Context) {
 	heartBeatTimer := time.NewTimer(time.Second * time.Duration(this.config.HeartBeatInterval))
 	defer heartBeatTimer.Stop()
 	this.sendBuffer = this.createSendBuffer()
-	for this.isConnected {
+	for this.IsConnected() {
 		var delaySendDecodePacketData []byte
 		select {
 		case packet := <-this.sendPacketCache:
@@ -270,7 +271,7 @@ func (this *TcpConnection) sendEncodedBuffer(delaySendDecodePacketData []byte) e
 		return nil
 	}
 	// 可读数据有可能分别存在数组的尾部和头部,所以需要循环发送,有可能需要发送多次
-	for this.isConnected && this.sendBuffer.UnReadLength() > 0 {
+	for this.IsConnected() && this.sendBuffer.UnReadLength() > 0 {
 		if this.config.WriteTimeout > 0 {
 			setTimeoutErr := this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout) * time.Second))
 			// Q:什么情况会导致SetWriteDeadline返回err?
@@ -337,7 +338,8 @@ func (this *TcpConnection) onHeartBeatTimeUp(heartBeatTimer *time.Timer) (delayS
 // 关闭
 func (this *TcpConnection) Close() {
 	this.closeOnce.Do(func() {
-		this.isConnected = false
+		atomic.StoreInt32(&this.isConnected, 0)
+		logger.Debug("%v isConnected:%v", this.GetConnectionId(), this.isConnected)
 		if this.conn != nil {
 			this.conn.Close()
 			logger.Debug("close %v %v", this.GetConnectionId(), this.IsConnector())
@@ -355,7 +357,7 @@ func (this *TcpConnection) Close() {
 // 异步发送proto包
 // NOTE:调用Send(command,message)之后,不要再对message进行读写!
 func (this *TcpConnection) Send(command PacketCommand, message proto.Message) bool {
-	if !this.isConnected {
+	if !this.IsConnected() {
 		return false
 	}
 	packet := NewProtoPacket(command, message)
@@ -367,7 +369,7 @@ func (this *TcpConnection) Send(command PacketCommand, message proto.Message) bo
 // 异步发送数据
 // NOTE:调用SendPacket(packet)之后,不要再对packet进行读写!
 func (this *TcpConnection) SendPacket(packet Packet) bool {
-	if !this.isConnected {
+	if !this.IsConnected() {
 		return false
 	}
 	// NOTE:当sendPacketCache满时,这里会阻塞

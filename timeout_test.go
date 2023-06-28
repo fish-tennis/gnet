@@ -1,8 +1,7 @@
-package example
+package gnet
 
 import (
 	"context"
-	. "github.com/fish-tennis/gnet"
 	"net/http"
 	_ "net/http/pprof"
 	"testing"

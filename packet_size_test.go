@@ -1,8 +1,7 @@
-package example
+package gnet
 
 import (
 	"context"
-	. "github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/pb"
 	"math/rand"
 	"strconv"
