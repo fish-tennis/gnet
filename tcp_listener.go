@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// TCP监听
+// tcp Listener
 type TcpListener struct {
 	baseListener
 
@@ -18,16 +18,16 @@ type TcpListener struct {
 	acceptConnectionCodec   Codec
 	acceptConnectionHandler ConnectionHandler
 	// accept协程结束标记
+	// notify chan for accept goroutine end
 	acceptStopNotifyChan chan struct{}
 
-	// 连接表
+	// manage the accepted connections
 	connectionMap     map[uint32]Connection
 	connectionMapLock sync.RWMutex
 
 	isRunning int32
-	// 防止执行多次关闭操作
 	closeOnce sync.Once
-	// 关闭回调
+	// close callback
 	onClose func(listener Listener)
 
 	acceptConnectionCreator AcceptConnectionCreator
@@ -58,6 +58,7 @@ func (this *TcpListener) GetConnection(connectionId uint32) Connection {
 }
 
 // 广播消息
+//  broadcast packet to accepted connections
 func (this *TcpListener) Broadcast(packet Packet) {
 	this.connectionMapLock.RLock()
 	for _, conn := range this.connectionMap {
@@ -68,7 +69,7 @@ func (this *TcpListener) Broadcast(packet Packet) {
 	this.connectionMapLock.RUnlock()
 }
 
-// 开启监听
+// start goroutine
 func (this *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 	var err error
 	this.netListener, err = net.Listen("tcp", listenAddress)
@@ -112,6 +113,7 @@ func (this *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 }
 
 // 关闭监听,并关闭管理的连接
+//  close listen, close the accepted connections
 func (this *TcpListener) Close() {
 	this.closeOnce.Do(func() {
 		atomic.StoreInt32(&this.isRunning, 0)
@@ -138,7 +140,7 @@ func (this *TcpListener) IsRunning() bool {
 	return atomic.LoadInt32(&this.isRunning) > 0
 }
 
-// accept协程
+// accept goroutine
 func (this *TcpListener) acceptLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {

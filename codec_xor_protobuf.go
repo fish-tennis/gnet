@@ -2,7 +2,7 @@ package gnet
 
 import "reflect"
 
-// proto+异或
+// codec for proto.Message and xor
 type XorProtoCodec struct {
 	*ProtoCodec
 	xorKey []byte
@@ -30,7 +30,7 @@ func NewXorProtoCodec(xorKey []byte, protoMessageTypeMap map[PacketCommand]refle
 	return codec
 }
 
-// 异或
+// xor encode
 func xorEncode(data []byte, key []byte) {
 	for i := 0; i < len(data); i++ {
 		data[i] = data[i] ^ key[i%len(key)]

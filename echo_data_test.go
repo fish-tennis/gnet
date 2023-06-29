@@ -7,7 +7,8 @@ import (
 	"time"
 )
 
-// 不使用protobuf的测试
+// show how to use DataPacket without protobuf
+//  不使用protobuf的测试
 func TestEchoData(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -92,7 +93,7 @@ func (e *echoServerHandler) OnRecvPacket(connection Connection, packet Packet) {
 	logger.Debug(fmt.Sprintf("Server OnRecvPacket %v: %v", connection.GetConnectionId(), string(packet.GetStreamData())))
 }
 
-func (e *echoServerHandler) CreateHeartBeatPacket(connection Connection, ) Packet { return nil }
+func (e *echoServerHandler) CreateHeartBeatPacket(connection Connection) Packet { return nil }
 
 // 客户端连接接口
 type echoClientHandler struct {

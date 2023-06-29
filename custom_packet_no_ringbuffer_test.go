@@ -11,8 +11,9 @@ import (
 	"unsafe"
 )
 
-// 演示如何自定义消息头
-// 这里不使用RingBuffer
+// show how to use custom packet without RingBuffer
+//  演示如何自定义消息头
+//  这里不使用RingBuffer
 func TestCustomPacketNoRingBuffer(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -29,7 +30,7 @@ func TestCustomPacketNoRingBuffer(t *testing.T) {
 	netMgr := GetNetMgr()
 	connectionConfig := ConnectionConfig{
 		SendPacketCacheCap: 16,
-		MaxPacketSize:      1024 * 1024 * 32, // 支持超出gnet.DefaultPacketHeaderSize大小的包
+		MaxPacketSize:      1024 * 1024 * 32, // 支持超出DefaultPacketHeaderSize大小的包
 		HeartBeatInterval:  3,
 		RecvTimeout:        0,
 		WriteTimeout:       0,
@@ -211,7 +212,7 @@ func (e *echoCustomPacketServerHandler) OnRecvPacket(connection Connection, pack
 }
 
 // 服务器不需要发送心跳请求包
-func (e *echoCustomPacketServerHandler) CreateHeartBeatPacket(connection Connection, ) Packet {
+func (e *echoCustomPacketServerHandler) CreateHeartBeatPacket(connection Connection) Packet {
 	return nil
 }
 

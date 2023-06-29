@@ -1,7 +1,7 @@
 # gnet
 [![Go Report Card](https://goreportcard.com/badge/github.com/fish-tennis/gnet)](https://goreportcard.com/report/github.com/fish-tennis/gnet)
 [![Go Reference](https://pkg.go.dev/badge/github.com/fish-tennis/gnet.svg)](https://pkg.go.dev/github.com/fish-tennis/gnet)
-[![Coverage Status](https://coveralls.io/repos/github/fish-tennis/gnet/badge.svg)](https://coveralls.io/github/fish-tennis/gnet)
+[![codecov](https://codecov.io/gh/fish-tennis/gnet/branch/main/graph/badge.svg?token=RJ1C0OJAMK)](https://codecov.io/gh/fish-tennis/gnet)
 
 [中文说明](https://github.com/fish-tennis/gnet/blob/main/README_cn.md)
 

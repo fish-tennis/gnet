@@ -1,7 +1,7 @@
 # gnet
 [![Go Report Card](https://goreportcard.com/badge/github.com/fish-tennis/gnet)](https://goreportcard.com/report/github.com/fish-tennis/gnet)
 [![Go Reference](https://pkg.go.dev/badge/github.com/fish-tennis/gnet.svg)](https://pkg.go.dev/github.com/fish-tennis/gnet)
-[![Coverage Status](https://coveralls.io/repos/github/fish-tennis/gnet/badge.svg)](https://coveralls.io/github/fish-tennis/gnet)
+[![codecov](https://codecov.io/gh/fish-tennis/gnet/branch/main/graph/badge.svg?token=RJ1C0OJAMK)](https://codecov.io/gh/fish-tennis/gnet)
 
 基于go语言开发的游戏网络库
 
@@ -81,17 +81,6 @@ func OnTest(conn Connection, packet Packet) {
 [模拟一个简单的游戏应用场景的性能测试](https://github.com/fish-tennis/gnet/blob/main/example/server_test.go)
 
 ## 优化原理
-
-## 编译
-
-项目使用go.mod
-
-依赖项: google.golang.org/protobuf
-
-国内可以设置 GOPROXY=https://goproxy.cn
-
-无法下载google.golang.org/protobuf的解决方法:在Go的root目录,git clone https://github.com/protocolbuffers/protobuf-go.git,
-clone到GO的root目录/src/google.golang.org/protobuf
 
 ## 项目演示
 

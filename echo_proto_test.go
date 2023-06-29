@@ -9,7 +9,8 @@ import (
 	"time"
 )
 
-// 测试protobuf
+// show how to use protobuf
+//  测试protobuf
 func TestEchoProto(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -36,17 +37,22 @@ func TestEchoProto(t *testing.T) {
 	listenAddress := "127.0.0.1:10002"
 
 	serverCodec := NewProtoCodec(nil)
-	//serverCodec := NewXorProtoCodec([]byte("xor_test_key"), nil)
-	serverHandler := &echoProtoServerHandler{
-		DefaultConnectionHandler: *NewDefaultConnectionHandler(serverCodec),
-	}
+	serverHandler := NewDefaultConnectionHandler(serverCodec)
+	serverHandler.SetOnConnectedFunc(echoProtoOnConnected)
+	serverHandler.SetOnDisconnectedFunc(func(connection Connection) {
+		logger.Debug("%v %v %v", connection.LocalAddr(), connection.RemoteAddr(), connection.(*TcpConnection).GetSendPacketChanLen())
+	})
 	// 注册服务器的消息回调
 	serverHandler.Register(PacketCommand(pb.CmdTest_Cmd_HeartBeat), onHeartBeatReq, new(pb.HeartBeatReq))
 	serverHandler.Register(PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessageServer, new(pb.TestMessage))
+	serverHandler.SetUnRegisterHandler(func(connection Connection, packet *ProtoPacket) {
+		logger.Warn("%v", packet)
+	})
+	serverHandler.GetPacketHandler(PacketCommand(pb.CmdTest_Cmd_TestMessage))
 	if netMgr.NewListener(ctx, listenAddress, connectionConfig, serverCodec, serverHandler, nil) == nil {
 		panic("listen failed")
 	}
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond)
 
 	clientCodec := NewProtoCodec(nil)
 	//clientCodec := NewXorProtoCodec([]byte("xor_test_key"), nil)
@@ -69,12 +75,7 @@ func TestEchoProto(t *testing.T) {
 	netMgr.Shutdown(true)
 }
 
-// 服务端监听到的连接接口
-type echoProtoServerHandler struct {
-	DefaultConnectionHandler
-}
-
-func (e *echoProtoServerHandler) OnConnected(connection Connection, success bool) {
+func echoProtoOnConnected(connection Connection, success bool) {
 	logger.Debug(fmt.Sprintf("Server OnConnected %v %v", connection.GetConnectionId(), success))
 	if success {
 		// 开一个协程,服务器自动给客户端发消息
@@ -87,7 +88,7 @@ func (e *echoProtoServerHandler) OnConnected(connection Connection, success bool
 					Name: fmt.Sprintf("hello client %v", serialId),
 					I32:  int32(serialId),
 				})
-			connection.SendPacket(packet)
+			connection.TrySendPacket(packet, time.Second)
 		}
 		serialId++
 		// 测试没有注册proto.Message的消息

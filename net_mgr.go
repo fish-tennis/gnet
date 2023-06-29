@@ -6,30 +6,26 @@ import (
 	"sync"
 )
 
-// 网络管理类,提供对外接口
-type NetMgr struct {
+var (
+	// singleton
+	netMgr = &NetMgr{}
+)
 
-	// 监听对象管理
+// 网络管理类,提供对外接口
+//  manager class
+type NetMgr struct {
 	listenerMap     map[uint32]Listener
 	listenerMapLock sync.RWMutex
 
-	// 连接对象管理
 	connectorMap     map[uint32]Connection
 	connectorMapLock sync.RWMutex
 
-	// 初始化一次
 	initOnce sync.Once
-	// 管理协程的关闭
-	wg sync.WaitGroup
+	wg       sync.WaitGroup
 }
 
-var (
-	// singleton
-	netMgr = &NetMgr{
-	}
-)
-
 // 单例模式,在调用的时候才会执行初始化一次
+//  singleton mode, init once
 func GetNetMgr() *NetMgr {
 	netMgr.initOnce.Do(func() {
 		netMgr.init()
@@ -37,14 +33,13 @@ func GetNetMgr() *NetMgr {
 	return netMgr
 }
 
-// 初始化
 func (this *NetMgr) init() {
 	this.listenerMap = make(map[uint32]Listener)
 	this.connectorMap = make(map[uint32]Connection)
 	this.wg = sync.WaitGroup{}
 }
 
-// 新监听对象
+// create a new TcpListener
 func (this *NetMgr) NewListener(ctx context.Context, address string, acceptConnectionConfig ConnectionConfig, acceptConnectionCodec Codec,
 	acceptConnectionHandler ConnectionHandler, listenerHandler ListenerHandler) Listener {
 	return this.NewListenerCustom(ctx, address, acceptConnectionConfig, acceptConnectionCodec,
@@ -53,6 +48,7 @@ func (this *NetMgr) NewListener(ctx context.Context, address string, acceptConne
 		})
 }
 
+// create a new Listener, with custom acceptConnectionCreator
 func (this *NetMgr) NewListenerCustom(ctx context.Context, address string, acceptConnectionConfig ConnectionConfig, acceptConnectionCodec Codec,
 	acceptConnectionHandler ConnectionHandler, listenerHandler ListenerHandler, acceptConnectionCreator AcceptConnectionCreator) Listener {
 	newListener := NewTcpListener(acceptConnectionConfig, acceptConnectionCodec, acceptConnectionHandler, listenerHandler)
@@ -74,7 +70,7 @@ func (this *NetMgr) NewListenerCustom(ctx context.Context, address string, accep
 	return newListener
 }
 
-// 新连接对象
+// create a new TcpConnection
 func (this *NetMgr) NewConnector(ctx context.Context, address string, connectionConfig *ConnectionConfig,
 	codec Codec, handler ConnectionHandler, tag interface{}) Connection {
 	return this.NewConnectorCustom(ctx, address, connectionConfig, codec, handler, tag, func(_config *ConnectionConfig, _codec Codec, _handler ConnectionHandler) Connection {
@@ -82,6 +78,7 @@ func (this *NetMgr) NewConnector(ctx context.Context, address string, connection
 	})
 }
 
+// create a new Connection, with custom connectionCreator
 func (this *NetMgr) NewConnectorCustom(ctx context.Context, address string, connectionConfig *ConnectionConfig,
 	codec Codec, handler ConnectionHandler, tag interface{}, connectionCreator ConnectionCreator) Connection {
 	newConnector := connectionCreator(connectionConfig, codec, handler)
@@ -101,8 +98,8 @@ func (this *NetMgr) NewConnectorCustom(ctx context.Context, address string, conn
 	return newConnector
 }
 
-// 关闭
 // waitForAllNetGoroutine:是否阻塞等待所有网络协程结束
+//  waitForAllNetGoroutine: wait blocks until all goroutine end
 func (this *NetMgr) Shutdown(waitForAllNetGoroutine bool) {
 	logger.Debug("Shutdown %v", waitForAllNetGoroutine)
 	if waitForAllNetGoroutine {

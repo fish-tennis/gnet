@@ -10,22 +10,24 @@ import (
 	"time"
 )
 
+// tcp connection, use RingBuffer to optimize
 type TcpConnection struct {
 	baseConnection
 	conn net.Conn
 	// 读协程结束标记
+	// notify chan for read goroutine end
 	readStopNotifyChan chan struct{}
 	// 防止执行多次关闭操作
 	closeOnce sync.Once
-	// 关闭回调
+	// close callback
 	onClose func(connection Connection)
 	// 最近收到完整数据包的时间(时间戳:秒)
 	lastRecvPacketTick int64
 	// 发包缓存chan
 	sendPacketCache chan Packet
-	// 发包RingBuffer
+	// RingBuffer for send
 	sendBuffer *RingBuffer
-	// 收包RingBuffer
+	// RingBuffer for recv
 	recvBuffer *RingBuffer
 	// 解码时,用到的一些临时变量
 	tmpReadPacketHeader     PacketHeader
@@ -74,7 +76,6 @@ func createTcpConnection(config *ConnectionConfig, codec Codec, handler Connecti
 	return newConnection
 }
 
-// 连接
 func (this *TcpConnection) Connect(address string) bool {
 	conn, err := net.DialTimeout("tcp", address, time.Second)
 	if err != nil {
@@ -93,7 +94,7 @@ func (this *TcpConnection) Connect(address string) bool {
 	return true
 }
 
-// 开启读写协程
+// start read&write goroutine
 func (this *TcpConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onClose func(connection Connection)) {
 	this.onClose = onClose
 	// 开启收包协程
@@ -109,6 +110,7 @@ func (this *TcpConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, 
 		this.readLoop()
 		this.Close()
 		// 读协程结束了,通知写协程也结束
+		// when read goroutine end, notify write goroutine to exit
 		this.readStopNotifyChan <- struct{}{}
 	}()
 
@@ -127,7 +129,7 @@ func (this *TcpConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, 
 	}(ctx)
 }
 
-// 收包过程
+// read goroutine
 func (this *TcpConnection) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
@@ -155,7 +157,7 @@ func (this *TcpConnection) readLoop() {
 			break
 		}
 		//LogDebug("%v Read:%v", this.GetConnectionId(), n)
-		this.recvBuffer.SetWrited(n)
+		this.recvBuffer.SetWrote(n)
 		for this.IsConnected() {
 			newPacket, decodeError := this.codec.Decode(this, this.recvBuffer.ReadBuffer())
 			if decodeError != nil {
@@ -167,7 +169,7 @@ func (this *TcpConnection) readLoop() {
 			}
 			// 最近收到完整数据包的时间
 			// 有一种极端情况,网速太慢,即使没有掉线,也可能触发收包超时检测
-			this.lastRecvPacketTick = GetCurrentTimeStamp()
+			atomic.StoreInt64(&this.lastRecvPacketTick, GetCurrentTimeStamp())
 			if this.handler != nil {
 				this.handler.OnRecvPacket(this, newPacket)
 			}
@@ -176,7 +178,7 @@ func (this *TcpConnection) readLoop() {
 	logger.Debug("readLoop end %v", this.GetConnectionId())
 }
 
-// 发包过程
+// write goroutine
 func (this *TcpConnection) writeLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -246,9 +248,11 @@ func (this *TcpConnection) writePacket(packet Packet) (delaySendDecodePacketData
 	}
 	packetCount := len(this.sendPacketCache)
 	// 还有其他数据包在chan里,就进行批量合并
+	// batch write to RingBuffer
 	if packetCount > 0 {
 		for i := 0; i < packetCount; i++ {
 			// 这里不会阻塞
+			// not block here
 			newPacket, ok := <-this.sendPacketCache
 			if !ok {
 				logger.Error("newPacket==nil %v", this.GetConnectionId())
@@ -258,6 +262,7 @@ func (this *TcpConnection) writePacket(packet Packet) (delaySendDecodePacketData
 			// 数据包编码
 			delaySendDecodePacketData = this.codec.Encode(this, newPacket)
 			if len(delaySendDecodePacketData) > 0 {
+				// if the RingBuffer is full, leave the rest packet to process later
 				logger.Debug("%v sendBuffer is full delaySize:%v", this.GetConnectionId(), len(delaySendDecodePacketData))
 				break
 			}
@@ -271,6 +276,7 @@ func (this *TcpConnection) sendEncodedBuffer(delaySendDecodePacketData []byte) e
 		return nil
 	}
 	// 可读数据有可能分别存在数组的尾部和头部,所以需要循环发送,有可能需要发送多次
+	// the data may be separate at tail and head of the RingBuffer, so we need to send loop
 	for this.IsConnected() && this.sendBuffer.UnReadLength() > 0 {
 		if this.config.WriteTimeout > 0 {
 			setTimeoutErr := this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout) * time.Second))
@@ -282,34 +288,29 @@ func (this *TcpConnection) sendEncodedBuffer(delaySendDecodePacketData []byte) e
 			}
 		}
 		readBuffer := this.sendBuffer.ReadBuffer()
-		//LogDebug("readBuffer:%v", readBuffer)
-		//LogDebug("%v readBuffer:%v", this.GetConnectionId(), len(readBuffer))
 		writeCount, err := this.conn.Write(readBuffer)
 		if err != nil {
-			// ...
 			logger.Debug("%v write Err:%v", this.GetConnectionId(), err.Error())
 			return err
 		}
 		this.sendBuffer.SetReaded(writeCount)
-		//LogDebug("%v send:%v unread:%v", this.GetConnectionId(), writeCount, sendBuffer.UnReadLength())
 		if len(delaySendDecodePacketData) > 0 {
 			wroteLen, _ := this.sendBuffer.Write(delaySendDecodePacketData)
 			// 这里不一定能全部写完
 			if wroteLen < len(delaySendDecodePacketData) {
 				delaySendDecodePacketData = delaySendDecodePacketData[wroteLen:]
-				logger.Debug("%v write delaybuffer :%v", this.GetConnectionId(), wroteLen)
+				logger.Debug("%v write delay buffer :%v", this.GetConnectionId(), wroteLen)
 			} else {
 				delaySendDecodePacketData = nil
 			}
 		}
-		//LogDebug("%v write count:%v unread:%v", this.GetConnectionId(), writeCount, sendBuffer.UnReadLength())
 	}
 	return nil
 }
 
 func (this *TcpConnection) checkRecvTimeout(recvTimeoutTimer *time.Timer) bool {
 	if this.config.RecvTimeout > 0 {
-		nextTimeoutTime := int64(this.config.RecvTimeout) + this.lastRecvPacketTick - GetCurrentTimeStamp()
+		nextTimeoutTime := int64(this.config.RecvTimeout) + atomic.LoadInt64(&this.lastRecvPacketTick) - GetCurrentTimeStamp()
 		if nextTimeoutTime > 0 {
 			if nextTimeoutTime > int64(this.config.RecvTimeout) {
 				nextTimeoutTime = int64(this.config.RecvTimeout)
@@ -335,7 +336,6 @@ func (this *TcpConnection) onHeartBeatTimeUp(heartBeatTimer *time.Timer) (delayS
 	return
 }
 
-// 关闭
 func (this *TcpConnection) Close() {
 	this.closeOnce.Do(func() {
 		atomic.StoreInt32(&this.isConnected, 0)
@@ -356,6 +356,7 @@ func (this *TcpConnection) Close() {
 
 // 异步发送proto包
 // NOTE:调用Send(command,message)之后,不要再对message进行读写!
+//  asynchronous send (write to chan, not send immediately)
 func (this *TcpConnection) Send(command PacketCommand, message proto.Message) bool {
 	if !this.IsConnected() {
 		return false
@@ -368,6 +369,7 @@ func (this *TcpConnection) Send(command PacketCommand, message proto.Message) bo
 
 // 异步发送数据
 // NOTE:调用SendPacket(packet)之后,不要再对packet进行读写!
+//  asynchronous send (write to chan, not send immediately)
 func (this *TcpConnection) SendPacket(packet Packet) bool {
 	if !this.IsConnected() {
 		return false
@@ -379,6 +381,8 @@ func (this *TcpConnection) SendPacket(packet Packet) bool {
 
 // 超时发包,超时未发送则丢弃,适用于某些允许丢弃的数据包
 // 可以防止某些"不重要的"数据包造成chan阻塞,比如游戏项目常见的聊天广播
+//  asynchronous send with timeout (write to chan, not send immediately)
+//  if return false, means not write to chan
 func (this *TcpConnection) TrySendPacket(packet Packet, timeout time.Duration) bool {
 	if timeout == 0 {
 		// 非阻塞方式写chan

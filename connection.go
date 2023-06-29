@@ -9,35 +9,42 @@ import (
 	"time"
 )
 
-// 连接接口定义
+var (
+	_connectionIdCounter uint32 = 0
+)
+
+// interface for Connection
 type Connection interface {
-	// 连接唯一id
+	// unique id
 	GetConnectionId() uint32
 
-	// 是否是发起连接的一方
+	// is connector
 	IsConnector() bool
 
-	// 发包(protobuf)
-	// NOTE:调用Send(command,message)之后,不要再对message进行读写!
+	// send a packet(proto.Message)
+	//  NOTE: 调用Send(command,message)之后,不要再对message进行读写!
+	//  NOTE: do not read or modify message after call Send
 	Send(command PacketCommand, message proto.Message) bool
 
-	// 发包
-	// NOTE:调用SendPacket(packet)之后,不要再对packet进行读写!
+	// send a packet(Packet)
+	//  NOTE:调用SendPacket(packet)之后,不要再对packet进行读写!
+	//  NOTE: do not read or modify Packet after call SendPacket
 	SendPacket(packet Packet) bool
 
 	// 超时发包,超时未发送则丢弃,适用于某些允许丢弃的数据包
+	// try send a packet with timeout
 	TrySendPacket(packet Packet, timeout time.Duration) bool
 
-	// 是否连接成功
+	// is connected
 	IsConnected() bool
 
-	// 获取编解码接口
+	// codec for this connection
 	GetCodec() Codec
 
-	// 设置编解码接口
+	// set codec
 	SetCodec(codec Codec)
 
-	// 获取回调接口
+	// handler for this connection
 	GetHandler() ConnectionHandler
 
 	// LocalAddr returns the local network address.
@@ -46,62 +53,80 @@ type Connection interface {
 	// RemoteAddr returns the remote network address.
 	RemoteAddr() net.Addr
 
-	// 关闭连接
+	// close this connection
 	Close()
 
 	// 获取关联数据
+	// get the associated tag
 	GetTag() interface{}
 
 	// 设置关联数据
+	// set the associated tag
 	SetTag(tag interface{})
 
-	// 连接目标地址
+	// connect to target server
+	//  address format ip:port
 	Connect(address string) bool
 
 	// 开启读写协程
+	// start the read&write goroutine
 	Start(ctx context.Context, netMgrWg *sync.WaitGroup, onClose func(connection Connection))
 }
 
-// 连接设置
+// connection options
 type ConnectionConfig struct {
 	// 发包缓存chan大小(缓存数据包chan容量)
+	// capacity for send packet chan
 	SendPacketCacheCap uint32
+
 	// 发包Buffer大小(byte)
+	// size of send RingBuffer (byte)
 	SendBufferSize uint32
+
 	// 收包Buffer大小(byte)
+	// size of recv RingBuffer (byte)
 	RecvBufferSize uint32
+
 	// 最大包体大小设置(byte),不包含PacketHeader
 	// 允许该值大于SendBufferSize和RecvBufferSize
+	//  max size of packet (byte), not include PacketHeader's size
+	//  allow MaxPacketSize lager than SendBufferSize and RecvBufferSize
 	MaxPacketSize uint32
+
 	// 收包超时设置(秒)
+	//  if the connection dont recv packet for RecvTimeout seconds,the connection will close
+	//  if RecvTimeout is zero,it will not check timeout
 	RecvTimeout uint32
+
 	// 心跳包发送间隔(秒),对connector有效
+	//  heartbeat packet sending interval(seconds)
+	//  only valid for connector
 	HeartBeatInterval uint32
+
 	// 发包超时设置(秒)
-	// net.Conn.SetWriteDeadline
+	//  net.Conn.SetWriteDeadline
 	WriteTimeout uint32
-	// TODO:其他流量控制设置
 }
 
-// 连接
 type baseConnection struct {
-	// 连接唯一id
+	// unique id
 	connectionId uint32
-	// 连接设置
+	// options
 	config *ConnectionConfig
-	// 是否是连接方
+	// is connector
 	isConnector bool
-	// 是否连接成功
+	// is connected
 	isConnected int32
-	// 接口
+	// handler
 	handler ConnectionHandler
 	// 编解码接口
 	codec Codec
 	// 关联数据
+	//  the associated tag
 	tag interface{}
 }
 
-// 连接唯一id
+// unique id
 func (this *baseConnection) GetConnectionId() uint32 {
 	return this.connectionId
 }
@@ -110,27 +135,26 @@ func (this *baseConnection) IsConnector() bool {
 	return this.isConnector
 }
 
-// 是否连接成功
 func (this *baseConnection) IsConnected() bool {
 	return atomic.LoadInt32(&this.isConnected) > 0
 }
 
-// 获取编解码接口
 func (this *baseConnection) GetCodec() Codec {
 	return this.codec
 }
 
-// 设置编解码接口
 func (this *baseConnection) SetCodec(codec Codec) {
 	this.codec = codec
 }
 
 // 获取关联数据
+//  get the associated tag
 func (this *baseConnection) GetTag() interface{} {
 	return this.tag
 }
 
 // 设置关联数据
+//  set the associated tag
 func (this *baseConnection) SetTag(tag interface{}) {
 	this.tag = tag
 }
@@ -138,10 +162,6 @@ func (this *baseConnection) SetTag(tag interface{}) {
 func (this *baseConnection) GetHandler() ConnectionHandler {
 	return this.handler
 }
-
-var (
-	_connectionIdCounter uint32 = 0
-)
 
 func NewConnectionId() uint32 {
 	return atomic.AddUint32(&_connectionIdCounter, 1)

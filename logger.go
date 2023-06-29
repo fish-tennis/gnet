@@ -7,7 +7,16 @@ import (
 	"runtime"
 )
 
+var (
+	// 默认使用系统库的log接口
+	//  default logger
+	logger = NewStdLogger(2)
+	// default InfoLevel
+	logLevel = InfoLevel
+)
+
 // 日志级别,参考zap
+//  log level
 const (
 	DebugLevel int8 = iota - 1
 	InfoLevel
@@ -61,13 +70,6 @@ func NewStdLogger(callDepth int) Logger {
 		callDepth: callDepth,
 	}
 }
-
-var (
-	// 默认使用系统库的log接口
-	logger = NewStdLogger(2)
-	// 默认InfoLevel
-	logLevel = InfoLevel
-)
 
 func GetLogger() Logger {
 	return logger

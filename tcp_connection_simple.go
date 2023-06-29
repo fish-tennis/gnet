@@ -12,14 +12,15 @@ import (
 
 // 不使用RingBuffer的TcpConnection
 // 需要搭配对应的codec
+//  TcpConnection without RingBuffer
 type TcpConnectionSimple struct {
 	baseConnection
 	conn net.Conn
 	// 读协程结束标记
+	// notify chan for read goroutine end
 	readStopNotifyChan chan struct{}
-	// 防止执行多次关闭操作
-	closeOnce sync.Once
-	// 关闭回调
+	closeOnce          sync.Once
+	// close callback
 	onClose func(connection Connection)
 	// 最近收到完整数据包的时间(时间戳:秒)
 	lastRecvPacketTick int64
@@ -55,7 +56,6 @@ func createTcpConnectionSimple(config *ConnectionConfig, codec Codec, handler Co
 	return newConnection
 }
 
-// 连接
 func (this *TcpConnectionSimple) Connect(address string) bool {
 	conn, err := net.DialTimeout("tcp", address, time.Second)
 	if err != nil {
@@ -74,7 +74,7 @@ func (this *TcpConnectionSimple) Connect(address string) bool {
 	return true
 }
 
-// 开启读写协程
+// start read&write goroutine
 func (this *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onClose func(connection Connection)) {
 	this.onClose = onClose
 	// 开启收包协程
@@ -90,6 +90,7 @@ func (this *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitG
 		this.readLoop()
 		this.Close()
 		// 读协程结束了,通知写协程也结束
+		// when read goroutine end, notify write goroutine to exit
 		this.readStopNotifyChan <- struct{}{}
 	}()
 
@@ -108,7 +109,7 @@ func (this *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitG
 	}(ctx)
 }
 
-// 收包过程
+// read goroutine
 func (this *TcpConnectionSimple) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
@@ -120,6 +121,7 @@ func (this *TcpConnectionSimple) readLoop() {
 	logger.Debug("readLoop begin %v", this.GetConnectionId())
 	for this.IsConnected() {
 		// 先读取消息头
+		// read packet header first
 		messageHeaderData := make([]byte, this.codec.PacketHeaderSize())
 		readHeaderSize, err := io.ReadFull(this.conn, messageHeaderData)
 		if err != nil {
@@ -138,6 +140,7 @@ func (this *TcpConnectionSimple) readLoop() {
 		copy(fullPacketData, messageHeaderData)
 		if packetDataLen > 0 {
 			// 读取消息体
+			// read packet body
 			readDataSize, err := io.ReadFull(this.conn, fullPacketData[readHeaderSize:])
 			if err != nil {
 				if err != io.EOF {
@@ -166,7 +169,7 @@ func (this *TcpConnectionSimple) readLoop() {
 	logger.Debug("readLoop end %v", this.GetConnectionId())
 }
 
-// 发包过程
+// write goroutine
 func (this *TcpConnectionSimple) writeLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -295,7 +298,6 @@ func (this *TcpConnectionSimple) onHeartBeatTimeUp(heartBeatTimer *time.Timer) b
 	return true
 }
 
-// 关闭
 func (this *TcpConnectionSimple) Close() {
 	this.closeOnce.Do(func() {
 		atomic.StoreInt32(&this.isConnected, 0)
@@ -315,6 +317,7 @@ func (this *TcpConnectionSimple) Close() {
 
 // 异步发送proto包
 // NOTE:调用Send(command,message)之后,不要再对message进行读写!
+//  asynchronous send (write to chan, not send immediately)
 func (this *TcpConnectionSimple) Send(command PacketCommand, message proto.Message) bool {
 	if !this.IsConnected() {
 		return false
@@ -327,6 +330,7 @@ func (this *TcpConnectionSimple) Send(command PacketCommand, message proto.Messa
 
 // 异步发送数据
 // NOTE:调用SendPacket(packet)之后,不要再对packet进行读写!
+//  asynchronous send (write to chan, not send immediately)
 func (this *TcpConnectionSimple) SendPacket(packet Packet) bool {
 	if !this.IsConnected() {
 		return false
@@ -338,6 +342,8 @@ func (this *TcpConnectionSimple) SendPacket(packet Packet) bool {
 
 // 超时发包,超时未发送则丢弃,适用于某些允许丢弃的数据包
 // 可以防止某些"不重要的"数据包造成chan阻塞,比如游戏项目常见的聊天广播
+//  asynchronous send with timeout (write to chan, not send immediately)
+//  if return false, means not write to chan
 func (this *TcpConnectionSimple) TrySendPacket(packet Packet, timeout time.Duration) bool {
 	if timeout == 0 {
 		// 非阻塞方式写chan

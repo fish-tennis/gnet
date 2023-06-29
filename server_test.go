@@ -13,9 +13,18 @@ import (
 var (
 	// 统计收包数据
 	// 因为数据包内容是固定的,所以单位时间内的收包数量就能体现网络性能
-	serverRecvPacketCount int64 = 0
-	clientRecvPacketCount int64 = 0
+	_serverRecvPacketCount int64 = 0
+	_clientRecvPacketCount int64 = 0
 )
+
+// simulated a game application scenario
+//  start a server and N clients
+//  server side:
+//   1.when a new client connects, 30 data packets are sent to the client.
+//   2.when the server receives data packets from the client, it sends four data packets as replies.
+//  client side:
+//   when receiving a reply packet from the server, send a packet to the server to simulate a client interaction request
+//  Performance indicator: The number of packets sent and received by the server and client within the specified time frame
 
 // 模拟的应用场景:
 // 开启一个服务器和N个客户端
@@ -26,7 +35,6 @@ var (
 //   当收到服务器回复的数据包时,向服务器发送一条数据包,模拟一次客户端交互请求
 //
 // 性能指标:指定的时间内,服务器和客户端的收发包数量
-
 func TestTestServer(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -41,7 +49,7 @@ func TestTestServer(t *testing.T) {
 		// 模拟客户端数量
 		clientCount = 100
 		// 测试程序运行多长时间
-		testTime = time.Minute
+		testTime = time.Second * 10
 		// 监听地址
 		listenAddress = "127.0.0.1:10002"
 	)
@@ -54,11 +62,12 @@ func TestTestServer(t *testing.T) {
 	connectionConfig := ConnectionConfig{
 		SendPacketCacheCap: 32,
 		// 因为测试的数据包比较小,所以这里也设置的不大
-		SendBufferSize: 1024,
-		RecvBufferSize: 1024,
-		MaxPacketSize:  1024,
-		RecvTimeout:    0,
-		WriteTimeout:   0,
+		SendBufferSize:    1024,
+		RecvBufferSize:    1024,
+		MaxPacketSize:     1024,
+		RecvTimeout:       3,
+		WriteTimeout:      0,
+		HeartBeatInterval: 3,
 	}
 
 	protoMap := make(map[PacketCommand]reflect.Type)
@@ -75,7 +84,7 @@ func TestTestServer(t *testing.T) {
 	netMgr.Shutdown(true)
 
 	println("*********************************************************")
-	println(fmt.Sprintf("serverRecv:%v clientRecv:%v", serverRecvPacketCount, clientRecvPacketCount))
+	println(fmt.Sprintf("serverRecv:%v clientRecv:%v", _serverRecvPacketCount, _clientRecvPacketCount))
 	println("*********************************************************")
 }
 
@@ -121,7 +130,7 @@ func (t *testServerClientHandler) OnDisconnected(connection Connection) {
 }
 
 func (t *testServerClientHandler) OnRecvPacket(connection Connection, packet Packet) {
-	atomic.AddInt64(&serverRecvPacketCount, 1)
+	atomic.AddInt64(&_serverRecvPacketCount, 1)
 	// 收到客户端的消息,服务器给客户端回4个消息
 	// 因为游戏的特点是:服务器下传数据比客户端上传数据要多
 	for i := 0; i < 3; i++ {
@@ -155,7 +164,7 @@ func (t *testClientHandler) OnDisconnected(connection Connection) {
 }
 
 func (t *testClientHandler) OnRecvPacket(connection Connection, packet Packet) {
-	atomic.AddInt64(&clientRecvPacketCount, 1)
+	atomic.AddInt64(&_clientRecvPacketCount, 1)
 	protoPacket := packet.(*ProtoPacket)
 	recvMessage := protoPacket.Message().(*pb.TestMessage)
 	if recvMessage.GetName() == "response" {

@@ -44,6 +44,9 @@ func TestPacketSize(t *testing.T) {
 	if clientConnector == nil {
 		panic("connect failed")
 	}
+	clientConnector.SetTag("testTag")
+	t.Logf("%v", clientConnector.GetCodec())
+	t.Logf("%v", clientConnector.GetTag())
 
 	go func() {
 		for i := 0; i < 100; i++ {
@@ -58,6 +61,10 @@ func TestPacketSize(t *testing.T) {
 			logger.Info("send%v:%s", testMessage.I32, testMessage.Name)
 			clientConnector.Send(123, testMessage)
 		}
+		testMessage := &pb.TestMessage{
+			I32List: make([]int32, connectionConfig.MaxPacketSize/4+1),
+		}
+		clientConnector.Send(123, testMessage)
 	}()
 
 	GetNetMgr().Shutdown(true)

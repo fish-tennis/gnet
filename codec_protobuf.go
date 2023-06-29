@@ -6,24 +6,26 @@ import (
 	"reflect"
 )
 
-// proto.Message构造函数
+// proto.Message ctor func
 type ProtoMessageCreator func() proto.Message
 
 type ProtoRegister interface {
 	Register(command PacketCommand, protoMessage proto.Message)
 }
 
-// proto.Message编解码
+// codec for proto.Message
 type ProtoCodec struct {
 	RingBufferCodec
 
 	// 在proto序列化后的数据,再做一层编码
+	// encoder after proto.Message serialize
 	ProtoPacketBytesEncoder func(protoPacketBytes [][]byte) [][]byte
 
 	// 在proto反序列化之前,先做一层解码
+	// decoder before proto.Message deserialize
 	ProtoPacketBytesDecoder func(packetData []byte) []byte
 
-	// 消息号和proto.Message构造函数的映射表
+	// 消息号和proto.Message type的映射表
 	MessageCreatorMap map[PacketCommand]reflect.Type
 }
 
@@ -40,7 +42,8 @@ func NewProtoCodec(protoMessageTypeMap map[PacketCommand]reflect.Type) *ProtoCod
 	return codec
 }
 
-// 注册消息
+// 注册消息和proto.Message的映射
+//  protoMessage can be nil
 func (this *ProtoCodec) Register(command PacketCommand, protoMessage proto.Message) {
 	if protoMessage == nil {
 		this.MessageCreatorMap[command] = nil
@@ -52,6 +55,7 @@ func (this *ProtoCodec) Register(command PacketCommand, protoMessage proto.Messa
 func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]byte {
 	protoMessage := packet.Message()
 	// 先写入消息号
+	// write PacketCommand
 	commandBytes := make([]byte, 2)
 	binary.LittleEndian.PutUint16(commandBytes, uint16(packet.Command()))
 	var messageBytes []byte
@@ -64,22 +68,21 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]b
 		}
 	} else {
 		// 支持提前序列化好的数据
+		// support direct encoded data from application layer
 		messageBytes = packet.GetStreamData()
 	}
 	// 这里可以继续对messageBytes进行编码,如异或,加密,压缩等
+	// you can continue to encode messageBytes here, such as XOR, encryption, compression, etc
 	if this.ProtoPacketBytesEncoder != nil {
 		return this.ProtoPacketBytesEncoder([][]byte{commandBytes, messageBytes})
 	}
 	return [][]byte{commandBytes, messageBytes}
-	//fullData := make([]byte, len(commandBytes)+len(messageBytes))
-	//n := copy(fullData, commandBytes)
-	//copy(fullData[n:], messageBytes)
-	//return fullData
 }
 
 func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketHeader, packetData []byte) Packet {
 	decodedPacketData := packetData
 	// Q:这里可以对packetData进行解码,如异或,解密,解压等
+	// you can decode packetData here, such as XOR, encryption, compression, etc
 	if this.ProtoPacketBytesDecoder != nil {
 		decodedPacketData = this.ProtoPacketBytesDecoder(packetData)
 	}
@@ -101,12 +104,13 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 			}
 		} else {
 			// 支持只注册了消息号,没注册proto结构体的用法
+			// support Register(command, nil), return the direct stream data to application layer
 			return &ProtoPacket{
 				command: PacketCommand(command),
 				data:    decodedPacketData[2:],
 			}
 		}
 	}
-	logger.Error("unsupport command:%v", command)
+	logger.Error("unSupport command:%v", command)
 	return nil
 }

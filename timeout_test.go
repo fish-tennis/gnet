@@ -37,6 +37,7 @@ func TestTimeout(t *testing.T) {
 	codec := NewDefaultCodec()
 	listener := netMgr.NewListener(ctx, listenAddress, connectionConfig, codec, &DefaultConnectionHandler{}, &echoListenerHandler{})
 	time.Sleep(time.Second)
+	logger.Debug("%v", listener.Addr())
 
 	connectorConnectionConfig := ConnectionConfig{
 		SendPacketCacheCap: 100,
@@ -49,16 +50,21 @@ func TestTimeout(t *testing.T) {
 	}
 	var connectors []Connection
 	for i := 0; i < 10; i++ {
-		conn := netMgr.NewConnector(ctx, listenAddress, &connectorConnectionConfig, codec, &DefaultConnectionHandler{}, nil)
+		conn := netMgr.NewConnectorCustom(ctx, listenAddress, &connectorConnectionConfig, codec,
+			&DefaultConnectionHandler{}, nil, func(config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection {
+				return NewTcpConnectionSimple(config, codec, handler)
+			})
 		connectors = append(connectors, conn)
 	}
 
 	time.Sleep(time.Second)
+	listener.Broadcast(NewDataPacket([]byte("test")))
 	for _, conn := range connectors {
 		conn.Close()
 	}
 
 	time.Sleep(5 * time.Second)
+	listener.GetConnection(1)
 	listener.Close()
 
 	netMgr.Shutdown(true)
