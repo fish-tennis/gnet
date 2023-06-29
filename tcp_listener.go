@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -23,7 +24,7 @@ type TcpListener struct {
 	connectionMap     map[uint32]Connection
 	connectionMapLock sync.RWMutex
 
-	isRunning bool
+	isRunning int32
 	// 防止执行多次关闭操作
 	closeOnce sync.Once
 	// 关闭回调
@@ -78,7 +79,7 @@ func (this *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 	logger.Debug("TcpListener Start %v", this.GetListenerId())
 
 	// 监听协程
-	this.isRunning = true
+	atomic.StoreInt32(&this.isRunning, 1)
 	this.netMgrWg.Add(1)
 	go func(ctx context.Context) {
 		defer this.netMgrWg.Done()
@@ -91,7 +92,7 @@ func (this *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 	this.netMgrWg.Add(1)
 	go func() {
 		defer this.netMgrWg.Done()
-		for this.isRunning {
+		for this.IsRunning() {
 			select {
 			// 关闭通知
 			case <-ctx.Done():
@@ -113,7 +114,7 @@ func (this *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 // 关闭监听,并关闭管理的连接
 func (this *TcpListener) Close() {
 	this.closeOnce.Do(func() {
-		this.isRunning = false
+		atomic.StoreInt32(&this.isRunning, 0)
 		if this.netListener != nil {
 			this.netListener.Close()
 		}
@@ -133,6 +134,10 @@ func (this *TcpListener) Close() {
 	})
 }
 
+func (this *TcpListener) IsRunning() bool {
+	return atomic.LoadInt32(&this.isRunning) > 0
+}
+
 // accept协程
 func (this *TcpListener) acceptLoop(ctx context.Context) {
 	defer func() {
@@ -142,7 +147,7 @@ func (this *TcpListener) acceptLoop(ctx context.Context) {
 		}
 	}()
 
-	for this.isRunning {
+	for this.IsRunning() {
 		// 阻塞accept,当netListener关闭时,会返回err
 		newConn, err := this.netListener.Accept()
 		if err != nil {
