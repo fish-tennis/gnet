@@ -24,6 +24,7 @@ func TestTimeout(t *testing.T) {
 	netMgr := GetNetMgr()
 	acceptConnectionConfig := ConnectionConfig{
 		SendPacketCacheCap: 100,
+		MaxPacketSize:      1024,
 		SendBufferSize:     60,
 		RecvBufferSize:     60,
 		RecvTimeout:        5,
@@ -38,7 +39,6 @@ func TestTimeout(t *testing.T) {
 
 	connectorConnectionConfig := ConnectionConfig{
 		SendPacketCacheCap: 100,
-		MaxPacketSize:      1024,
 		RecvTimeout:        3,
 		HeartBeatInterval:  0,
 		WriteTimeout:       1,
