@@ -118,7 +118,7 @@ func (this *TcpConnectionSimple) readLoop() {
 		}
 	}()
 
-	logger.Debug("readLoop begin %v", this.GetConnectionId())
+	logger.Debug("readLoop begin %v isConnector:%v", this.GetConnectionId(), this.IsConnector())
 	for this.IsConnected() {
 		// 先读取消息头
 		// read packet header first
@@ -166,7 +166,7 @@ func (this *TcpConnectionSimple) readLoop() {
 			this.handler.OnRecvPacket(this, newPacket)
 		}
 	}
-	logger.Debug("readLoop end %v", this.GetConnectionId())
+	logger.Debug("readLoop end %v IsConnector:%v", this.GetConnectionId(), this.IsConnector())
 }
 
 // write goroutine
@@ -174,12 +174,12 @@ func (this *TcpConnectionSimple) writeLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
 			logger.Error("writeLoop fatal %v: %v", this.GetConnectionId(), err.(error))
-			//LogStack()
+			LogStack()
 		}
-		logger.Debug("writeLoop end %v", this.GetConnectionId())
+		logger.Debug("writeLoop end %v IsConnector:%v", this.GetConnectionId(), this.IsConnector())
 	}()
 
-	logger.Debug("writeLoop begin %v", this.GetConnectionId())
+	logger.Debug("writeLoop begin %v isConnector:%v", this.GetConnectionId(), this.IsConnector())
 	// 收包超时计时,用于检测掉线
 	recvTimeoutTimer := time.NewTimer(time.Second * time.Duration(this.config.RecvTimeout))
 	defer recvTimeoutTimer.Stop()
@@ -217,6 +217,7 @@ func (this *TcpConnectionSimple) writeLoop(ctx context.Context) {
 			return
 		}
 	}
+	logger.Debug("writeLoop end %v isConnector:%v", this.GetConnectionId(), this.IsConnector())
 }
 
 func (this *TcpConnectionSimple) writePacket(packet Packet) bool {
@@ -303,7 +304,6 @@ func (this *TcpConnectionSimple) Close() {
 		atomic.StoreInt32(&this.isConnected, 0)
 		if this.conn != nil {
 			this.conn.Close()
-			logger.Debug("close %v", this.GetConnectionId())
 			//this.conn = nil
 		}
 		if this.handler != nil {

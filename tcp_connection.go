@@ -339,10 +339,8 @@ func (this *TcpConnection) onHeartBeatTimeUp(heartBeatTimer *time.Timer) (delayS
 func (this *TcpConnection) Close() {
 	this.closeOnce.Do(func() {
 		atomic.StoreInt32(&this.isConnected, 0)
-		logger.Debug("%v isConnected:%v", this.GetConnectionId(), this.isConnected)
 		if this.conn != nil {
 			this.conn.Close()
-			logger.Debug("close %v %v", this.GetConnectionId(), this.IsConnector())
 			//this.conn = nil
 		}
 		if this.handler != nil {

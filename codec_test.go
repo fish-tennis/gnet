@@ -48,3 +48,15 @@ func TestPacket(t *testing.T) {
 	t.Log(header.Len())
 	t.Log(header.Flags())
 }
+
+func TestLogger(t *testing.T) {
+	SetLogger(GetLogger(), DebugLevel)
+	for level := DebugLevel; level <= ErrorLevel; level++ {
+		SetLogLevel(level)
+		logger.Debug("debug")
+		logger.Info("info")
+		logger.Warn("warn")
+		logger.Error("error")
+	}
+	LogStack()
+}

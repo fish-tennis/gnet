@@ -48,11 +48,11 @@ type echoListenerHandler struct {
 }
 
 func (e *echoListenerHandler) OnConnectionConnected(listener Listener, connection Connection) {
-	logger.Debug(fmt.Sprintf("OnConnectionConnected %v", connection.GetConnectionId()))
+	logger.Debug(fmt.Sprintf("OnConnectionConnected %v IsConnector:%v", connection.GetConnectionId(), connection.IsConnector()))
 }
 
 func (e *echoListenerHandler) OnConnectionDisconnect(listener Listener, connection Connection) {
-	logger.Debug(fmt.Sprintf("OnConnectionDisconnect %v", connection.GetConnectionId()))
+	logger.Debug(fmt.Sprintf("OnConnectionDisconnect %v IsConnector:%v", connection.GetConnectionId(), connection.IsConnector()))
 }
 
 // 服务端监听到的连接接口
