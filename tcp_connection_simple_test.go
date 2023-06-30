@@ -72,6 +72,7 @@ func TestTcpConnectionSimple(t *testing.T) {
 		tcpConnectionSimple := conn.(*TcpConnectionSimple)
 		logger.Debug("%v %v %v %v", tcpConnectionSimple.GetConnectionId(), tcpConnectionSimple.LocalAddr(), tcpConnectionSimple.RemoteAddr(), tcpConnectionSimple.GetSendPacketChanLen())
 		conn.TrySendPacket(NewProtoPacketWithData(10086, []byte("try test")), time.Millisecond)
+		conn.TrySendPacket(NewProtoPacketWithData(10086, []byte("try test 0")), 0)
 		conn.Send(PacketCommand(pb.CmdTest_Cmd_TestMessage), &pb.TestMessage{})
 		return true
 	})
