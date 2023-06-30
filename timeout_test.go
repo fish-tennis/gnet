@@ -2,6 +2,7 @@ package gnet
 
 import (
 	"context"
+	"github.com/fish-tennis/gnet/example/pb"
 	_ "net/http/pprof"
 	"testing"
 	"time"
@@ -46,9 +47,8 @@ func TestTimeout(t *testing.T) {
 	netMgr.NewConnector(ctx, "127.0.0.1:10086", &connectorConnectionConfig, codec,
 		&DefaultConnectionHandler{}, nil)
 	for i := 0; i < 10; i++ {
-		conn := netMgr.NewConnector(ctx, listenAddress, &connectorConnectionConfig, codec,
+		netMgr.NewConnector(ctx, listenAddress, &connectorConnectionConfig, codec,
 			&DefaultConnectionHandler{}, nil)
-		logger.Debug("%v %v", conn.(*TcpConnection).GetSendBuffer(), conn.(*TcpConnection).GetRecvBuffer())
 	}
 
 	time.Sleep(time.Second)
@@ -61,6 +61,12 @@ func TestTimeout(t *testing.T) {
 
 	time.Sleep(7 * time.Second)
 	listener.GetConnection(1)
+	// test a wrong packet
+	listener.(*TcpListener).RangeConnections(func(conn Connection) bool {
+		conn.SendPacket(NewProtoPacket(10086, new(pb.TestMessage)))
+		return false
+	})
+	time.Sleep(1 * time.Second)
 	listener.Close()
 
 	netMgr.Shutdown(true)

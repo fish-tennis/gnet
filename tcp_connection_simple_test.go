@@ -78,6 +78,12 @@ func TestTcpConnectionSimple(t *testing.T) {
 
 	time.Sleep(7 * time.Second)
 	listener.GetConnection(1)
+	// test a wrong packet
+	listener.(*TcpListener).RangeConnections(func(conn Connection) bool {
+		conn.SendPacket(NewDataPacket([]byte("wrong packet test")))
+		return false
+	})
+	time.Sleep(1 * time.Second)
 	listener.Close()
 
 	netMgr.Shutdown(true)
