@@ -61,12 +61,25 @@ func (this *TcpListener) GetConnection(connectionId uint32) Connection {
 //  broadcast packet to accepted connections
 func (this *TcpListener) Broadcast(packet Packet) {
 	this.connectionMapLock.RLock()
+	defer this.connectionMapLock.RUnlock()
 	for _, conn := range this.connectionMap {
 		if conn.IsConnected() {
 			conn.SendPacket(packet.Clone())
 		}
 	}
-	this.connectionMapLock.RUnlock()
+}
+
+//  range for accepted connections
+func (this *TcpListener) RangeConnections(f func(conn Connection) bool) {
+	this.connectionMapLock.RLock()
+	defer this.connectionMapLock.RUnlock()
+	for _, conn := range this.connectionMap {
+		if conn.IsConnected() {
+			if !f(conn) {
+				return
+			}
+		}
+	}
 }
 
 // start goroutine

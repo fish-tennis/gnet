@@ -2,6 +2,8 @@ package gnet
 
 import (
 	"context"
+	"github.com/fish-tennis/gnet/example/pb"
+	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"testing"
@@ -35,7 +37,10 @@ func TestTimeout(t *testing.T) {
 	}
 	listenAddress := "127.0.0.1:10002"
 	codec := NewDefaultCodec()
-	listener := netMgr.NewListener(ctx, listenAddress, connectionConfig, codec, &DefaultConnectionHandler{}, &echoListenerHandler{})
+	listener := netMgr.NewListenerCustom(ctx, listenAddress, connectionConfig, codec, &DefaultConnectionHandler{}, &echoListenerHandler{},
+		func(conn net.Conn, config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection {
+			return NewTcpConnectionSimple(config, codec, handler)
+		})
 	time.Sleep(time.Second)
 	logger.Debug("%v", listener.Addr())
 
@@ -44,24 +49,26 @@ func TestTimeout(t *testing.T) {
 		SendBufferSize:     60,
 		RecvBufferSize:     60,
 		MaxPacketSize:      60,
-		RecvTimeout:        0,
+		RecvTimeout:        3,
 		HeartBeatInterval:  0,
-		WriteTimeout:       0,
+		WriteTimeout:       1,
 	}
-	var connectors []Connection
 	for i := 0; i < 10; i++ {
-		conn := netMgr.NewConnectorCustom(ctx, listenAddress, &connectorConnectionConfig, codec,
+		netMgr.NewConnectorCustom(ctx, listenAddress, &connectorConnectionConfig, codec,
 			&DefaultConnectionHandler{}, nil, func(config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection {
 				return NewTcpConnectionSimple(config, codec, handler)
 			})
-		connectors = append(connectors, conn)
 	}
 
 	time.Sleep(time.Second)
+	listener.(*TcpListener).RangeConnections(func(conn Connection) bool {
+		tcpConnectionSimple := conn.(*TcpConnectionSimple)
+		logger.Debug("%v %v %v %v", tcpConnectionSimple.GetConnectionId(), tcpConnectionSimple.LocalAddr(), tcpConnectionSimple.RemoteAddr(), tcpConnectionSimple.GetSendPacketChanLen())
+		conn.TrySendPacket(NewDataPacket([]byte("try test")), time.Millisecond)
+		conn.Send(PacketCommand(pb.CmdTest_Cmd_TestMessage), &pb.TestMessage{})
+		return true
+	})
 	listener.Broadcast(NewDataPacket([]byte("test")))
-	for _, conn := range connectors {
-		conn.Close()
-	}
 
 	time.Sleep(5 * time.Second)
 	listener.GetConnection(1)
