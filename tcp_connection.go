@@ -175,7 +175,7 @@ func (this *TcpConnection) readLoop() {
 			}
 		}
 	}
-	logger.Debug("readLoop end %v", this.GetConnectionId())
+	//logger.Debug("readLoop end %v", this.GetConnectionId())
 }
 
 // write goroutine

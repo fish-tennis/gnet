@@ -54,6 +54,11 @@ func TestTcpConnectionSimple(t *testing.T) {
 		HeartBeatInterval:  2,
 		WriteTimeout:       1,
 	}
+	// test connect failed
+	netMgr.NewConnectorCustom(ctx, "127.0.0.1:10086", &connectorConnectionConfig, codec,
+		connectionHandler, nil, func(config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection {
+			return NewTcpConnectionSimple(config, codec, handler)
+		})
 	for i := 0; i < 2; i++ {
 		netMgr.NewConnectorCustom(ctx, listenAddress, &connectorConnectionConfig, codec,
 			connectionHandler, nil, func(config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection {
@@ -69,7 +74,7 @@ func TestTcpConnectionSimple(t *testing.T) {
 		conn.Send(PacketCommand(pb.CmdTest_Cmd_TestMessage), &pb.TestMessage{})
 		return true
 	})
-	listener.Broadcast(NewDataPacket([]byte("test")))
+	listener.Broadcast(NewProtoPacketWithData(10086, []byte("test")))
 
 	time.Sleep(7 * time.Second)
 	listener.GetConnection(1)

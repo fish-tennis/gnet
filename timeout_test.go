@@ -25,7 +25,6 @@ func TestTimeout(t *testing.T) {
 		SendPacketCacheCap: 100,
 		SendBufferSize:     60,
 		RecvBufferSize:     60,
-		MaxPacketSize:      60,
 		RecvTimeout:        5,
 		HeartBeatInterval:  0,
 		WriteTimeout:       0,
@@ -38,21 +37,24 @@ func TestTimeout(t *testing.T) {
 
 	connectorConnectionConfig := ConnectionConfig{
 		SendPacketCacheCap: 100,
-		SendBufferSize:     60,
-		RecvBufferSize:     60,
-		MaxPacketSize:      60,
+		MaxPacketSize:      1024,
 		RecvTimeout:        3,
 		HeartBeatInterval:  0,
 		WriteTimeout:       1,
 	}
+	// test connect failed
+	netMgr.NewConnector(ctx, "127.0.0.1:10086", &connectorConnectionConfig, codec,
+		&DefaultConnectionHandler{}, nil)
 	for i := 0; i < 10; i++ {
-		netMgr.NewConnector(ctx, listenAddress, &connectorConnectionConfig, codec,
+		conn := netMgr.NewConnector(ctx, listenAddress, &connectorConnectionConfig, codec,
 			&DefaultConnectionHandler{}, nil)
+		logger.Debug("%v %v", conn.(*TcpConnection).GetSendBuffer(), conn.(*TcpConnection).GetRecvBuffer())
 	}
 
 	time.Sleep(time.Second)
 	listener.(*TcpListener).RangeConnections(func(conn Connection) bool {
 		conn.TrySendPacket(NewDataPacket([]byte("try test")), time.Millisecond)
+		conn.TrySendPacket(NewDataPacket([]byte("try test 0")), 0)
 		return true
 	})
 	listener.Broadcast(NewDataPacket([]byte("test")))

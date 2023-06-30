@@ -166,7 +166,7 @@ func (this *TcpConnectionSimple) readLoop() {
 			this.handler.OnRecvPacket(this, newPacket)
 		}
 	}
-	logger.Debug("readLoop end %v IsConnector:%v", this.GetConnectionId(), this.IsConnector())
+	//logger.Debug("readLoop end %v IsConnector:%v", this.GetConnectionId(), this.IsConnector())
 }
 
 // write goroutine
@@ -217,7 +217,7 @@ func (this *TcpConnectionSimple) writeLoop(ctx context.Context) {
 			return
 		}
 	}
-	logger.Debug("writeLoop end %v isConnector:%v", this.GetConnectionId(), this.IsConnector())
+	//logger.Debug("writeLoop end %v isConnector:%v", this.GetConnectionId(), this.IsConnector())
 }
 
 func (this *TcpConnectionSimple) writePacket(packet Packet) bool {
