@@ -31,6 +31,7 @@ func TestTcpConnectionSimple(t *testing.T) {
 	}
 	listenAddress := "127.0.0.1:10002"
 	codec := NewSimpleProtoCodec()
+	codec.Register(PacketCommand(pb.CmdTest_Cmd_HeartBeat), new(pb.HeartBeatRes))
 	codec.Register(PacketCommand(pb.CmdTest_Cmd_TestMessage), new(pb.TestMessage))
 	codec.Register(PacketCommand(10086), nil)
 
@@ -50,7 +51,7 @@ func TestTcpConnectionSimple(t *testing.T) {
 	connectorConnectionConfig := ConnectionConfig{
 		SendPacketCacheCap: 100,
 		MaxPacketSize:      60,
-		RecvTimeout:        5,
+		RecvTimeout:        3,
 		HeartBeatInterval:  2,
 		WriteTimeout:       1,
 	}
@@ -59,7 +60,7 @@ func TestTcpConnectionSimple(t *testing.T) {
 		connectionHandler, nil, func(config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection {
 			return NewTcpConnectionSimple(config, codec, handler)
 		})
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 10; i++ {
 		netMgr.NewConnectorCustom(ctx, listenAddress, &connectorConnectionConfig, codec,
 			connectionHandler, nil, func(config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection {
 				return NewTcpConnectionSimple(config, codec, handler)
@@ -75,14 +76,14 @@ func TestTcpConnectionSimple(t *testing.T) {
 		return true
 	})
 	listener.Broadcast(NewProtoPacketWithData(10086, []byte("test")))
-
-	time.Sleep(7 * time.Second)
-	listener.GetConnection(1)
 	// test a wrong packet
 	listener.(*TcpListener).RangeConnections(func(conn Connection) bool {
 		conn.SendPacket(NewDataPacket([]byte("wrong packet test")))
 		return false
 	})
+
+	time.Sleep(7 * time.Second)
+	listener.GetConnection(1)
 	time.Sleep(1 * time.Second)
 	listener.Close()
 
