@@ -71,8 +71,7 @@ func TestPacketSize(t *testing.T) {
 }
 
 func TestPacketSizeInit(t *testing.T) {
-	config := &ConnectionConfig{
-	}
+	config := &ConnectionConfig{}
 	codec := NewProtoCodec(nil)
 	tcpConnector := NewTcpConnector(config, codec, nil)
 	tcpConnector.SetCodec(codec)
