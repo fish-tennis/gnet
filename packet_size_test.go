@@ -69,3 +69,19 @@ func TestPacketSize(t *testing.T) {
 
 	GetNetMgr().Shutdown(true)
 }
+
+func TestPacketSizeInit(t *testing.T) {
+	config := &ConnectionConfig{
+	}
+	codec := NewProtoCodec(nil)
+	tcpConnector := NewTcpConnector(config, codec, nil)
+	tcpConnector.SetCodec(codec)
+	NewTcpConnectionAccept(nil, config, codec, nil)
+	tcpConnector.Send(PacketCommand(123), nil)
+	tcpConnector.LocalAddr()
+	tcpConnector.RemoteAddr()
+	simpleTcpConnector := NewTcpConnectionSimple(config, nil, nil)
+	simpleTcpConnector.Send(PacketCommand(123), nil)
+	simpleTcpConnector.LocalAddr()
+	simpleTcpConnector.RemoteAddr()
+}

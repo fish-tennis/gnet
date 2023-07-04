@@ -41,6 +41,13 @@ func TestTcpConnectionSimple(t *testing.T) {
 			Timestamp: GetCurrentTimeStamp(),
 		}
 	})
+	connectionHandler.SetUnRegisterHandler(func(connection Connection, packet *ProtoPacket) {
+		streamStr := ""
+		if packet.GetStreamData() != nil {
+			streamStr = string(packet.GetStreamData())
+		}
+		t.Logf("%v %v %v %v", connection.GetConnectionId(), packet.Command(), packet.Message(), streamStr)
+	})
 
 	listener := netMgr.NewListenerCustom(ctx, listenAddress, acceptConnectionConfig, codec, connectionHandler, &echoListenerHandler{},
 		func(conn net.Conn, config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection {
@@ -73,7 +80,7 @@ func TestTcpConnectionSimple(t *testing.T) {
 		logger.Debug("%v %v %v %v", tcpConnectionSimple.GetConnectionId(), tcpConnectionSimple.LocalAddr(), tcpConnectionSimple.RemoteAddr(), tcpConnectionSimple.GetSendPacketChanLen())
 		conn.TrySendPacket(NewProtoPacketWithData(10086, []byte("try test")), time.Millisecond)
 		conn.TrySendPacket(NewProtoPacketWithData(10086, []byte("try test 0")), 0)
-		conn.Send(PacketCommand(pb.CmdTest_Cmd_TestMessage), &pb.TestMessage{})
+		conn.Send(PacketCommand(pb.CmdTest_Cmd_TestMessage), &pb.TestMessage{Name: "testMessage"})
 		return true
 	})
 	listener.Broadcast(NewProtoPacketWithData(10086, []byte("test")))

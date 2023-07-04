@@ -1,6 +1,7 @@
 package gnet
 
 import (
+	"encoding/binary"
 	"fmt"
 	"github.com/fish-tennis/gnet/example/pb"
 	"testing"
@@ -47,11 +48,14 @@ func TestPacket(t *testing.T) {
 	header := NewDefaultPacketHeader(123, 0x3)
 	t.Log(header.Len())
 	t.Log(header.Flags())
+
+	simpleHeader := NewSimplePacketHeader(0, 15, 0)
+	t.Log(simpleHeader.Flags())
 }
 
 func TestLogger(t *testing.T) {
 	SetLogger(GetLogger(), DebugLevel)
-	for level := DebugLevel; level <= ErrorLevel; level++ {
+	for level := DebugLevel; level <= ErrorLevel+1; level++ {
 		SetLogLevel(level)
 		logger.Debug("debug")
 		logger.Info("info")
@@ -59,4 +63,33 @@ func TestLogger(t *testing.T) {
 		logger.Error("error")
 	}
 	LogStack()
+}
+
+func TestCodecError(t *testing.T) {
+	errLengthData := []byte{1}
+	protoCodec := NewProtoCodec(nil)
+	protoCodec.DecodePacket(nil, nil, errLengthData)
+
+	testCommand := uint16(123)
+	protoCodec.Register(PacketCommand(testCommand), new(pb.TestMessage))
+	errMessageData := make([]byte, 3)
+	binary.LittleEndian.PutUint16(errMessageData, testCommand)
+	protoCodec.DecodePacket(nil, nil, errMessageData)
+
+	simpleProtoCodec := NewSimpleProtoCodec()
+	simpleProtoCodec.Register(PacketCommand(testCommand), new(pb.TestMessage))
+	errSimpleMessageData := make([]byte, 7)
+	simplePacketHeader := NewSimplePacketHeader(1, 0, PacketCommand(testCommand))
+	simplePacketHeader.WriteTo(errSimpleMessageData)
+	simpleProtoCodec.Decode(nil, errSimpleMessageData)
+}
+
+func TestHandler(t *testing.T) {
+	defaultHandler := NewDefaultConnectionHandler(nil)
+	defaultHandler.GetCodec()
+	defaultHandler.CreateHeartBeatPacket(nil)
+	defaultHandler.SetUnRegisterHandler(func(connection Connection, packet *ProtoPacket) {
+
+	})
+	defaultHandler.OnRecvPacket(nil, NewProtoPacket(123, nil))
 }
