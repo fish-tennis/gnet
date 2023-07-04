@@ -4,11 +4,10 @@ import (
 	"encoding/binary"
 	"google.golang.org/protobuf/proto"
 	"reflect"
-	"unsafe"
 )
 
 const (
-	SimplePacketHeaderSize = int(unsafe.Sizeof(SimplePacketHeader{})) // 6
+	SimplePacketHeaderSize = 6
 )
 
 // a simple packet header for TcpConnectionSimple

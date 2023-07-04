@@ -7,6 +7,7 @@ import (
 
 func TestReadWrite(t *testing.T) {
 	rb := NewRingBuffer(10)
+	rb.GetBuffer()
 	writeCounter := byte(0)
 	for i := 0; i < 10; i++ {
 		rb.Write([]byte{writeCounter})
@@ -37,4 +38,7 @@ func TestReadWrite(t *testing.T) {
 	println(fmt.Sprintf("%v", readData))
 	readData = rb.ReadFull(rb.UnReadLength())
 	println(fmt.Sprintf("%v", readData))
+
+	nilRingBuffer := NewRingBuffer(0)
+	t.Log(nilRingBuffer)
 }

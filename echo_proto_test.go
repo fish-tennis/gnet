@@ -163,3 +163,20 @@ func (e *echoProtoClientHandler) onTestDataMessage(connection Connection, packet
 			I32:  int32(e.echoCount),
 		})
 }
+
+func TestListenerError(t *testing.T) {
+	config := ConnectionConfig{
+
+	}
+	tcpListener := NewTcpListener(config, nil, nil, nil)
+	tcpListener.Addr()
+	tcpListener1 := GetNetMgr().NewListener(context.Background(), "127.0.0.1:10001", config, nil, nil, nil)
+	tcpListener2 := GetNetMgr().NewListener(context.Background(), "127.0.0.1:10001", config, nil, nil, nil)
+	if tcpListener1 != nil {
+		tcpListener1.Close()
+	}
+	if tcpListener2 != nil {
+		tcpListener2.Close()
+	}
+	GetNetMgr().Shutdown(true)
+}
