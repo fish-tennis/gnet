@@ -16,7 +16,8 @@ var (
 )
 
 // 日志级别,参考zap
-//  log level
+//
+//	log level
 const (
 	DebugLevel int8 = iota - 1
 	InfoLevel

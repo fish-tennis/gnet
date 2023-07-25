@@ -10,7 +10,8 @@ import (
 )
 
 // show how to use protobuf
-//  测试protobuf
+//
+//	测试protobuf
 func TestEchoProto(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {

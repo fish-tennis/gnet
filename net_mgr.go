@@ -12,7 +12,8 @@ var (
 )
 
 // 网络管理类,提供对外接口
-//  manager class
+//
+//	manager class
 type NetMgr struct {
 	listenerMap     map[uint32]Listener
 	listenerMapLock sync.RWMutex
@@ -25,7 +26,8 @@ type NetMgr struct {
 }
 
 // 单例模式,在调用的时候才会执行初始化一次
-//  singleton mode, init once
+//
+//	singleton mode, init once
 func GetNetMgr() *NetMgr {
 	netMgr.initOnce.Do(func() {
 		netMgr.init()
@@ -99,7 +101,8 @@ func (this *NetMgr) NewConnectorCustom(ctx context.Context, address string, conn
 }
 
 // waitForAllNetGoroutine:是否阻塞等待所有网络协程结束
-//  waitForAllNetGoroutine: wait blocks until all goroutine end
+//
+//	waitForAllNetGoroutine: wait blocks until all goroutine end
 func (this *NetMgr) Shutdown(waitForAllNetGoroutine bool) {
 	logger.Debug("Shutdown %v", waitForAllNetGoroutine)
 	if waitForAllNetGoroutine {

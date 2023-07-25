@@ -26,7 +26,8 @@ type PacketHeader interface {
 type PacketCommand uint16
 
 // 默认包头,支持小于16M的数据包
-//  default packet header
+//
+//	default packet header
 type DefaultPacketHeader struct {
 	// (flags << 24) | len
 	// flags [0,255)
@@ -41,8 +42,9 @@ func NewDefaultPacketHeader(len uint32, flags uint8) *DefaultPacketHeader {
 }
 
 // 包体长度,不包含包头的长度
-//  packet body length (without packet header's length)
-//  [0,0x00FFFFFF]
+//
+//	packet body length (without packet header's length)
+//	[0,0x00FFFFFF]
 func (this *DefaultPacketHeader) Len() uint32 {
 	return this.LenAndFlags & 0x00FFFFFF
 }
@@ -54,13 +56,15 @@ func (this *DefaultPacketHeader) Flags() uint8 {
 
 // 从字节流读取数据,len(messageHeaderData)>=MessageHeaderSize
 // 使用小端字节序
-//  parse LenAndFlags from stream data
+//
+//	parse LenAndFlags from stream data
 func (this *DefaultPacketHeader) ReadFrom(packetHeaderData []byte) {
 	this.LenAndFlags = binary.LittleEndian.Uint32(packetHeaderData)
 }
 
 // 写入字节流,使用小端字节序
-//  write LenAndFlags to stream data
+//
+//	write LenAndFlags to stream data
 func (this *DefaultPacketHeader) WriteTo(packetHeaderData []byte) {
 	binary.LittleEndian.PutUint32(packetHeaderData, this.LenAndFlags)
 }
@@ -115,7 +119,8 @@ func (this *ProtoPacket) Message() proto.Message {
 }
 
 // 某些特殊需求会直接使用序列化好的数据
-//  support stream data
+//
+//	support stream data
 func (this *ProtoPacket) GetStreamData() []byte {
 	return this.data
 }
@@ -134,7 +139,8 @@ func (this *ProtoPacket) Clone() Packet {
 }
 
 // 只包含一个[]byte的数据包
-//  packet which only have a byte array
+//
+//	packet which only have a byte array
 type DataPacket struct {
 	data []byte
 }

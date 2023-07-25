@@ -12,8 +12,9 @@ import (
 )
 
 // show how to use custom packet without RingBuffer
-//  演示如何自定义消息头
-//  这里不使用RingBuffer
+//
+//	演示如何自定义消息头
+//	这里不使用RingBuffer
 func TestCustomPacketNoRingBuffer(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {

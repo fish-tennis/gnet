@@ -113,7 +113,8 @@ func (this *DefaultConnectionHandler) GetCodec() Codec {
 
 // 注册消息号和消息回调,proto.Message的映射
 // handler在TcpConnection的read协程中被调用
-//  register PacketCommand,PacketHandler,proto.Message
+//
+//	register PacketCommand,PacketHandler,proto.Message
 func (this *DefaultConnectionHandler) Register(packetCommand PacketCommand, handler PacketHandler, protoMessage proto.Message) {
 	this.PacketHandlers[packetCommand] = handler
 	if this.protoCodec != nil {
@@ -128,7 +129,8 @@ func (this *DefaultConnectionHandler) GetPacketHandler(packetCommand PacketComma
 }
 
 // 注册心跳包(只对connector有效)
-//  register heartbeat PacketCommand and ProtoMessageCreator, only valid for connector
+//
+//	register heartbeat PacketCommand and ProtoMessageCreator, only valid for connector
 func (this *DefaultConnectionHandler) RegisterHeartBeat(packetCommand PacketCommand, creator ProtoMessageCreator) {
 	this.heartBeatCommand = packetCommand
 	this.heartBeatCreator = creator
@@ -136,7 +138,8 @@ func (this *DefaultConnectionHandler) RegisterHeartBeat(packetCommand PacketComm
 
 // 未注册消息的处理函数
 // unRegisterHandler在TcpConnection的read协程中被调用
-//  register the PacketHandler for unRegister PacketCommand
+//
+//	register the PacketHandler for unRegister PacketCommand
 func (this *DefaultConnectionHandler) SetUnRegisterHandler(unRegisterHandler PacketHandler) {
 	this.UnRegisterHandler = unRegisterHandler
 }

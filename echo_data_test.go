@@ -8,7 +8,8 @@ import (
 )
 
 // show how to use DataPacket without protobuf
-//  不使用protobuf的测试
+//
+//	不使用protobuf的测试
 func TestEchoData(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {

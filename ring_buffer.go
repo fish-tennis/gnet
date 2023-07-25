@@ -2,8 +2,9 @@ package gnet
 
 // 环形buffer,专为TcpConnection定制,在收发包时,可以减少内存分配和拷贝
 // NOTE:不支持多线程,不具备通用性
-//  optimize for TcpConnection, reduce memory alloc and copy
-//  not thread safe
+//
+//	optimize for TcpConnection, reduce memory alloc and copy
+//	not thread safe
 type RingBuffer struct {
 	// 数据
 	buffer []byte
@@ -16,7 +17,8 @@ type RingBuffer struct {
 }
 
 // 指定大小的RingBuffer,不支持动态扩容
-//  fix size, not support dynamic expansion
+//
+//	fix size, not support dynamic expansion
 func NewRingBuffer(size int) *RingBuffer {
 	if size <= 0 {
 		return nil
@@ -41,7 +43,8 @@ func (this *RingBuffer) UnReadLength() int {
 }
 
 // 读取指定长度的数据
-//  read data of a specified length
+//
+//	read data of a specified length
 func (this *RingBuffer) ReadFull(readLen int) []byte {
 	if this.UnReadLength() < readLen {
 		return nil
@@ -68,14 +71,16 @@ func (this *RingBuffer) ReadFull(readLen int) []byte {
 }
 
 // 设置已读取长度
-//  set readed length
+//
+//	set readed length
 func (this *RingBuffer) SetReaded(readedLength int) {
 	this.r += readedLength
 }
 
 // 返回可读取的连续buffer(不产生copy)
 // NOTE:调用ReadBuffer之前,需要先确保UnReadLength()>0
-//  continuous buffer can read
+//
+//	continuous buffer can read
 func (this *RingBuffer) ReadBuffer() []byte {
 	writeIndex := this.w % len(this.buffer)
 	readIndex := this.r % len(this.buffer)
@@ -94,7 +99,8 @@ func (this *RingBuffer) ReadBuffer() []byte {
 }
 
 // 返回可写入的连续buffer
-//  continuous buffer can write
+//
+//	continuous buffer can write
 func (this *RingBuffer) WriteBuffer() []byte {
 	writeIndex := this.w % len(this.buffer)
 	readIndex := this.r % len(this.buffer)
@@ -115,7 +121,8 @@ func (this *RingBuffer) WriteBuffer() []byte {
 }
 
 // 设置已写入长度
-//  set wrote length
+//
+//	set wrote length
 func (this *RingBuffer) SetWrote(wroteLength int) {
 	this.w += wroteLength
 }

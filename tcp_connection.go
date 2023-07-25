@@ -354,7 +354,8 @@ func (this *TcpConnection) Close() {
 
 // 异步发送proto包
 // NOTE:调用Send(command,message)之后,不要再对message进行读写!
-//  asynchronous send (write to chan, not send immediately)
+//
+//	asynchronous send (write to chan, not send immediately)
 func (this *TcpConnection) Send(command PacketCommand, message proto.Message) bool {
 	if !this.IsConnected() {
 		return false
@@ -367,7 +368,8 @@ func (this *TcpConnection) Send(command PacketCommand, message proto.Message) bo
 
 // 异步发送数据
 // NOTE:调用SendPacket(packet)之后,不要再对packet进行读写!
-//  asynchronous send (write to chan, not send immediately)
+//
+//	asynchronous send (write to chan, not send immediately)
 func (this *TcpConnection) SendPacket(packet Packet) bool {
 	if !this.IsConnected() {
 		return false
@@ -379,8 +381,9 @@ func (this *TcpConnection) SendPacket(packet Packet) bool {
 
 // 超时发包,超时未发送则丢弃,适用于某些允许丢弃的数据包
 // 可以防止某些"不重要的"数据包造成chan阻塞,比如游戏项目常见的聊天广播
-//  asynchronous send with timeout (write to chan, not send immediately)
-//  if return false, means not write to chan
+//
+//	asynchronous send with timeout (write to chan, not send immediately)
+//	if return false, means not write to chan
 func (this *TcpConnection) TrySendPacket(packet Packet, timeout time.Duration) bool {
 	if timeout == 0 {
 		// 非阻塞方式写chan
