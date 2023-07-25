@@ -43,7 +43,8 @@ func NewProtoCodec(protoMessageTypeMap map[PacketCommand]reflect.Type) *ProtoCod
 }
 
 // 注册消息和proto.Message的映射
-//  protoMessage can be nil
+//
+//	protoMessage can be nil
 func (this *ProtoCodec) Register(command PacketCommand, protoMessage proto.Message) {
 	if protoMessage == nil {
 		this.MessageCreatorMap[command] = nil

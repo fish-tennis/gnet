@@ -28,8 +28,9 @@ func NewSimplePacketHeader(len uint32, flags uint8, command PacketCommand) *Simp
 }
 
 // 包体长度,不包含包头的长度
-//  packet body length (without packet header's length)
-//  [0,0x00FFFFFF]
+//
+//	packet body length (without packet header's length)
+//	[0,0x00FFFFFF]
 func (this *SimplePacketHeader) Len() uint32 {
 	return this.LenAndFlags & 0x00FFFFFF
 }
@@ -41,14 +42,16 @@ func (this *SimplePacketHeader) Flags() uint8 {
 
 // 从字节流读取数据,len(messageHeaderData)>=MessageHeaderSize
 // 使用小端字节序
-//  parse LenAndFlags,Command from stream data
+//
+//	parse LenAndFlags,Command from stream data
 func (this *SimplePacketHeader) ReadFrom(packetHeaderData []byte) {
 	this.LenAndFlags = binary.LittleEndian.Uint32(packetHeaderData)
 	this.Command = binary.LittleEndian.Uint16(packetHeaderData[4:])
 }
 
 // 写入字节流,使用小端字节序
-//  write LenAndFlags,Command to stream data
+//
+//	write LenAndFlags,Command to stream data
 func (this *SimplePacketHeader) WriteTo(packetHeaderData []byte) {
 	binary.LittleEndian.PutUint32(packetHeaderData, this.LenAndFlags)
 	binary.LittleEndian.PutUint16(packetHeaderData[4:], this.Command)
@@ -73,7 +76,8 @@ func (this *SimpleProtoCodec) PacketHeaderSize() uint32 {
 }
 
 // 注册消息和proto.Message的映射
-//  protoMessage can be nil
+//
+//	protoMessage can be nil
 func (this *SimpleProtoCodec) Register(command PacketCommand, protoMessage proto.Message) {
 	if protoMessage == nil {
 		this.MessageCreatorMap[command] = nil

@@ -58,7 +58,8 @@ func (this *TcpListener) GetConnection(connectionId uint32) Connection {
 }
 
 // 广播消息
-//  broadcast packet to accepted connections
+//
+//	broadcast packet to accepted connections
 func (this *TcpListener) Broadcast(packet Packet) {
 	this.connectionMapLock.RLock()
 	defer this.connectionMapLock.RUnlock()
@@ -69,7 +70,7 @@ func (this *TcpListener) Broadcast(packet Packet) {
 	}
 }
 
-//  range for accepted connections
+// range for accepted connections
 func (this *TcpListener) RangeConnections(f func(conn Connection) bool) {
 	this.connectionMapLock.RLock()
 	defer this.connectionMapLock.RUnlock()
@@ -126,7 +127,8 @@ func (this *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 }
 
 // 关闭监听,并关闭管理的连接
-//  close listen, close the accepted connections
+//
+//	close listen, close the accepted connections
 func (this *TcpListener) Close() {
 	this.closeOnce.Do(func() {
 		atomic.StoreInt32(&this.isRunning, 0)
