@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/fish-tennis/gnet/example/pb"
-	"google.golang.org/protobuf/proto"
 	"testing"
 	"time"
 )
@@ -46,7 +45,7 @@ func TestEchoProto(t *testing.T) {
 	// 注册服务器的消息回调
 	serverHandler.Register(PacketCommand(pb.CmdTest_Cmd_HeartBeat), onHeartBeatReq, new(pb.HeartBeatReq))
 	serverHandler.Register(PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessageServer, new(pb.TestMessage))
-	serverHandler.SetUnRegisterHandler(func(connection Connection, packet *ProtoPacket) {
+	serverHandler.SetUnRegisterHandler(func(connection Connection, packet Packet) {
 		logger.Warn("%v", packet)
 	})
 	serverHandler.GetPacketHandler(PacketCommand(pb.CmdTest_Cmd_TestMessage))
@@ -61,8 +60,8 @@ func TestEchoProto(t *testing.T) {
 		DefaultConnectionHandler: *NewDefaultConnectionHandler(clientCodec),
 	}
 	// 客户端作为connector,需要设置心跳包
-	clientHandler.RegisterHeartBeat(PacketCommand(pb.CmdTest_Cmd_HeartBeat), func() proto.Message {
-		return &pb.HeartBeatReq{}
+	clientHandler.RegisterHeartBeat(func() Packet {
+		return NewProtoPacket(PacketCommand(pb.CmdTest_Cmd_HeartBeat),&pb.HeartBeatReq{})
 	})
 	// 注册客户端的消息回调
 	clientHandler.Register(PacketCommand(pb.CmdTest_Cmd_HeartBeat), clientHandler.onHeartBeatRes, new(pb.HeartBeatRes))
@@ -116,7 +115,7 @@ func echoProtoOnConnected(connection Connection, success bool) {
 }
 
 // 服务器收到客户端的心跳包
-func onHeartBeatReq(connection Connection, packet *ProtoPacket) {
+func onHeartBeatReq(connection Connection, packet Packet) {
 	req := packet.Message().(*pb.HeartBeatReq)
 	logger.Debug(fmt.Sprintf("Server onHeartBeatReq: %v", req))
 	connection.Send(PacketCommand(pb.CmdTest_Cmd_HeartBeat), &pb.HeartBeatRes{
@@ -126,7 +125,7 @@ func onHeartBeatReq(connection Connection, packet *ProtoPacket) {
 }
 
 // 服务器收到客户端的TestMessage
-func onTestMessageServer(connection Connection, packet *ProtoPacket) {
+func onTestMessageServer(connection Connection, packet Packet) {
 	req := packet.Message().(*pb.TestMessage)
 	logger.Debug(fmt.Sprintf("Server onTestMessage: %v", req))
 }
@@ -138,12 +137,12 @@ type echoProtoClientHandler struct {
 }
 
 // 收到心跳包回复
-func (e *echoProtoClientHandler) onHeartBeatRes(connection Connection, packet *ProtoPacket) {
+func (e *echoProtoClientHandler) onHeartBeatRes(connection Connection, packet Packet) {
 	res := packet.Message().(*pb.HeartBeatRes)
 	logger.Debug(fmt.Sprintf("client onHeartBeatRes: %v", res))
 }
 
-func (e *echoProtoClientHandler) onTestMessage(connection Connection, packet *ProtoPacket) {
+func (e *echoProtoClientHandler) onTestMessage(connection Connection, packet Packet) {
 	res := packet.Message().(*pb.TestMessage)
 	logger.Debug(fmt.Sprintf("client onTestMessage: %v", res))
 	e.echoCount++
@@ -155,7 +154,7 @@ func (e *echoProtoClientHandler) onTestMessage(connection Connection, packet *Pr
 }
 
 // 测试没有注册proto.Message的消息
-func (e *echoProtoClientHandler) onTestDataMessage(connection Connection, packet *ProtoPacket) {
+func (e *echoProtoClientHandler) onTestDataMessage(connection Connection, packet Packet) {
 	logger.Debug(fmt.Sprintf("client onTestDataMessage: %v", string(packet.GetStreamData())))
 	e.echoCount++
 	connection.Send(PacketCommand(pb.CmdTest_Cmd_TestMessage),

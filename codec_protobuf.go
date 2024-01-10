@@ -9,6 +9,9 @@ import (
 // proto.Message ctor func
 type ProtoMessageCreator func() proto.Message
 
+// Packet ctor func
+type PacketCreator func() Packet
+
 type ProtoRegister interface {
 	Register(command PacketCommand, protoMessage proto.Message)
 }

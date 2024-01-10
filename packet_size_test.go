@@ -31,7 +31,7 @@ func TestPacketSize(t *testing.T) {
 	listenAddress := "127.0.0.1:10002"
 	defaultCodec := NewProtoCodec(nil)
 	serverHandler := NewDefaultConnectionHandler(defaultCodec)
-	serverHandler.Register(PacketCommand(123), func(connection Connection, packet *ProtoPacket) {
+	serverHandler.Register(PacketCommand(123), func(connection Connection, packet Packet) {
 		testMessage := packet.Message().(*pb.TestMessage)
 		logger.Info("recv%v:%s", testMessage.I32, testMessage.Name)
 	}, new(pb.TestMessage))

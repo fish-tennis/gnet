@@ -36,10 +36,10 @@ type PacketHandlerRegister interface {
 	Register(packetCommand PacketCommand, handler PacketHandler, protoMessage proto.Message)
 }
 
-// handler for ProtoPacket
-type PacketHandler func(connection Connection, packet *ProtoPacket)
+// handler for Packet
+type PacketHandler func(connection Connection, packet Packet)
 
-// default ConnectionHandler for ProtoPacket
+// default ConnectionHandler for Proto
 type DefaultConnectionHandler struct {
 	// 注册消息的处理函数map
 	//  registered map of PacketCommand and PacketHandler
@@ -59,6 +59,9 @@ type DefaultConnectionHandler struct {
 	// 心跳包构造函数(只对connector有效)
 	//  heartBeat packet generator(only valid for connector)
 	heartBeatCreator ProtoMessageCreator
+	// 心跳包构造函数(只对connector有效)
+	//  heartBeat packet generator(only valid for connector)
+	heartBeatPacketCreator PacketCreator
 }
 
 func (this *DefaultConnectionHandler) OnConnected(connection Connection, success bool) {
@@ -80,22 +83,20 @@ func (this *DefaultConnectionHandler) OnRecvPacket(connection Connection, packet
 			LogStack()
 		}
 	}()
-	if protoPacket, ok := packet.(*ProtoPacket); ok {
-		if packetHandler, ok2 := this.PacketHandlers[protoPacket.command]; ok2 {
-			if packetHandler != nil {
-				packetHandler(connection, protoPacket)
-				return
-			}
+	if packetHandler, ok2 := this.PacketHandlers[packet.Command()]; ok2 {
+		if packetHandler != nil {
+			packetHandler(connection, packet)
+			return
 		}
-		if this.UnRegisterHandler != nil {
-			this.UnRegisterHandler(connection, protoPacket)
-		}
+	}
+	if this.UnRegisterHandler != nil {
+		this.UnRegisterHandler(connection, packet)
 	}
 }
 
 func (this *DefaultConnectionHandler) CreateHeartBeatPacket(connection Connection) Packet {
-	if this.heartBeatCreator != nil {
-		return NewProtoPacket(this.heartBeatCommand, this.heartBeatCreator())
+	if this.heartBeatPacketCreator != nil {
+		return this.heartBeatPacketCreator()
 	}
 	return nil
 }
@@ -130,10 +131,9 @@ func (this *DefaultConnectionHandler) GetPacketHandler(packetCommand PacketComma
 
 // 注册心跳包(只对connector有效)
 //
-//	register heartbeat PacketCommand and ProtoMessageCreator, only valid for connector
-func (this *DefaultConnectionHandler) RegisterHeartBeat(packetCommand PacketCommand, creator ProtoMessageCreator) {
-	this.heartBeatCommand = packetCommand
-	this.heartBeatCreator = creator
+//	register heartBeatPacketCreator, only valid for connector
+func (this *DefaultConnectionHandler) RegisterHeartBeat(heartBeatPacketCreator PacketCreator) {
+	this.heartBeatPacketCreator = heartBeatPacketCreator
 }
 
 // 未注册消息的处理函数

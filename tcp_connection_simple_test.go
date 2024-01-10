@@ -3,7 +3,6 @@ package gnet
 import (
 	"context"
 	"github.com/fish-tennis/gnet/example/pb"
-	"google.golang.org/protobuf/proto"
 	"net"
 	"testing"
 	"time"
@@ -36,12 +35,12 @@ func TestTcpConnectionSimple(t *testing.T) {
 	codec.Register(PacketCommand(10086), nil)
 
 	connectionHandler := NewDefaultConnectionHandler(codec)
-	connectionHandler.RegisterHeartBeat(PacketCommand(pb.CmdTest_Cmd_HeartBeat), func() proto.Message {
-		return &pb.HeartBeatReq{
+	connectionHandler.RegisterHeartBeat(func() Packet {
+		return NewProtoPacket(PacketCommand(pb.CmdTest_Cmd_HeartBeat),&pb.HeartBeatReq{
 			Timestamp: GetCurrentTimeStamp(),
-		}
+		})
 	})
-	connectionHandler.SetUnRegisterHandler(func(connection Connection, packet *ProtoPacket) {
+	connectionHandler.SetUnRegisterHandler(func(connection Connection, packet Packet) {
 		streamStr := ""
 		if packet.GetStreamData() != nil {
 			streamStr = string(packet.GetStreamData())

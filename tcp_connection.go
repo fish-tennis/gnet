@@ -80,7 +80,7 @@ func (this *TcpConnection) Connect(address string) bool {
 	conn, err := net.DialTimeout("tcp", address, time.Second)
 	if err != nil {
 		atomic.StoreInt32(&this.isConnected, 0)
-		logger.Error("Connect failed %v: %v", this.GetConnectionId(), err.Error())
+		logger.Error("Connect failed %v: %v %v", this.GetConnectionId(), address, err.Error())
 		if this.handler != nil {
 			this.handler.OnConnected(this, false)
 		}

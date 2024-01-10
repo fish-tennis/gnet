@@ -88,7 +88,7 @@ func TestHandler(t *testing.T) {
 	defaultHandler := NewDefaultConnectionHandler(nil)
 	defaultHandler.GetCodec()
 	defaultHandler.CreateHeartBeatPacket(nil)
-	defaultHandler.SetUnRegisterHandler(func(connection Connection, packet *ProtoPacket) {
+	defaultHandler.SetUnRegisterHandler(func(connection Connection, packet Packet) {
 
 	})
 	defaultHandler.OnRecvPacket(nil, NewProtoPacket(123, nil))
