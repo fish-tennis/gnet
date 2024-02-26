@@ -2,6 +2,7 @@ package gnet
 
 import (
 	"context"
+	"crypto/tls"
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
 	"net"
@@ -93,8 +94,12 @@ func (this *WsConnection) Close() {
 }
 
 func (this *WsConnection) Connect(address string) bool {
-	u := url.URL{Scheme: this.config.Scheme, Host: address, Path: "/ws"}
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	u := url.URL{Scheme: this.config.Scheme, Host: address, Path: this.config.Path}
+	dialer := *websocket.DefaultDialer
+	if this.config.Scheme == "wss" {
+		dialer.TLSClientConfig = &tls.Config{RootCAs: nil, InsecureSkipVerify: true}
+	}
+	conn, _, err := dialer.Dial(u.String(), nil)
 	if err != nil {
 		atomic.StoreInt32(&this.isConnected, 0)
 		logger.Error("Connect failed %v: %v", this.GetConnectionId(), err.Error())

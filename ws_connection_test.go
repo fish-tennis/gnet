@@ -9,6 +9,14 @@ import (
 )
 
 func TestWsConnection(t *testing.T) {
+	testWebSocket(t, "ws", "", "")
+}
+
+func TestWssConnection(t *testing.T) {
+	testWebSocket(t, "wss", "example/cert.pem", "example/key.pem")
+}
+
+func testWebSocket(t *testing.T, protocolName, certFile, keyFile string) {
 	defer func() {
 		if err := recover(); err != nil {
 			logger.Debug("fatal %v", err.(error))
@@ -29,7 +37,7 @@ func TestWsConnection(t *testing.T) {
 		WriteTimeout:       1,
 		HeartBeatInterval:  2,
 	}
-	listenAddress := "127.0.0.1:10002"
+	listenAddress := "localhost:10002"
 	codec := NewSimpleProtoCodec()
 	codec.Register(PacketCommand(pb.CmdTest_Cmd_HeartBeat), new(pb.HeartBeatRes))
 	codec.Register(PacketCommand(pb.CmdTest_Cmd_TestMessage), new(pb.TestMessage))
@@ -57,7 +65,9 @@ func TestWsConnection(t *testing.T) {
 		AcceptConnectionCreator: func(conn net.Conn, config *ConnectionConfig) Connection {
 			return NewTcpConnectionSimpleAccept(conn, config)
 		},
-		Path: "/ws",
+		Path:     "/" + protocolName,
+		CertFile: certFile,
+		KeyFile:  keyFile,
 	}
 	listener := netMgr.NewWsListener(ctx, listenAddress, listenerConfig)
 	time.Sleep(time.Second)
@@ -70,8 +80,8 @@ func TestWsConnection(t *testing.T) {
 		WriteTimeout:       1,
 		Codec:              codec,
 		Handler:            connectionHandler,
-		Path:               "/ws",
-		Scheme:             "ws",
+		Path:               "/" + protocolName,
+		Scheme:             protocolName,
 	}
 	//// test connect failed
 	//netMgr.NewWsConnector(ctx, "127.0.0.1:10086", &connectorConnectionConfig, codec,
