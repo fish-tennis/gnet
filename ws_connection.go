@@ -172,7 +172,6 @@ func (this *WsConnection) readLoop() {
 			logger.Debug("messageTypeErr %v messageType:%v", this.GetConnectionId(), messageType)
 			break
 		}
-		logger.Debug("readPacket %v len:%v packet:%v", this.GetConnectionId(), len(data), data)
 		if len(data) < int(this.codec.PacketHeaderSize()) {
 			logger.Debug("messageType Err %v messageType:%v", this.GetConnectionId(), messageType)
 			break
@@ -274,7 +273,6 @@ func (this *WsConnection) writePacket(packet Packet) bool {
 		logger.Debug("writePacketErr %v %v", this.GetConnectionId(), err.Error())
 		return false
 	}
-	logger.Debug("writePacket %v len:%v packet:%v", this.GetConnectionId(), len(fullData), fullData)
 	return true
 }
 
