@@ -30,10 +30,15 @@ func TestTimeout(t *testing.T) {
 		RecvTimeout:        5,
 		HeartBeatInterval:  0,
 		WriteTimeout:       0,
+		Codec:              NewDefaultCodec(),
+		Handler:            &DefaultConnectionHandler{},
 	}
 	listenAddress := "127.0.0.1:10002"
-	codec := NewDefaultCodec()
-	listener := netMgr.NewListener(ctx, listenAddress, acceptConnectionConfig, codec, &DefaultConnectionHandler{}, &echoListenerHandler{})
+	listenerConfig := &ListenerConfig{
+		AcceptConfig:    acceptConnectionConfig,
+		ListenerHandler: &echoListenerHandler{},
+	}
+	listener := netMgr.NewListener(ctx, listenAddress, listenerConfig)
 	time.Sleep(time.Second)
 	logger.Debug("%v", listener.Addr())
 
@@ -42,13 +47,13 @@ func TestTimeout(t *testing.T) {
 		RecvTimeout:        3,
 		HeartBeatInterval:  0,
 		WriteTimeout:       1,
+		Codec:              NewDefaultCodec(),
+		Handler:            &DefaultConnectionHandler{},
 	}
 	// test connect failed
-	netMgr.NewConnector(ctx, "127.0.0.1:10086", &connectorConnectionConfig, codec,
-		&DefaultConnectionHandler{}, nil)
+	netMgr.NewConnector(ctx, "127.0.0.1:10086", &connectorConnectionConfig, nil)
 	for i := 0; i < 10; i++ {
-		netMgr.NewConnector(ctx, listenAddress, &connectorConnectionConfig, codec,
-			&DefaultConnectionHandler{}, nil)
+		netMgr.NewConnector(ctx, listenAddress, &connectorConnectionConfig, nil)
 	}
 
 	time.Sleep(time.Second)

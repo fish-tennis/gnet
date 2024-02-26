@@ -24,6 +24,7 @@ func TestEchoData(t *testing.T) {
 	defer cancel()
 
 	netMgr := GetNetMgr()
+	codec := NewDefaultCodec()
 	connectionConfig := ConnectionConfig{
 		SendPacketCacheCap: 100,
 		SendBufferSize:     60, // 设置的比较小,便于测试缓存写满的情况
@@ -32,14 +33,20 @@ func TestEchoData(t *testing.T) {
 		RecvTimeout:        0,
 		HeartBeatInterval:  2,
 		WriteTimeout:       0,
+		Codec:              codec,
 	}
 	listenAddress := "127.0.0.1:10002"
 	//codec := NewXorCodec([]byte{0,1,2,3,4,5,6})
-	codec := NewDefaultCodec()
-	netMgr.NewListener(ctx, listenAddress, connectionConfig, codec, &echoServerHandler{}, &echoListenerHandler{})
+	listenerConfig := &ListenerConfig{
+		AcceptConfig:    connectionConfig,
+		ListenerHandler: &echoListenerHandler{},
+	}
+	listenerConfig.AcceptConfig.Handler = &echoServerHandler{}
+	netMgr.NewListener(ctx, listenAddress, listenerConfig)
 	time.Sleep(time.Second)
 
-	netMgr.NewConnector(ctx, listenAddress, &connectionConfig, codec, &echoClientHandler{}, nil)
+	connectionConfig.Handler = &echoClientHandler{}
+	netMgr.NewConnector(ctx, listenAddress, &connectionConfig, nil)
 
 	netMgr.Shutdown(true)
 }

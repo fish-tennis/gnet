@@ -49,7 +49,13 @@ func TestEchoProto(t *testing.T) {
 		logger.Warn("%v", packet)
 	})
 	serverHandler.GetPacketHandler(PacketCommand(pb.CmdTest_Cmd_TestMessage))
-	if netMgr.NewListener(ctx, listenAddress, connectionConfig, serverCodec, serverHandler, nil) == nil {
+
+	listenerConfig := &ListenerConfig{
+		AcceptConfig: connectionConfig,
+	}
+	listenerConfig.AcceptConfig.Codec = serverCodec
+	listenerConfig.AcceptConfig.Handler = serverHandler
+	if netMgr.NewListener(ctx, listenAddress, listenerConfig) == nil {
 		panic("listen failed")
 	}
 	time.Sleep(time.Millisecond)
@@ -61,14 +67,16 @@ func TestEchoProto(t *testing.T) {
 	}
 	// 客户端作为connector,需要设置心跳包
 	clientHandler.RegisterHeartBeat(func() Packet {
-		return NewProtoPacket(PacketCommand(pb.CmdTest_Cmd_HeartBeat),&pb.HeartBeatReq{})
+		return NewProtoPacket(PacketCommand(pb.CmdTest_Cmd_HeartBeat), &pb.HeartBeatReq{})
 	})
 	// 注册客户端的消息回调
 	clientHandler.Register(PacketCommand(pb.CmdTest_Cmd_HeartBeat), clientHandler.onHeartBeatRes, new(pb.HeartBeatRes))
 	clientHandler.Register(PacketCommand(pb.CmdTest_Cmd_TestMessage), clientHandler.onTestMessage, new(pb.TestMessage))
 	// 测试没有注册proto.Message的消息
 	clientHandler.Register(PacketCommand(100), clientHandler.onTestDataMessage, nil)
-	if netMgr.NewConnector(ctx, listenAddress, &connectionConfig, clientCodec, clientHandler, nil) == nil {
+	connectionConfig.Codec = clientCodec
+	connectionConfig.Handler = clientHandler
+	if netMgr.NewConnector(ctx, listenAddress, &connectionConfig, nil) == nil {
 		panic("connect failed")
 	}
 
@@ -165,11 +173,11 @@ func (e *echoProtoClientHandler) onTestDataMessage(connection Connection, packet
 }
 
 func TestListenerError(t *testing.T) {
-	config := ConnectionConfig{}
-	tcpListener := NewTcpListener(config, nil, nil, nil)
+	config := &ListenerConfig{}
+	tcpListener := NewTcpListener(config)
 	tcpListener.Addr()
-	tcpListener1 := GetNetMgr().NewListener(context.Background(), "127.0.0.1:10001", config, nil, nil, nil)
-	tcpListener2 := GetNetMgr().NewListener(context.Background(), "127.0.0.1:10001", config, nil, nil, nil)
+	tcpListener1 := GetNetMgr().NewListener(context.Background(), "127.0.0.1:10001", config)
+	tcpListener2 := GetNetMgr().NewListener(context.Background(), "127.0.0.1:10001", config)
 	if tcpListener1 != nil {
 		tcpListener1.Close()
 	}

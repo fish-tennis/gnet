@@ -35,12 +35,19 @@ func TestPacketSize(t *testing.T) {
 		testMessage := packet.Message().(*pb.TestMessage)
 		logger.Info("recv%v:%s", testMessage.I32, testMessage.Name)
 	}, new(pb.TestMessage))
-	if GetNetMgr().NewListener(ctx, listenAddress, connectionConfig, defaultCodec, serverHandler, nil) == nil {
+	listenerConfig := &ListenerConfig{
+		AcceptConfig: connectionConfig,
+	}
+	listenerConfig.AcceptConfig.Codec = defaultCodec
+	listenerConfig.AcceptConfig.Handler = serverHandler
+	if GetNetMgr().NewListener(ctx, listenAddress, listenerConfig) == nil {
 		panic("listen failed")
 	}
 
 	clientHandler := NewDefaultConnectionHandler(defaultCodec)
-	clientConnector := GetNetMgr().NewConnector(ctx, listenAddress, &connectionConfig, defaultCodec, clientHandler, nil)
+	connectionConfig.Codec = defaultCodec
+	connectionConfig.Handler = clientHandler
+	clientConnector := GetNetMgr().NewConnector(ctx, listenAddress, &connectionConfig, nil)
 	if clientConnector == nil {
 		panic("connect failed")
 	}
@@ -71,15 +78,15 @@ func TestPacketSize(t *testing.T) {
 }
 
 func TestPacketSizeInit(t *testing.T) {
-	config := &ConnectionConfig{}
-	codec := NewProtoCodec(nil)
-	tcpConnector := NewTcpConnector(config, codec, nil)
-	tcpConnector.SetCodec(codec)
-	NewTcpConnectionAccept(nil, config, codec, nil)
+	config := &ConnectionConfig{
+		Codec: NewProtoCodec(nil),
+	}
+	tcpConnector := NewTcpConnector(config)
+	NewTcpConnectionAccept(nil, config)
 	tcpConnector.Send(PacketCommand(123), nil)
 	tcpConnector.LocalAddr()
 	tcpConnector.RemoteAddr()
-	simpleTcpConnector := NewTcpConnectionSimple(config, nil, nil)
+	simpleTcpConnector := NewTcpConnectionSimple(config)
 	simpleTcpConnector.Send(PacketCommand(123), nil)
 	simpleTcpConnector.LocalAddr()
 	simpleTcpConnector.RemoteAddr()

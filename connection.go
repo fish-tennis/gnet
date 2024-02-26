@@ -106,6 +106,16 @@ type ConnectionConfig struct {
 	// 发包超时设置(秒)
 	//  net.Conn.SetWriteDeadline
 	WriteTimeout uint32
+
+	Codec Codec
+
+	Handler ConnectionHandler
+
+	// ws或wss的http路径,如"/ws"或"/wss"
+	Path string
+
+	// "ws"或"wss"
+	Scheme string
 }
 
 type baseConnection struct {
@@ -169,6 +179,6 @@ func NewConnectionId() uint32 {
 	return atomic.AddUint32(&_connectionIdCounter, 1)
 }
 
-type ConnectionCreator func(config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection
+type ConnectionCreator func(config *ConnectionConfig) Connection
 
-type AcceptConnectionCreator func(conn net.Conn, config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection
+type AcceptConnectionCreator func(conn net.Conn, config *ConnectionConfig) Connection

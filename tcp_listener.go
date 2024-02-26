@@ -2,6 +2,7 @@ package gnet
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -36,15 +37,17 @@ type TcpListener struct {
 	netMgrWg *sync.WaitGroup
 }
 
-func NewTcpListener(acceptConnectionConfig ConnectionConfig, acceptConnectionCodec Codec, acceptConnectionHandler ConnectionHandler, listenerHandler ListenerHandler) *TcpListener {
+func NewTcpListener(listenerConfig *ListenerConfig) *TcpListener {
 	return &TcpListener{
 		baseListener: baseListener{
 			listenerId: newListenerId(),
-			handler:    listenerHandler,
+			config:     listenerConfig,
+			handler:    listenerConfig.ListenerHandler,
 		},
-		acceptConnectionConfig:  acceptConnectionConfig,
-		acceptConnectionCodec:   acceptConnectionCodec,
-		acceptConnectionHandler: acceptConnectionHandler,
+		acceptConnectionConfig:  listenerConfig.AcceptConfig,
+		acceptConnectionCodec:   listenerConfig.AcceptConfig.Codec,
+		acceptConnectionHandler: listenerConfig.AcceptConfig.Handler,
+		acceptConnectionCreator: listenerConfig.AcceptConnectionCreator,
 		connectionMap:           make(map[uint32]Connection),
 		acceptStopNotifyChan:    make(chan struct{}, 1),
 	}
@@ -88,7 +91,7 @@ func (this *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 	var err error
 	this.netListener, err = net.Listen("tcp", listenAddress)
 	if err != nil {
-		logger.Error("Listen Failed %v: %v", this.GetListenerId(), err)
+		logger.Error("Listen Failed %v: %v", this.GetListenerId(), err.Error())
 		return false
 	}
 	logger.Debug("TcpListener Start %v", this.GetListenerId())
@@ -168,8 +171,9 @@ func (this *TcpListener) acceptLoop(ctx context.Context) {
 		// 阻塞accept,当netListener关闭时,会返回err
 		newConn, err := this.netListener.Accept()
 		if err != nil {
-			logger.Error("%v accept err:%v", this.GetListenerId(), err)
-			if netError, ok := err.(net.Error); ok && netError.Temporary() {
+			logger.Error("%v accept err:%v", this.GetListenerId(), err.Error())
+			var netError net.Error
+			if errors.As(err, &netError) && netError.Temporary() {
 				logger.Error("accept temporary err:%v", this.GetListenerId())
 				time.Sleep(100 * time.Millisecond)
 				continue
@@ -192,7 +196,7 @@ func (this *TcpListener) acceptLoop(ctx context.Context) {
 					LogStack()
 				}
 			}()
-			newTcpConn := this.acceptConnectionCreator(newConn, &this.acceptConnectionConfig, this.acceptConnectionCodec, this.acceptConnectionHandler)
+			newTcpConn := this.acceptConnectionCreator(newConn, &this.acceptConnectionConfig)
 			if newTcpConn.GetHandler() != nil {
 				newTcpConn.GetHandler().OnConnected(newTcpConn, true)
 			}

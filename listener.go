@@ -25,9 +25,23 @@ type Listener interface {
 	Close()
 }
 
+type ListenerConfig struct {
+	AcceptConfig            ConnectionConfig
+	AcceptConnectionCreator AcceptConnectionCreator
+	ListenerHandler         ListenerHandler
+	// ws或wss的http监听路径,如"/ws"或"/wss"
+	Path string
+	// 签名cert文件,wss专用
+	CertFile string
+	// 签名key文件,wss专用
+	KeyFile string
+}
+
 type baseListener struct {
 	// unique listener id
 	listenerId uint32
+
+	config *ListenerConfig
 
 	handler ListenerHandler
 }

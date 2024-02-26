@@ -75,13 +75,19 @@ func TestTestServer(t *testing.T) {
 
 	protoMap := make(map[PacketCommand]reflect.Type)
 	protoMap[PacketCommand(123)] = reflect.TypeOf(new(pb.TestMessage)).Elem()
-	codec := NewProtoCodec(protoMap)
+	connectionConfig.Codec = NewProtoCodec(protoMap)
 
-	netMgr.NewListener(ctx, listenAddress, connectionConfig, codec, &testServerClientHandler{}, &testServerListenerHandler{})
+	listenerConfig := &ListenerConfig{
+		AcceptConfig:    connectionConfig,
+		ListenerHandler: &testServerListenerHandler{},
+	}
+	listenerConfig.AcceptConfig.Handler = &testServerClientHandler{}
+	netMgr.NewListener(ctx, listenAddress, listenerConfig)
 	time.Sleep(time.Second)
 
+	connectionConfig.Handler = &testClientHandler{}
 	for i := 0; i < clientCount; i++ {
-		netMgr.NewConnector(ctx, listenAddress, &connectionConfig, codec, &testClientHandler{}, nil)
+		netMgr.NewConnector(ctx, listenAddress, &connectionConfig, nil)
 	}
 
 	netMgr.Shutdown(true)

@@ -29,6 +29,8 @@ func TestCustomPacketNoRingBuffer(t *testing.T) {
 	defer cancel()
 
 	netMgr := GetNetMgr()
+	serverCodec := &customCodec{}
+	serverHandler := &echoCustomPacketServerHandler{}
 	connectionConfig := ConnectionConfig{
 		SendPacketCacheCap: 16,
 		MaxPacketSize:      1024 * 1024 * 32, // 支持超出DefaultPacketHeaderSize大小的包
@@ -38,21 +40,25 @@ func TestCustomPacketNoRingBuffer(t *testing.T) {
 	}
 	listenAddress := "127.0.0.1:10002"
 
-	serverCodec := &customCodec{}
-	serverHandler := &echoCustomPacketServerHandler{}
 	// 自定义TcpConnection
-	if netMgr.NewListenerCustom(ctx, listenAddress, connectionConfig, serverCodec, serverHandler, nil, func(conn net.Conn, config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection {
-		return NewTcpConnectionSimpleAccept(conn, config, codec, handler)
-	}) == nil {
+	listenerConfig := &ListenerConfig{
+		AcceptConfig: connectionConfig,
+		AcceptConnectionCreator: func(conn net.Conn, config *ConnectionConfig) Connection {
+			return NewTcpConnectionSimpleAccept(conn, config)
+		},
+	}
+	listenerConfig.AcceptConfig.Codec = serverCodec
+	listenerConfig.AcceptConfig.Handler = serverHandler
+	if netMgr.NewListener(ctx, listenAddress, listenerConfig) == nil {
 		panic("listen failed")
 	}
 	time.Sleep(time.Second)
 
-	clientCodec := &customCodec{}
-	clientHandler := &echoCustomPacketClientHandler{}
+	connectionConfig.Codec = &customCodec{}
+	connectionConfig.Handler = &echoCustomPacketClientHandler{}
 	// 自定义TcpConnection
-	if netMgr.NewConnectorCustom(ctx, listenAddress, &connectionConfig, clientCodec, clientHandler, nil, func(config *ConnectionConfig, codec Codec, handler ConnectionHandler) Connection {
-		return NewTcpConnectionSimple(config, codec, handler)
+	if netMgr.NewConnectorCustom(ctx, listenAddress, &connectionConfig, nil, func(config *ConnectionConfig) Connection {
+		return NewTcpConnectionSimple(config)
 	}) == nil {
 		panic("connect failed")
 	}

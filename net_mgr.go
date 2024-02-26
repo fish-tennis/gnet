@@ -41,23 +41,35 @@ func (this *NetMgr) init() {
 	this.wg = sync.WaitGroup{}
 }
 
-// create a new TcpListener
-func (this *NetMgr) NewListener(ctx context.Context, address string, acceptConnectionConfig ConnectionConfig, acceptConnectionCodec Codec,
-	acceptConnectionHandler ConnectionHandler, listenerHandler ListenerHandler) Listener {
-	return this.NewListenerCustom(ctx, address, acceptConnectionConfig, acceptConnectionCodec,
-		acceptConnectionHandler, listenerHandler, func(_conn net.Conn, _config *ConnectionConfig, _codec Codec, _handler ConnectionHandler) Connection {
-			return NewTcpConnectionAccept(_conn, _config, _codec, _handler)
-		})
-}
-
-// create a new Listener, with custom acceptConnectionCreator
-func (this *NetMgr) NewListenerCustom(ctx context.Context, address string, acceptConnectionConfig ConnectionConfig, acceptConnectionCodec Codec,
-	acceptConnectionHandler ConnectionHandler, listenerHandler ListenerHandler, acceptConnectionCreator AcceptConnectionCreator) Listener {
-	newListener := NewTcpListener(acceptConnectionConfig, acceptConnectionCodec, acceptConnectionHandler, listenerHandler)
-	newListener.acceptConnectionCreator = acceptConnectionCreator
+func (this *NetMgr) NewListener(ctx context.Context, address string, listenerConfig *ListenerConfig) Listener {
+	if listenerConfig.AcceptConnectionCreator == nil {
+		listenerConfig.AcceptConnectionCreator = func(conn net.Conn, config *ConnectionConfig) Connection {
+			return NewTcpConnectionAccept(conn, config)
+		}
+	}
+	newListener := NewTcpListener(listenerConfig)
 	newListener.netMgrWg = &this.wg
 	if !newListener.Start(ctx, address) {
-		logger.Debug("NewListener Start Failed")
+		logger.Error("NewListener Start Failed")
+		return nil
+	}
+	this.listenerMapLock.Lock()
+	this.listenerMap[newListener.GetListenerId()] = newListener
+	this.listenerMapLock.Unlock()
+
+	newListener.onClose = func(listener Listener) {
+		this.listenerMapLock.Lock()
+		delete(this.listenerMap, listener.GetListenerId())
+		this.listenerMapLock.Unlock()
+	}
+	return newListener
+}
+
+func (this *NetMgr) NewWsListener(ctx context.Context, address string, listenerConfig *ListenerConfig) Listener {
+	newListener := NewWsListener(listenerConfig)
+	newListener.netMgrWg = &this.wg
+	if !newListener.Start(ctx, address) {
+		logger.Error("NewWsListener Start Failed")
 		return nil
 	}
 	this.listenerMapLock.Lock()
@@ -74,16 +86,23 @@ func (this *NetMgr) NewListenerCustom(ctx context.Context, address string, accep
 
 // create a new TcpConnection
 func (this *NetMgr) NewConnector(ctx context.Context, address string, connectionConfig *ConnectionConfig,
-	codec Codec, handler ConnectionHandler, tag interface{}) Connection {
-	return this.NewConnectorCustom(ctx, address, connectionConfig, codec, handler, tag, func(_config *ConnectionConfig, _codec Codec, _handler ConnectionHandler) Connection {
-		return NewTcpConnector(_config, _codec, _handler)
+	tag interface{}) Connection {
+	return this.NewConnectorCustom(ctx, address, connectionConfig, tag, func(_config *ConnectionConfig) Connection {
+		return NewTcpConnector(_config)
+	})
+}
+
+func (this *NetMgr) NewWsConnector(ctx context.Context, address string, connectionConfig *ConnectionConfig,
+	tag interface{}) Connection {
+	return this.NewConnectorCustom(ctx, address, connectionConfig, tag, func(_config *ConnectionConfig) Connection {
+		return NewWsConnection(_config)
 	})
 }
 
 // create a new Connection, with custom connectionCreator
 func (this *NetMgr) NewConnectorCustom(ctx context.Context, address string, connectionConfig *ConnectionConfig,
-	codec Codec, handler ConnectionHandler, tag interface{}, connectionCreator ConnectionCreator) Connection {
-	newConnector := connectionCreator(connectionConfig, codec, handler)
+	tag interface{}, connectionCreator ConnectionCreator) Connection {
+	newConnector := connectionCreator(connectionConfig)
 	newConnector.SetTag(tag)
 	if !newConnector.Connect(address) {
 		newConnector.Close()

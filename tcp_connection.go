@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// tcp connection, use RingBuffer to optimize
+// TcpConnection use RingBuffer to optimize
 type TcpConnection struct {
 	baseConnection
 	conn net.Conn
@@ -35,44 +35,44 @@ type TcpConnection struct {
 	curReadPacketHeader     PacketHeader
 }
 
-func NewTcpConnector(config *ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
+func NewTcpConnector(config *ConnectionConfig) *TcpConnection {
 	if config.MaxPacketSize == 0 {
 		config.MaxPacketSize = MaxPacketDataSize
 	}
 	if config.MaxPacketSize > MaxPacketDataSize {
 		config.MaxPacketSize = MaxPacketDataSize
 	}
-	newConnection := createTcpConnection(config, codec, handler)
+	newConnection := createTcpConnection(config)
 	newConnection.isConnector = true
 	return newConnection
 }
 
-func NewTcpConnectionAccept(conn net.Conn, config *ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
+func NewTcpConnectionAccept(conn net.Conn, config *ConnectionConfig) *TcpConnection {
 	if config.MaxPacketSize == 0 {
 		config.MaxPacketSize = MaxPacketDataSize
 	}
 	if config.MaxPacketSize > MaxPacketDataSize {
 		config.MaxPacketSize = MaxPacketDataSize
 	}
-	newConnection := createTcpConnection(config, codec, handler)
+	newConnection := createTcpConnection(config)
 	newConnection.isConnector = false
 	atomic.StoreInt32(&newConnection.isConnected, 1)
 	newConnection.conn = conn
 	return newConnection
 }
 
-func createTcpConnection(config *ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnection {
+func createTcpConnection(config *ConnectionConfig) *TcpConnection {
 	newConnection := &TcpConnection{
 		baseConnection: baseConnection{
 			connectionId: NewConnectionId(),
 			config:       config,
-			codec:        codec,
-			handler:      handler,
+			codec:        config.Codec,
+			handler:      config.Handler,
 		},
 		readStopNotifyChan: make(chan struct{}, 1),
 		sendPacketCache:    make(chan Packet, config.SendPacketCacheCap),
 	}
-	newConnection.tmpReadPacketHeader = codec.CreatePacketHeader(newConnection, nil, nil)
+	newConnection.tmpReadPacketHeader = config.Codec.CreatePacketHeader(newConnection, nil, nil)
 	return newConnection
 }
 

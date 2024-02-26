@@ -29,27 +29,27 @@ type TcpConnectionSimple struct {
 	sendPacketCache chan Packet
 }
 
-func NewTcpConnectionSimple(config *ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnectionSimple {
-	newConnection := createTcpConnectionSimple(config, codec, handler)
+func NewTcpConnectionSimple(config *ConnectionConfig) *TcpConnectionSimple {
+	newConnection := createTcpConnectionSimple(config)
 	newConnection.isConnector = true
 	return newConnection
 }
 
-func NewTcpConnectionSimpleAccept(conn net.Conn, config *ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnectionSimple {
-	newConnection := createTcpConnectionSimple(config, codec, handler)
+func NewTcpConnectionSimpleAccept(conn net.Conn, config *ConnectionConfig) *TcpConnectionSimple {
+	newConnection := createTcpConnectionSimple(config)
 	newConnection.isConnector = false
 	atomic.StoreInt32(&newConnection.isConnected, 1)
 	newConnection.conn = conn
 	return newConnection
 }
 
-func createTcpConnectionSimple(config *ConnectionConfig, codec Codec, handler ConnectionHandler) *TcpConnectionSimple {
+func createTcpConnectionSimple(config *ConnectionConfig) *TcpConnectionSimple {
 	newConnection := &TcpConnectionSimple{
 		baseConnection: baseConnection{
 			connectionId: NewConnectionId(),
 			config:       config,
-			codec:        codec,
-			handler:      handler,
+			codec:        config.Codec,
+			handler:      config.Handler,
 		},
 		readStopNotifyChan: make(chan struct{}, 1),
 		sendPacketCache:    make(chan Packet, config.SendPacketCacheCap),
