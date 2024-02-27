@@ -4,7 +4,9 @@
 [![codecov](https://codecov.io/gh/fish-tennis/gnet/branch/main/graph/badge.svg?token=RJ1C0OJAMK)](https://codecov.io/gh/fish-tennis/gnet)
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge-flat.svg)](https://github.com/avelino/awesome-go#networking)
 
-基于go语言开发的游戏网络库
+[English](https://github.com/fish-tennis/gnet/blob/main/README.md)
+
+基于go语言开发的高性能网络库
 
 ## 功能
 
@@ -12,6 +14,7 @@
 - 默认支持protobuf
 - 使用无锁的RingBuffer优化收发包,针对游戏应用场景,性能可提高5倍
 - 编解码接口易扩展
+- 目前支持Tcp,WebSocket(ws and wss)
 
 ## 核心模块
 
@@ -81,6 +84,10 @@ func OnTest(conn Connection, packet Packet) {
 
 [模拟一个简单的游戏应用场景的性能测试](https://github.com/fish-tennis/gnet/blob/main/example/server_test.go)
 
+[不使用RingBuffer的Tcp](https://github.com/fish-tennis/gnet/blob/main/tcp_connection_simple_test.go)
+
+[Websocket](https://github.com/fish-tennis/gnet/blob/main/ws_connection_test.go)
+
 ## 优化原理
 
 ## 项目演示
@@ -88,3 +95,6 @@ func OnTest(conn Connection, packet Packet) {
 [游戏实体接口gentity](https://github.com/fish-tennis/gentity)
 
 [分布式游戏服务器框架gserver](https://github.com/fish-tennis/gserver)
+
+## 讨论
+QQ群: 764912827

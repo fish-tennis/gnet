@@ -13,6 +13,7 @@ High performance network library,especially for game servers
 - Default support protobuf
 - Optimize receiving and dispatching using lockless RingBuffer, which can improve performance by 5x for some cases
 - Easy to implement custom encoding and decoding
+- Support Tcp,WebSocket(ws and wss)
 
 ## Core module
 
@@ -79,11 +80,15 @@ func OnTest(conn Connection, packet Packet) {
 
 [custom packet struct](https://github.com/fish-tennis/gnet/blob/main/custom_packet_no_ringbuffer_test.go)
 
-[Simulate performance testing of a simple game server scenario](https://github.com/fish-tennis/gnet/blob/main/server_test.go)
+[simulate performance testing of a simple game server scenario](https://github.com/fish-tennis/gnet/blob/main/server_test.go)
+
+[tcp without ringbuffer](https://github.com/fish-tennis/gnet/blob/main/tcp_connection_simple_test.go)
+
+[websocket](https://github.com/fish-tennis/gnet/blob/main/ws_connection_test.go)
 
 ## Project
 
-[game entity framework](https://github.com/fish-tennis/gentity)
+[game db&cache framework](https://github.com/fish-tennis/gentity)
 
 [distributed game server framework](https://github.com/fish-tennis/gserver)
 
