@@ -54,6 +54,12 @@ Layer2:Decoding the data from Layer1,such as decryption,decompression,etc
 
 Layer3:protobuf deserialize,generate proto.Message
 
+![length & data](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/packet.png)
+
+![encode](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/packet_encode.png)
+
+![decode](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/packet_decode.png)
+
 ### Handler(https://github.com/fish-tennis/gnet/blob/main/handler.go)
 
 ListenerHandler:when the server accept a new connection or the accepted connection disconnected
@@ -71,6 +77,14 @@ func OnTest(conn Connection, packet Packet) {
     // do something
 }
 ```
+
+### Use RingBuffer to increase performance
+
+![decode](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/ringbuffer-performance.png)
+
+### goroutine
+
+![connection_goroutine](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/connection_goroutine.png)
 
 ## Examples
 
