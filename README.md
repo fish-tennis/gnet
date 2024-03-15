@@ -80,7 +80,7 @@ func OnTest(conn Connection, packet Packet) {
 
 ### Use RingBuffer to increase performance
 
-![decode](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/ringbuffer-performance.png)
+![ringbuffer-performance](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/ringbuffer-performance.png)
 
 ### goroutine
 

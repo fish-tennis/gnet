@@ -56,6 +56,12 @@ gnet把基于TCP流的解码分成3层
 
 第3层:对解码后的数据,进行protobuf反序列化,还原成proto.Message对象
 
+![length & data](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/packet.png)
+
+![encode](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/packet_encode.png)
+
+![decode](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/packet_decode.png)
+
 ### 应用层接口Handler(https://github.com/fish-tennis/gnet/blob/main/handler.go)
 
 ListenerHandler:当监听到新连接和连接断开时,提供回调接口
@@ -74,6 +80,19 @@ func OnTest(conn Connection, packet Packet) {
 }
 ```
 
+### 使用RingBuffer来提高性能
+
+![ringbuffer-performance](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/ringbuffer-performance.png)
+
+举例:在一个游戏地图中,你周围有很多其他玩家,其他玩家的数据更新需要同步给你,服务器会向你发送很多Packet,如果不使用RingBuffer机制, 就会每个Packet调用一次net.Conn.Write,而net.Conn.Write是系统调用,代价是比较高的,如TcpConnectionSimple
+
+如果使用RingBuffer机制,就会在实际调用net.Conn.Write之前,对多个Packet进行合并,从而减少net.Conn.Write的调用次数,从而提高性能.
+
+
+### go协程
+
+![connection_goroutine](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/connection_goroutine.png)
+
 ## 示例
 
 [使用proto的echo](https://github.com/fish-tennis/gnet/blob/main/example/echo_proto_test.go)
@@ -87,8 +106,6 @@ func OnTest(conn Connection, packet Packet) {
 [不使用RingBuffer的Tcp](https://github.com/fish-tennis/gnet/blob/main/tcp_connection_simple_test.go)
 
 [Websocket](https://github.com/fish-tennis/gnet/blob/main/ws_connection_test.go)
-
-## 优化原理
 
 ## 项目演示
 
