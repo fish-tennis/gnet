@@ -86,7 +86,7 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]b
 func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketHeader, packetData []byte) Packet {
 	decodedPacketData := packetData
 	// Q:这里可以对packetData进行解码,如异或,解密,解压等
-	// you can decode packetData here, such as XOR, encryption, compression, etc
+	// you can decode packetData here, such as XOR, decryption, decompression, etc
 	if this.ProtoPacketBytesDecoder != nil {
 		decodedPacketData = this.ProtoPacketBytesDecoder(packetData)
 	}

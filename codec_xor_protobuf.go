@@ -13,26 +13,30 @@ func NewXorProtoCodec(xorKey []byte, protoMessageTypeMap map[PacketCommand]refle
 		ProtoCodec: NewProtoCodec(protoMessageTypeMap),
 		xorKey:     xorKey,
 	}
+	codec.HeaderEncoder = func(connection Connection, packet Packet, headerData []byte) {
+		xorEncode(headerData, codec.xorKey, 0)
+	}
+	codec.HeaderDecoder = func(connection Connection, headerData []byte) {
+		xorEncode(headerData, codec.xorKey, 0)
+	}
 	codec.ProtoPacketBytesEncoder = func(protoPacketBytes [][]byte) [][]byte {
-		keyIndex := 0
+		keyIndex := int(codec.PacketHeaderSize())
 		for _, data := range protoPacketBytes {
-			for i := 0; i < len(data); i++ {
-				data[i] = data[i] ^ codec.xorKey[keyIndex%len(codec.xorKey)]
-				keyIndex++
-			}
+			xorEncode(data, codec.xorKey, keyIndex)
+			keyIndex += len(data)
 		}
 		return protoPacketBytes
 	}
 	codec.ProtoPacketBytesDecoder = func(packetData []byte) []byte {
-		xorEncode(packetData, codec.xorKey)
+		xorEncode(packetData, codec.xorKey, int(codec.PacketHeaderSize()))
 		return packetData
 	}
 	return codec
 }
 
 // xor encode
-func xorEncode(data []byte, key []byte) {
+func xorEncode(data []byte, key []byte, keyIndex int) {
 	for i := 0; i < len(data); i++ {
-		data[i] = data[i] ^ key[i%len(key)]
+		data[i] = data[i] ^ key[(i+keyIndex)%len(key)]
 	}
 }
