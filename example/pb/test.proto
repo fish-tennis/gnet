@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 option go_package = "./pb";
+option csharp_namespace = "pb";
 
 package test;
 

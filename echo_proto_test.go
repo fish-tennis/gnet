@@ -37,6 +37,7 @@ func TestEchoProto(t *testing.T) {
 	listenAddress := "127.0.0.1:10002"
 
 	serverCodec := NewProtoCodec(nil)
+	//serverCodec := NewXorProtoCodec([]byte("testKey"), nil)
 	serverHandler := NewDefaultConnectionHandler(serverCodec)
 	serverHandler.SetOnConnectedFunc(echoProtoOnConnected)
 	serverHandler.SetOnDisconnectedFunc(func(connection Connection) {

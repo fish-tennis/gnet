@@ -100,6 +100,9 @@ func OnTest(conn Connection, packet Packet) {
 
 [websocket](https://github.com/fish-tennis/gnet/blob/main/ws_connection_test.go)
 
+## Client Connector Library
+C#: [gnet_csharp](https://github.com/fish-tennis/gnet_csharp)
+
 ## Project
 
 [game db&cache framework](https://github.com/fish-tennis/gentity)
