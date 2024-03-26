@@ -44,17 +44,14 @@ func testWebSocket(t *testing.T, protocolName, certFile, keyFile string) {
 	codec.Register(PacketCommand(10086), nil)
 
 	connectionHandler := NewDefaultConnectionHandler(codec)
-	connectionHandler.RegisterHeartBeat(func() Packet {
-		return NewProtoPacket(PacketCommand(pb.CmdTest_Cmd_HeartBeat), &pb.HeartBeatReq{
-			Timestamp: GetCurrentTimeStamp(),
-		})
-	})
+	connectionHandler.Register(PacketCommand(pb.CmdTest_Cmd_HeartBeat), onHeartBeatReq, new(pb.HeartBeatReq))
 	connectionHandler.SetUnRegisterHandler(func(connection Connection, packet Packet) {
 		streamStr := ""
 		if packet.GetStreamData() != nil {
 			streamStr = string(packet.GetStreamData())
 		}
 		t.Logf("%v %v %v %v", connection.GetConnectionId(), packet.Command(), packet.Message(), streamStr)
+		connection.SendPacket(packet.Clone())
 	})
 	acceptConnectionConfig.Codec = codec
 	acceptConnectionConfig.Handler = connectionHandler
@@ -72,6 +69,19 @@ func testWebSocket(t *testing.T, protocolName, certFile, keyFile string) {
 	listener := netMgr.NewWsListener(ctx, listenAddress, listenerConfig)
 	time.Sleep(time.Second)
 
+	connectorHandler := NewDefaultConnectionHandler(codec)
+	connectorHandler.RegisterHeartBeat(func() Packet {
+		return NewProtoPacket(PacketCommand(pb.CmdTest_Cmd_HeartBeat), &pb.HeartBeatReq{
+			Timestamp: GetCurrentTimeStamp(),
+		})
+	})
+	connectorHandler.SetUnRegisterHandler(func(connection Connection, packet Packet) {
+		streamStr := ""
+		if packet.GetStreamData() != nil {
+			streamStr = string(packet.GetStreamData())
+		}
+		t.Logf("%v %v %v %v", connection.GetConnectionId(), packet.Command(), packet.Message(), streamStr)
+	})
 	connectorConnectionConfig := ConnectionConfig{
 		SendPacketCacheCap: 100,
 		MaxPacketSize:      60,
@@ -79,7 +89,7 @@ func testWebSocket(t *testing.T, protocolName, certFile, keyFile string) {
 		HeartBeatInterval:  2,
 		WriteTimeout:       1,
 		Codec:              codec,
-		Handler:            connectionHandler,
+		Handler:            connectorHandler,
 		Path:               "/" + protocolName,
 		Scheme:             protocolName,
 	}

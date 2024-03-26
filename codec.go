@@ -29,6 +29,7 @@ type Codec interface {
 // process divided into two layers
 // layer1: retrieve the original package data from RingBuffer
 // layer2: encode or decode of the original package data
+// NOTE: only support TcpConnection
 type RingBufferCodec struct {
 	// 包头的编码接口,包头长度不能变
 	// encoder for packer header

@@ -12,8 +12,7 @@ import (
 
 type WsListener struct {
 	baseListener
-	httpServer *http.Server
-	upgrader   websocket.Upgrader
+	upgrader websocket.Upgrader
 
 	acceptConnectionConfig  ConnectionConfig
 	acceptConnectionCodec   Codec
@@ -67,7 +66,6 @@ func (this *WsListener) Addr() net.Addr {
 }
 
 func (this *WsListener) Close() {
-	this.httpServer.Close()
 }
 
 func (this *WsListener) IsRunning() bool {
@@ -82,18 +80,14 @@ func (this *WsListener) Start(ctx context.Context, listenAddress string) bool {
 		ReadBufferSize:  int(this.acceptConnectionConfig.RecvBufferSize),
 		WriteBufferSize: int(this.acceptConnectionConfig.SendBufferSize),
 	}
-	this.httpServer = &http.Server{
-		Addr:              listenAddress,
-		ReadHeaderTimeout: 3 * time.Second,
-	}
 	// 监听协程
 	atomic.StoreInt32(&this.isRunning, 1)
 	go func() {
 		var err error
 		if this.config.CertFile != "" {
-			err = this.httpServer.ListenAndServeTLS(this.config.CertFile, this.config.KeyFile)
+			err = http.ListenAndServeTLS(listenAddress, this.config.CertFile, this.config.KeyFile, nil)
 		} else {
-			err = this.httpServer.ListenAndServe()
+			err = http.ListenAndServe(listenAddress, nil)
 		}
 		if err != nil {
 			atomic.StoreInt32(&this.isRunning, 0)
