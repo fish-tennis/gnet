@@ -54,3 +54,9 @@ func (this *rpcCalls) putReply(replyPacket Packet) bool {
 	}
 	return false
 }
+
+func (this *rpcCalls) removeReply(rpcCallId uint32) {
+	this.rpcCallMutex.Lock()
+	defer this.rpcCallMutex.Unlock()
+	delete(this.rpcCalls, rpcCallId)
+}

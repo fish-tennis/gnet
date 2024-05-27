@@ -3,12 +3,9 @@ package gnet
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"github.com/gorilla/websocket"
-	"google.golang.org/protobuf/proto"
 	"net"
 	"net/url"
-	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,88 +23,6 @@ type WsConnection struct {
 	onClose func(connection Connection)
 	// 最近收到完整数据包的时间(时间戳:秒)
 	lastRecvPacketTick int64
-	// 发包缓存chan
-	sendPacketCache chan Packet
-}
-
-func (this *WsConnection) Send(command PacketCommand, message proto.Message) bool {
-	if !this.IsConnected() {
-		return false
-	}
-	packet := NewProtoPacket(command, message)
-	// NOTE:当sendPacketCache满时,这里会阻塞
-	this.sendPacketCache <- packet
-	return true
-}
-
-func (this *WsConnection) SendPacket(packet Packet) bool {
-	if !this.IsConnected() {
-		return false
-	}
-	// NOTE:当sendPacketCache满时,这里会阻塞
-	this.sendPacketCache <- packet
-	return true
-}
-
-func (this *WsConnection) TrySendPacket(packet Packet, timeout time.Duration) bool {
-	if timeout == 0 {
-		// 非阻塞方式写chan
-		select {
-		case this.sendPacketCache <- packet:
-			return true
-		default:
-			return false
-		}
-	}
-	sendTimeout := time.After(timeout)
-	for {
-		select {
-		case this.sendPacketCache <- packet:
-			return true
-		case <-sendTimeout:
-			return false
-		}
-	}
-	return false
-}
-
-func (this *WsConnection) Rpc(request Packet, reply proto.Message) error {
-	if !this.IsConnected() {
-		return errors.New("disconnected")
-	}
-	call := this.rpcCalls.newRpcCall()
-	if rpcCallIdSetter, ok := request.(RpcCallIdSetter); ok {
-		rpcCallIdSetter.SetRpcCallId(call.id)
-	} else {
-		return errors.New("request must be RpcCallIdSetter")
-	}
-	// NOTE:当sendPacketCache满时,这里会阻塞
-	this.sendPacketCache <- request
-	timeout := time.After(time.Second * 3)
-	select {
-	case <-timeout:
-		return errors.New("timeout")
-	case replyPacket := <-call.reply:
-		// 如果网络层已经反序列化了,直接赋值
-		if replyPacket.Message() != nil {
-			valueReply := reflect.ValueOf(reply)
-			if valueReply.Kind() != reflect.Ptr {
-				return errors.New("request is not a ptr")
-			}
-			dstMsg, srcMsg := reply.ProtoReflect(), replyPacket.Message().ProtoReflect()
-			if dstMsg.Descriptor() != srcMsg.Descriptor() {
-				return errors.New("proto message type err")
-			}
-			valueReply.Elem().Set(reflect.ValueOf(replyPacket.Message()).Elem())
-			return nil
-		}
-		// 否则,反序列化
-		err := proto.Unmarshal(replyPacket.GetStreamData(), reply)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
 }
 
 func (this *WsConnection) LocalAddr() net.Addr {
@@ -373,13 +288,14 @@ func (this *WsConnection) GetConn() *websocket.Conn {
 func createWsConnection(config *ConnectionConfig) *WsConnection {
 	newConnection := &WsConnection{
 		baseConnection: baseConnection{
-			connectionId: NewConnectionId(),
-			config:       config,
-			codec:        config.Codec,
-			handler:      config.Handler,
+			connectionId:    NewConnectionId(),
+			config:          config,
+			codec:           config.Codec,
+			handler:         config.Handler,
+			sendPacketCache: make(chan Packet, config.SendPacketCacheCap),
+			rpcCalls:        newRpcCalls(),
 		},
 		readStopNotifyChan: make(chan struct{}),
-		sendPacketCache:    make(chan Packet, config.SendPacketCacheCap),
 	}
 	return newConnection
 }

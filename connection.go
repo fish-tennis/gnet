@@ -2,8 +2,10 @@ package gnet
 
 import (
 	"context"
+	"errors"
 	"google.golang.org/protobuf/proto"
 	"net"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,19 +26,19 @@ type Connection interface {
 	// send a packet(proto.Message)
 	//  NOTE: 调用Send(command,message)之后,不要再对message进行读写!
 	//  NOTE: do not read or modify message after call Send
-	Send(command PacketCommand, message proto.Message) bool
+	Send(command PacketCommand, message proto.Message, opts ...SendOption) bool
 
 	// send a packet(Packet)
 	//  NOTE:调用SendPacket(packet)之后,不要再对packet进行读写!
 	//  NOTE: do not read or modify Packet after call SendPacket
-	SendPacket(packet Packet) bool
+	SendPacket(packet Packet, opts ...SendOption) bool
 
 	// 超时发包,超时未发送则丢弃,适用于某些允许丢弃的数据包
 	//  try send a packet with timeout
-	TrySendPacket(packet Packet, timeout time.Duration) bool
+	TrySendPacket(packet Packet, timeout time.Duration, opts ...SendOption) bool
 
 	// Rpc send a request to target and block wait reply
-	Rpc(request Packet, reply proto.Message) error
+	Rpc(request Packet, reply proto.Message, opts ...SendOption) error
 
 	// is connected
 	IsConnected() bool
@@ -138,6 +140,9 @@ type baseConnection struct {
 	//  the associated tag
 	tag interface{}
 
+	// 发包缓存chan
+	sendPacketCache chan Packet
+
 	rpcCalls *rpcCalls
 }
 
@@ -178,6 +183,120 @@ func (this *baseConnection) SetTag(tag interface{}) {
 
 func (this *baseConnection) GetHandler() ConnectionHandler {
 	return this.handler
+}
+
+// 发送proto包
+//
+//	NOTE:如果是异步调用Send(command,message),调用之后,不要再对message进行读写!
+func (this *baseConnection) Send(command PacketCommand, message proto.Message, opts ...SendOption) bool {
+	packet := NewProtoPacket(command, message)
+	return this.SendPacket(packet, opts...)
+}
+
+// 发送数据
+//
+//	NOTE:如果是异步调用SendPacket(command,message),调用之后,不要再对message进行读写!
+func (this *baseConnection) SendPacket(packet Packet, opts ...SendOption) bool {
+	if !this.IsConnected() {
+		return false
+	}
+	sendOpts := defaultSendOptions
+	for _, opt := range opts {
+		opt.apply(&sendOpts)
+	}
+	// TODO: block mode
+	if sendOpts.timeout > 0 {
+		sendTimeout := time.After(sendOpts.timeout)
+		for {
+			select {
+			case this.sendPacketCache <- packet:
+				return true
+			case <-sendTimeout:
+				return false
+			}
+		}
+	} else {
+		if sendOpts.discard {
+			// 非阻塞方式写chan
+			select {
+			case this.sendPacketCache <- packet:
+				return true
+			default:
+				return false
+			}
+		} else {
+			// NOTE:当sendPacketCache满时,这里会阻塞
+			this.sendPacketCache <- packet
+		}
+	}
+	return true
+}
+
+// 超时发包,超时未发送则丢弃,适用于某些允许丢弃的数据包
+// 可以防止某些"不重要的"数据包造成chan阻塞,比如游戏项目常见的聊天广播
+//
+//	asynchronous send with timeout (write to chan, not send immediately)
+//	if return false, means not write to chan
+func (this *baseConnection) TrySendPacket(packet Packet, timeout time.Duration, opts ...SendOption) bool {
+	sendOpts := opts
+	if timeout == 0 {
+		sendOpts = append(sendOpts, Discard())
+	} else {
+		sendOpts = append(sendOpts, Timeout(timeout))
+	}
+	return this.SendPacket(packet, sendOpts...)
+}
+
+// Rpc send a request to target and block wait reply
+func (this *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOption) error {
+	if !this.IsConnected() {
+		return errors.New("disconnected")
+	}
+	sendOpts := defaultSendOptions
+	for _, opt := range opts {
+		opt.apply(&sendOpts)
+	}
+	if sendOpts.timeout == 0 {
+		sendOpts.timeout = DefaultRpcTimeout
+	}
+	call := this.rpcCalls.newRpcCall()
+	if rpcCallIdSetter, ok := request.(RpcCallIdSetter); ok {
+		rpcCallIdSetter.SetRpcCallId(call.id)
+	} else {
+		return errors.New("request must be RpcCallIdSetter")
+	}
+	// NOTE:当sendPacketCache满时,这里会阻塞
+	this.sendPacketCache <- request
+	sendTimeout := sendOpts.timeout
+	if sendTimeout < 0 {
+		sendTimeout = time.Hour * 24 * 365
+	}
+	timeout := time.After(sendTimeout)
+	select {
+	case <-timeout:
+		this.rpcCalls.removeReply(call.id)
+		return errors.New("timeout")
+	case replyPacket := <-call.reply:
+		// 如果网络层已经反序列化了,直接赋值
+		if replyPacket.Message() != nil {
+			valueReply := reflect.ValueOf(reply)
+			if valueReply.Kind() != reflect.Ptr {
+				return errors.New("request is not a ptr")
+			}
+			dstMsg, srcMsg := reply.ProtoReflect(), replyPacket.Message().ProtoReflect()
+			if dstMsg.Descriptor() != srcMsg.Descriptor() {
+				return errors.New("proto message type err")
+			}
+			valueReply.Elem().Set(reflect.ValueOf(replyPacket.Message()).Elem())
+			return nil
+		}
+		// 否则,反序列化
+		err := proto.Unmarshal(replyPacket.GetStreamData(), reply)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 }
 
 func NewConnectionId() uint32 {

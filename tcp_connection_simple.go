@@ -2,11 +2,8 @@ package gnet
 
 import (
 	"context"
-	"errors"
-	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
-	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,8 +24,6 @@ type TcpConnectionSimple struct {
 	onClose func(connection Connection)
 	// 最近收到完整数据包的时间(时间戳:秒)
 	lastRecvPacketTick int64
-	// 发包缓存chan
-	sendPacketCache chan Packet
 }
 
 func NewTcpConnectionSimple(config *ConnectionConfig) *TcpConnectionSimple {
@@ -48,13 +43,14 @@ func NewTcpConnectionSimpleAccept(conn net.Conn, config *ConnectionConfig) *TcpC
 func createTcpConnectionSimple(config *ConnectionConfig) *TcpConnectionSimple {
 	newConnection := &TcpConnectionSimple{
 		baseConnection: baseConnection{
-			connectionId: NewConnectionId(),
-			config:       config,
-			codec:        config.Codec,
-			handler:      config.Handler,
+			connectionId:    NewConnectionId(),
+			config:          config,
+			codec:           config.Codec,
+			handler:         config.Handler,
+			sendPacketCache: make(chan Packet, config.SendPacketCacheCap),
+			rpcCalls:        newRpcCalls(),
 		},
 		readStopNotifyChan: make(chan struct{}, 1),
-		sendPacketCache:    make(chan Packet, config.SendPacketCacheCap),
 	}
 	return newConnection
 }
@@ -317,99 +313,6 @@ func (this *TcpConnectionSimple) Close() {
 			this.onClose(this)
 		}
 	})
-}
-
-// 异步发送proto包
-// NOTE:调用Send(command,message)之后,不要再对message进行读写!
-//
-//	asynchronous send (write to chan, not send immediately)
-func (this *TcpConnectionSimple) Send(command PacketCommand, message proto.Message) bool {
-	if !this.IsConnected() {
-		return false
-	}
-	packet := NewProtoPacket(command, message)
-	// NOTE:当sendPacketCache满时,这里会阻塞
-	this.sendPacketCache <- packet
-	return true
-}
-
-// 异步发送数据
-// NOTE:调用SendPacket(packet)之后,不要再对packet进行读写!
-//
-//	asynchronous send (write to chan, not send immediately)
-func (this *TcpConnectionSimple) SendPacket(packet Packet) bool {
-	if !this.IsConnected() {
-		return false
-	}
-	// NOTE:当sendPacketCache满时,这里会阻塞
-	this.sendPacketCache <- packet
-	return true
-}
-
-// 超时发包,超时未发送则丢弃,适用于某些允许丢弃的数据包
-// 可以防止某些"不重要的"数据包造成chan阻塞,比如游戏项目常见的聊天广播
-//
-//	asynchronous send with timeout (write to chan, not send immediately)
-//	if return false, means not write to chan
-func (this *TcpConnectionSimple) TrySendPacket(packet Packet, timeout time.Duration) bool {
-	if timeout == 0 {
-		// 非阻塞方式写chan
-		select {
-		case this.sendPacketCache <- packet:
-			return true
-		default:
-			return false
-		}
-	}
-	sendTimeout := time.After(timeout)
-	for {
-		select {
-		case this.sendPacketCache <- packet:
-			return true
-		case <-sendTimeout:
-			return false
-		}
-	}
-	return false
-}
-
-func (this *TcpConnectionSimple) Rpc(request Packet, reply proto.Message) error {
-	if !this.IsConnected() {
-		return errors.New("disconnected")
-	}
-	call := this.rpcCalls.newRpcCall()
-	if rpcCallIdSetter, ok := request.(RpcCallIdSetter); ok {
-		rpcCallIdSetter.SetRpcCallId(call.id)
-	} else {
-		return errors.New("request must be RpcCallIdSetter")
-	}
-	// NOTE:当sendPacketCache满时,这里会阻塞
-	this.sendPacketCache <- request
-	timeout := time.After(time.Second * 3)
-	select {
-	case <-timeout:
-		return errors.New("timeout")
-	case replyPacket := <-call.reply:
-		// 如果网络层已经反序列化了,直接赋值
-		if replyPacket.Message() != nil {
-			valueReply := reflect.ValueOf(reply)
-			if valueReply.Kind() != reflect.Ptr {
-				return errors.New("request is not a ptr")
-			}
-			dstMsg, srcMsg := reply.ProtoReflect(), replyPacket.Message().ProtoReflect()
-			if dstMsg.Descriptor() != srcMsg.Descriptor() {
-				return errors.New("proto message type err")
-			}
-			valueReply.Elem().Set(reflect.ValueOf(replyPacket.Message()).Elem())
-			return nil
-		}
-		// 否则,反序列化
-		err := proto.Unmarshal(replyPacket.GetStreamData(), reply)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
 }
 
 // LocalAddr returns the local network address.
