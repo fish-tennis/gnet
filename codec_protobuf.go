@@ -20,6 +20,9 @@ type ProtoRegister interface {
 type ProtoCodec struct {
 	RingBufferCodec
 
+	// 当supportRpc为true时,ProtoPacket的rpcCallId字段也需要加入编解码
+	supportRpc bool
+
 	// 在proto序列化后的数据,再做一层编码
 	// encoder after proto.Message serialize
 	ProtoPacketBytesEncoder func(protoPacketBytes [][]byte) [][]byte
@@ -45,6 +48,12 @@ func NewProtoCodec(protoMessageTypeMap map[PacketCommand]reflect.Type) *ProtoCod
 	return codec
 }
 
+// 支持rpc时,会在command后面加一个rpcCallId字段
+func (this *ProtoCodec) SupportRpc() *ProtoCodec {
+	this.supportRpc = true
+	return this
+}
+
 // 注册消息和proto.Message的映射
 //
 //	protoMessage can be nil
@@ -62,6 +71,12 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]b
 	// write PacketCommand
 	commandBytes := make([]byte, 2)
 	binary.LittleEndian.PutUint16(commandBytes, uint16(packet.Command()))
+	var rpcCallIdBytes []byte
+	if this.supportRpc {
+		rpcCallIdBytes = make([]byte, 4)
+		binary.LittleEndian.PutUint32(rpcCallIdBytes, packet.(*ProtoPacket).rpcCallId)
+		logger.Debug("write rpcCallId:%v", packet.(*ProtoPacket).rpcCallId)
+	}
 	var messageBytes []byte
 	if protoMessage != nil {
 		var err error
@@ -78,7 +93,13 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]b
 	// 这里可以继续对messageBytes进行编码,如异或,加密,压缩等
 	// you can continue to encode messageBytes here, such as XOR, encryption, compression, etc
 	if this.ProtoPacketBytesEncoder != nil {
+		if this.supportRpc {
+			return this.ProtoPacketBytesEncoder([][]byte{commandBytes, rpcCallIdBytes, messageBytes})
+		}
 		return this.ProtoPacketBytesEncoder([][]byte{commandBytes, messageBytes})
+	}
+	if this.supportRpc {
+		return [][]byte{commandBytes, rpcCallIdBytes, messageBytes}
 	}
 	return [][]byte{commandBytes, messageBytes}
 }
@@ -93,26 +114,46 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 	if len(decodedPacketData) < 2 {
 		return nil
 	}
+	if this.supportRpc && len(decodedPacketData) < 6 {
+		return nil
+	}
 	command := binary.LittleEndian.Uint16(decodedPacketData[:2])
+	offset := 2
+	rpcCallId := uint32(0)
+	if this.supportRpc {
+		rpcCallId = binary.LittleEndian.Uint32(decodedPacketData[offset : offset+4])
+		offset += 4
+		logger.Debug("read rpcCallId:%v", rpcCallId)
+	}
 	if protoMessageType, ok := this.MessageCreatorMap[PacketCommand(command)]; ok {
 		if protoMessageType != nil {
 			newProtoMessage := reflect.New(protoMessageType).Interface().(proto.Message)
-			err := proto.Unmarshal(decodedPacketData[2:], newProtoMessage)
+			err := proto.Unmarshal(decodedPacketData[offset:], newProtoMessage)
 			if err != nil {
 				logger.Error("proto decode err:%v cmd:%v", err, command)
 				return nil
 			}
 			return &ProtoPacket{
-				command: PacketCommand(command),
-				message: newProtoMessage,
+				command:   PacketCommand(command),
+				rpcCallId: rpcCallId,
+				message:   newProtoMessage,
 			}
 		} else {
 			// 支持只注册了消息号,没注册proto结构体的用法
 			// support Register(command, nil), return the direct stream data to application layer
 			return &ProtoPacket{
-				command: PacketCommand(command),
-				data:    decodedPacketData[2:],
+				command:   PacketCommand(command),
+				rpcCallId: rpcCallId,
+				data:      decodedPacketData[offset:],
 			}
+		}
+	}
+	// rpc模式允许response消息不注册,留给业务层解析
+	if rpcCallId > 0 {
+		return &ProtoPacket{
+			command:   PacketCommand(command),
+			rpcCallId: rpcCallId,
+			data:      decodedPacketData[offset:],
 		}
 	}
 	logger.Error("unSupport command:%v", command)

@@ -83,7 +83,7 @@ func (this *DefaultConnectionHandler) OnRecvPacket(connection Connection, packet
 			LogStack()
 		}
 	}()
-	if packetHandler, ok2 := this.PacketHandlers[packet.Command()]; ok2 {
+	if packetHandler, ok := this.PacketHandlers[packet.Command()]; ok {
 		if packetHandler != nil {
 			packetHandler(connection, packet)
 			return

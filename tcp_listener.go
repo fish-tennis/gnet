@@ -197,9 +197,6 @@ func (this *TcpListener) acceptLoop(ctx context.Context) {
 				}
 			}()
 			newTcpConn := this.acceptConnectionCreator(newConn, &this.acceptConnectionConfig)
-			if newTcpConn.GetHandler() != nil {
-				newTcpConn.GetHandler().OnConnected(newTcpConn, true)
-			}
 			this.connectionMapLock.Lock()
 			this.connectionMap[newTcpConn.GetConnectionId()] = newTcpConn
 			this.connectionMapLock.Unlock()

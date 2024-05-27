@@ -2,6 +2,7 @@ package gnet
 
 import (
 	"context"
+	"errors"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
@@ -68,6 +69,7 @@ func createTcpConnection(config *ConnectionConfig) *TcpConnection {
 			config:       config,
 			codec:        config.Codec,
 			handler:      config.Handler,
+			rpcCalls:     newRpcCalls(),
 		},
 		readStopNotifyChan: make(chan struct{}, 1),
 		sendPacketCache:    make(chan Packet, config.SendPacketCacheCap),
@@ -88,9 +90,6 @@ func (this *TcpConnection) Connect(address string) bool {
 	}
 	this.conn = conn
 	atomic.StoreInt32(&this.isConnected, 1)
-	if this.handler != nil {
-		this.handler.OnConnected(this, true)
-	}
 	return true
 }
 
@@ -127,6 +126,10 @@ func (this *TcpConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, 
 		this.writeLoop(ctx)
 		this.Close()
 	}(ctx)
+
+	if this.handler != nil {
+		this.handler.OnConnected(this, true)
+	}
 }
 
 // read goroutine
@@ -171,6 +174,9 @@ func (this *TcpConnection) readLoop() {
 			// 有一种极端情况,网速太慢,即使没有掉线,也可能触发收包超时检测
 			atomic.StoreInt64(&this.lastRecvPacketTick, GetCurrentTimeStamp())
 			if this.handler != nil {
+				if this.rpcCalls.putRpcResponse(newPacket) {
+					continue
+				}
 				this.handler.OnRecvPacket(this, newPacket)
 			}
 		}
@@ -377,6 +383,36 @@ func (this *TcpConnection) SendPacket(packet Packet) bool {
 	// NOTE:当sendPacketCache满时,这里会阻塞
 	this.sendPacketCache <- packet
 	return true
+}
+
+func (this *TcpConnection) RpcCall(request Packet, defaultValue proto.Message) (response proto.Message, err error) {
+	if !this.IsConnected() {
+		return defaultValue, errors.New("disconnected")
+	}
+	call := this.rpcCalls.newRpcCall()
+	if rpcCallIdSetter, ok := request.(RpcCallIdSetter); ok {
+		rpcCallIdSetter.SetRpcCallId(call.id)
+	} else {
+		return defaultValue, errors.New("not a RpcCallIdSetter")
+	}
+	// NOTE:当sendPacketCache满时,这里会阻塞
+	this.sendPacketCache <- request
+	timeout := time.After(time.Second * 3)
+	logger.Debug("RpcCall begin:%v", time.Now().Unix())
+	select {
+	case <-timeout:
+		logger.Debug("RpcCall timeout:%v", time.Now().Unix())
+		return defaultValue, errors.New("timeout")
+	case responsePacket := <-call.response:
+		if responsePacket.Message() != nil {
+			return responsePacket.Message(), nil
+		}
+		err = proto.Unmarshal(responsePacket.GetStreamData(), defaultValue)
+		if err != nil {
+			return defaultValue, err
+		}
+		return defaultValue, nil
+	}
 }
 
 // 超时发包,超时未发送则丢弃,适用于某些允许丢弃的数据包

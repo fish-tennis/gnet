@@ -89,11 +89,19 @@ type Packet interface {
 	Clone() Packet
 }
 
+// get and set rpcCallId of packet
+type RpcCallIdSetter interface {
+	RpcCallId() uint32
+	SetRpcCallId(rpcCallId uint32)
+}
+
 // packet for proto.Message
 type ProtoPacket struct {
 	command PacketCommand
-	message proto.Message
-	data    []byte
+	// use for rpc call
+	rpcCallId uint32
+	message   proto.Message
+	data      []byte
 }
 
 func NewProtoPacket(command PacketCommand, message proto.Message) *ProtoPacket {
@@ -118,6 +126,10 @@ func (this *ProtoPacket) Message() proto.Message {
 	return this.message
 }
 
+func (this *ProtoPacket) RpcCallId() uint32 {
+	return this.rpcCallId
+}
+
 // 某些特殊需求会直接使用序列化好的数据
 //
 //	support stream data
@@ -136,6 +148,10 @@ func (this *ProtoPacket) Clone() Packet {
 		copy(newPacket.data, this.data)
 	}
 	return newPacket
+}
+
+func (this *ProtoPacket) SetRpcCallId(rpcCallId uint32) {
+	this.rpcCallId = rpcCallId
 }
 
 // 只包含一个[]byte的数据包

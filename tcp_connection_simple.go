@@ -69,9 +69,6 @@ func (this *TcpConnectionSimple) Connect(address string) bool {
 	}
 	this.conn = conn
 	atomic.StoreInt32(&this.isConnected, 1)
-	if this.handler != nil {
-		this.handler.OnConnected(this, true)
-	}
 	return true
 }
 
@@ -108,6 +105,10 @@ func (this *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitG
 		this.writeLoop(ctx)
 		this.Close()
 	}(ctx)
+
+	if this.handler != nil {
+		this.handler.OnConnected(this, true)
+	}
 }
 
 // read goroutine

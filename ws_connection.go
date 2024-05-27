@@ -110,9 +110,6 @@ func (this *WsConnection) Connect(address string) bool {
 	}
 	this.conn = conn
 	atomic.StoreInt32(&this.isConnected, 1)
-	if this.handler != nil {
-		this.handler.OnConnected(this, true)
-	}
 	return true
 }
 
@@ -148,6 +145,10 @@ func (this *WsConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, o
 		this.writeLoop(ctx)
 		this.Close()
 	}(ctx)
+
+	if this.handler != nil {
+		this.handler.OnConnected(this, true)
+	}
 }
 
 func (this *WsConnection) readLoop() {

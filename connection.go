@@ -134,6 +134,8 @@ type baseConnection struct {
 	// 关联数据
 	//  the associated tag
 	tag interface{}
+
+	rpcCalls *rpcCalls
 }
 
 // unique id

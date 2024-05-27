@@ -127,9 +127,6 @@ func (this *WsListener) serve(ctx context.Context, w http.ResponseWriter, r *htt
 		return
 	}
 	newTcpConn := NewWsConnectionAccept(conn, &this.acceptConnectionConfig, this.acceptConnectionCodec, this.acceptConnectionHandler)
-	if newTcpConn.GetHandler() != nil {
-		newTcpConn.GetHandler().OnConnected(newTcpConn, true)
-	}
 	this.connectionMapLock.Lock()
 	this.connectionMap[newTcpConn.GetConnectionId()] = newTcpConn
 	this.connectionMapLock.Unlock()
