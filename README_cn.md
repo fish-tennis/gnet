@@ -14,6 +14,7 @@
 - 默认支持protobuf
 - 使用无锁的RingBuffer优化收发包,针对游戏应用场景,性能可提高5倍
 - 编解码接口易扩展
+- rpc
 - 目前支持Tcp,WebSocket(ws and wss)
 
 ## 核心模块
@@ -88,6 +89,19 @@ func OnTest(conn Connection, packet Packet) {
 
 如果使用RingBuffer机制,就会在实际调用net.Conn.Write之前,对多个Packet进行合并,从而减少net.Conn.Write的调用次数,从而提高性能.
 
+### rpc
+向目标连接发送请求,并阻塞等待回复,类似于grpc-go
+```go
+request := gnet.NewProtoPacket(cmd, &pb.HelloRequest{
+    Name: "hello",
+})
+reply := new(pb.HelloReply)
+err := connection.Rpc(request, reply)
+if err != nil {
+    return
+}
+logger.Info("reply:%v", reply)
+```
 
 ### go协程
 

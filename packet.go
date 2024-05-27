@@ -10,9 +10,15 @@ const (
 	// 默认包头长度
 	// the default packet header size
 	DefaultPacketHeaderSize = int(unsafe.Sizeof(DefaultPacketHeader{}))
+
 	// 数据包长度限制(16M)
 	// the default packet data size limit
 	MaxPacketDataSize = 0x00FFFFFF
+
+	// packet header contains rpcCallId
+	RpcCall uint8 = 1 << 0
+	// compress packet data
+	Compress uint8 = 1 << 1
 )
 
 // interface for PacketHeader
@@ -52,6 +58,19 @@ func (this *DefaultPacketHeader) Len() uint32 {
 // 标记 [0,0xFF]
 func (this *DefaultPacketHeader) Flags() uint8 {
 	return uint8(this.LenAndFlags >> 24)
+}
+
+func (this *DefaultPacketHeader) SetFlags(flags uint8) {
+	this.LenAndFlags = uint32(flags)<<24 | this.Len()
+}
+
+func (this *DefaultPacketHeader) AddFlags(flag uint8) {
+	flags := this.Flags() | flag
+	this.SetFlags(flags)
+}
+
+func (this *DefaultPacketHeader) HasFlag(flag uint8) bool {
+	return (this.Flags() & flag) == flag
 }
 
 // 从字节流读取数据,len(messageHeaderData)>=MessageHeaderSize
@@ -130,6 +149,10 @@ func (this *ProtoPacket) RpcCallId() uint32 {
 	return this.rpcCallId
 }
 
+func (this *ProtoPacket) SetRpcCallId(rpcCallId uint32) {
+	this.rpcCallId = rpcCallId
+}
+
 // 某些特殊需求会直接使用序列化好的数据
 //
 //	support stream data
@@ -148,10 +171,6 @@ func (this *ProtoPacket) Clone() Packet {
 		copy(newPacket.data, this.data)
 	}
 	return newPacket
-}
-
-func (this *ProtoPacket) SetRpcCallId(rpcCallId uint32) {
-	this.rpcCallId = rpcCallId
 }
 
 // 只包含一个[]byte的数据包

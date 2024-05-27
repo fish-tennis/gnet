@@ -16,12 +16,11 @@ type ProtoRegister interface {
 	Register(command PacketCommand, protoMessage proto.Message)
 }
 
-// codec for proto.Message
+// codec for protobuf
+//
+//	use DefaultPacketHeader,RingBufferCodec
 type ProtoCodec struct {
 	RingBufferCodec
-
-	// 当supportRpc为true时,ProtoPacket的rpcCallId字段也需要加入编解码
-	supportRpc bool
 
 	// 在proto序列化后的数据,再做一层编码
 	// encoder after proto.Message serialize
@@ -48,12 +47,6 @@ func NewProtoCodec(protoMessageTypeMap map[PacketCommand]reflect.Type) *ProtoCod
 	return codec
 }
 
-// 支持rpc时,会在command后面加一个rpcCallId字段
-func (this *ProtoCodec) SupportRpc() *ProtoCodec {
-	this.supportRpc = true
-	return this
-}
-
 // 注册消息和proto.Message的映射
 //
 //	protoMessage can be nil
@@ -65,17 +58,21 @@ func (this *ProtoCodec) Register(command PacketCommand, protoMessage proto.Messa
 	this.MessageCreatorMap[command] = reflect.TypeOf(protoMessage).Elem()
 }
 
-func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]byte {
+func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]byte, uint8) {
 	protoMessage := packet.Message()
+	headerFlags := uint8(0)
 	// 先写入消息号
 	// write PacketCommand
 	commandBytes := make([]byte, 2)
 	binary.LittleEndian.PutUint16(commandBytes, uint16(packet.Command()))
+	rpcCallId := packet.(*ProtoPacket).rpcCallId
 	var rpcCallIdBytes []byte
-	if this.supportRpc {
+	// rpcCall才会写入rpcCallId
+	if rpcCallId > 0 {
 		rpcCallIdBytes = make([]byte, 4)
-		binary.LittleEndian.PutUint32(rpcCallIdBytes, packet.(*ProtoPacket).rpcCallId)
-		logger.Debug("write rpcCallId:%v", packet.(*ProtoPacket).rpcCallId)
+		binary.LittleEndian.PutUint32(rpcCallIdBytes, rpcCallId)
+		headerFlags = RpcCall
+		logger.Debug("write rpcCallId:%v", rpcCallId)
 	}
 	var messageBytes []byte
 	if protoMessage != nil {
@@ -83,7 +80,7 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]b
 		messageBytes, err = proto.Marshal(protoMessage)
 		if err != nil {
 			logger.Error("proto encode err:%v cmd:%v", err, packet.Command())
-			return nil
+			return nil, 0
 		}
 	} else {
 		// 支持提前序列化好的数据
@@ -93,15 +90,15 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) [][]b
 	// 这里可以继续对messageBytes进行编码,如异或,加密,压缩等
 	// you can continue to encode messageBytes here, such as XOR, encryption, compression, etc
 	if this.ProtoPacketBytesEncoder != nil {
-		if this.supportRpc {
-			return this.ProtoPacketBytesEncoder([][]byte{commandBytes, rpcCallIdBytes, messageBytes})
+		if rpcCallId > 0 {
+			return this.ProtoPacketBytesEncoder([][]byte{commandBytes, rpcCallIdBytes, messageBytes}), headerFlags
 		}
-		return this.ProtoPacketBytesEncoder([][]byte{commandBytes, messageBytes})
+		return this.ProtoPacketBytesEncoder([][]byte{commandBytes, messageBytes}), headerFlags
 	}
-	if this.supportRpc {
-		return [][]byte{commandBytes, rpcCallIdBytes, messageBytes}
+	if rpcCallId > 0 {
+		return [][]byte{commandBytes, rpcCallIdBytes, messageBytes}, headerFlags
 	}
-	return [][]byte{commandBytes, messageBytes}
+	return [][]byte{commandBytes, messageBytes}, headerFlags
 }
 
 func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketHeader, packetData []byte) Packet {
@@ -114,13 +111,14 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 	if len(decodedPacketData) < 2 {
 		return nil
 	}
-	if this.supportRpc && len(decodedPacketData) < 6 {
+	isRpcCall := packetHeader.(*DefaultPacketHeader).HasFlag(RpcCall)
+	if isRpcCall && len(decodedPacketData) < 6 {
 		return nil
 	}
 	command := binary.LittleEndian.Uint16(decodedPacketData[:2])
 	offset := 2
 	rpcCallId := uint32(0)
-	if this.supportRpc {
+	if isRpcCall {
 		rpcCallId = binary.LittleEndian.Uint32(decodedPacketData[offset : offset+4])
 		offset += 4
 		logger.Debug("read rpcCallId:%v", rpcCallId)

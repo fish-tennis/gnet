@@ -12,6 +12,9 @@ enum CmdTest {
 	// 消息号枚举值的命名规范建议:Cmd_MessageName,便于工具处理,生成一些辅助代码
 	Cmd_HeartBeat = 1;
 
+	Cmd_HelloRequest = 11;
+	Cmd_HelloReply   = 12;
+
 	Cmd_TestMessage = 123;
 }
 
@@ -35,4 +38,16 @@ message TestMessage {
   float f = 5;
   repeated int32 i32_list = 6;
   map<string, string> m = 7;
+}
+
+// The request message containing the user's name.
+// copy from grpc example
+message HelloRequest {
+  string name = 1;
+}
+
+// The response message containing the greetings
+// copy from grpc example
+message HelloReply {
+  string message = 1;
 }

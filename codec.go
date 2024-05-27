@@ -40,7 +40,7 @@ type RingBufferCodec struct {
 	// 如果只返回一个[]byte,就需要把command和proto.Message序列化的[]byte再合并成一个[]byte,造成性能损失
 	// encoder for packer data
 	// allow return multiple []byte,for example:when encode ProtoPacket, return two []byte(serialized data of command and proto.Message)
-	DataEncoder func(connection Connection, packet Packet) [][]byte
+	DataEncoder func(connection Connection, packet Packet) ([][]byte, uint8)
 
 	// 包头的解码接口,包头长度不能变
 	// decoder for packer header
@@ -69,11 +69,12 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 		packetHeaderSize := int(this.PacketHeaderSize())
 		sendBuffer := tcpConnection.sendBuffer
 		var encodedData [][]byte
+		headerFlags := uint8(0)
 		if this.DataEncoder != nil {
 			// 编码接口可能把消息分解成了几段字节流数组,如消息头和消息体
 			// 如果只是返回一个[]byte结果的话,那么编码接口还需要把消息头和消息体进行合并,从而多一次内存分配和拷贝
 			// encoder may decompose the packet into several []byte,such as the packet header and packet body
-			encodedData = this.DataEncoder(connection, packet)
+			encodedData, headerFlags = this.DataEncoder(connection, packet)
 		} else {
 			// 支持在应用层做数据包的序列化和编码
 			// support direct encoded data from outside
@@ -83,7 +84,7 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 		for _, data := range encodedData {
 			encodedDataLen += len(data)
 		}
-		packetHeader := NewDefaultPacketHeader(uint32(encodedDataLen), 0)
+		packetHeader := NewDefaultPacketHeader(uint32(encodedDataLen), headerFlags)
 		writeBuffer := sendBuffer.WriteBuffer()
 		if packetHeaderSize == DefaultPacketHeaderSize && len(writeBuffer) >= packetHeaderSize {
 			// 有足够的连续空间可写,则直接写入RingBuffer里

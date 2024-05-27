@@ -7,8 +7,8 @@ import (
 
 type rpcCall struct {
 	// unique id of every rpc call
-	id       uint32
-	response chan Packet
+	id    uint32
+	reply chan Packet
 }
 
 // manage the pending rpcCall map
@@ -26,8 +26,8 @@ func newRpcCalls() *rpcCalls {
 
 func (this *rpcCalls) newRpcCall() *rpcCall {
 	call := &rpcCall{
-		id:       atomic.AddUint32(&this.callId, 1),
-		response: make(chan Packet),
+		id:    atomic.AddUint32(&this.callId, 1),
+		reply: make(chan Packet),
 	}
 	if call.id == 0 {
 		call.id = atomic.AddUint32(&this.callId, 1)
@@ -38,8 +38,8 @@ func (this *rpcCalls) newRpcCall() *rpcCall {
 	return call
 }
 
-func (this *rpcCalls) putRpcResponse(responsePacket Packet) bool {
-	if rpcCallIdSetter, ok := responsePacket.(RpcCallIdSetter); ok && rpcCallIdSetter.RpcCallId() > 0 {
+func (this *rpcCalls) putReply(replyPacket Packet) bool {
+	if rpcCallIdSetter, ok := replyPacket.(RpcCallIdSetter); ok && rpcCallIdSetter.RpcCallId() > 0 {
 		this.rpcCallMutex.Lock()
 		call, exist := this.rpcCalls[rpcCallIdSetter.RpcCallId()]
 		if exist {
@@ -49,7 +49,7 @@ func (this *rpcCalls) putRpcResponse(responsePacket Packet) bool {
 		if !exist {
 			return false
 		}
-		call.response <- responsePacket
+		call.reply <- replyPacket
 		return true
 	}
 	return false

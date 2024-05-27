@@ -20,22 +20,21 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
-	clientCodec := gnet.NewProtoCodec(nil).SupportRpc()
+	clientCodec := gnet.NewProtoCodec(nil)
 	clientHandler := gnet.NewDefaultConnectionHandler(clientCodec)
+	//clientCodec.Register(gnet.PacketCommand(pb.CmdTest_Cmd_HelloReply), new(pb.HelloReply))
 	clientHandler.SetOnConnectedFunc(func(connection gnet.Connection, success bool) {
 		if success {
-			req := gnet.NewProtoPacket(
-				gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), &pb.TestMessage{
-					Name:    "hello",
-					I32:     1,
-					I32List: []int32{1, 2, 3},
-				})
-			response, err := connection.(*gnet.TcpConnection).RpcCall(req, new(pb.TestMessage))
+			request := gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_HelloRequest), &pb.HelloRequest{
+				Name: "hello",
+			})
+			reply := new(pb.HelloReply)
+			err := connection.Rpc(request, reply)
 			if err != nil {
 				gnet.GetLogger().Error("RpcCallErr:%v", err)
 				return
 			}
-			gnet.GetLogger().Info("response:%v", response)
+			gnet.GetLogger().Info("reply:%v", reply)
 			connection.Close()
 		}
 	})

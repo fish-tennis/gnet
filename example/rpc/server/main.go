@@ -20,10 +20,10 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	serverCodec := gnet.NewProtoCodec(nil).SupportRpc()
+	serverCodec := gnet.NewProtoCodec(nil)
 	serverHandler := gnet.NewDefaultConnectionHandler(serverCodec)
 	// 注册服务器的消息回调
-	serverHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessage, new(pb.TestMessage))
+	serverHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_HelloRequest), onHelloRequest, new(pb.HelloRequest))
 
 	connectionConfig := gnet.ConnectionConfig{
 		SendPacketCacheCap: 100,
@@ -46,12 +46,11 @@ func main() {
 	gnet.GetNetMgr().Shutdown(true)
 }
 
-func onTestMessage(connection gnet.Connection, packet gnet.Packet) {
-	reqProtoPacket := packet.(*gnet.ProtoPacket)
-	// shallow copy(copy rpcCallId,command)
-	responseProtoPacket := *reqProtoPacket
-	message := responseProtoPacket.Message().(*pb.TestMessage)
-	gnet.GetLogger().Debug(fmt.Sprintf("read message: %v", message))
-	message.Name += " from server"
-	connection.SendPacket(&responseProtoPacket)
+func onHelloRequest(connection gnet.Connection, packet gnet.Packet) {
+	request := packet.Message().(*pb.HelloRequest)
+	replyPacket := gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_HelloReply), &pb.HelloReply{
+		Message: request.Name + " from server's reply",
+	})
+	replyPacket.SetRpcCallId(packet.(*gnet.ProtoPacket).RpcCallId())
+	connection.SendPacket(replyPacket)
 }

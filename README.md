@@ -13,6 +13,7 @@ High performance network library,especially for game servers
 - Default support protobuf
 - Optimize receiving and dispatching using lockless RingBuffer, which can improve performance by 5x for some cases
 - Easy to implement custom encoding and decoding
+- rpc
 - Support Tcp,WebSocket(ws and wss)
 
 ## Core module
@@ -81,6 +82,20 @@ func OnTest(conn Connection, packet Packet) {
 ### Use RingBuffer to increase performance
 
 ![ringbuffer-performance](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/ringbuffer-performance.png)
+
+### rpc
+Rpc send a request to target and block wait reply,similar to grpc-go
+```go
+request := gnet.NewProtoPacket(cmd, &pb.HelloRequest{
+    Name: "hello",
+})
+reply := new(pb.HelloReply)
+err := connection.Rpc(request, reply)
+if err != nil {
+    return
+}
+logger.Info("reply:%v", reply)
+```
 
 ### goroutine
 

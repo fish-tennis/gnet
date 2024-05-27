@@ -32,8 +32,11 @@ type Connection interface {
 	SendPacket(packet Packet) bool
 
 	// 超时发包,超时未发送则丢弃,适用于某些允许丢弃的数据包
-	// try send a packet with timeout
+	//  try send a packet with timeout
 	TrySendPacket(packet Packet, timeout time.Duration) bool
+
+	// Rpc send a request to target and block wait reply
+	Rpc(request Packet, reply proto.Message) error
 
 	// is connected
 	IsConnected() bool

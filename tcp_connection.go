@@ -6,6 +6,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -174,7 +175,7 @@ func (this *TcpConnection) readLoop() {
 			// 有一种极端情况,网速太慢,即使没有掉线,也可能触发收包超时检测
 			atomic.StoreInt64(&this.lastRecvPacketTick, GetCurrentTimeStamp())
 			if this.handler != nil {
-				if this.rpcCalls.putRpcResponse(newPacket) {
+				if this.rpcCalls.putReply(newPacket) {
 					continue
 				}
 				this.handler.OnRecvPacket(this, newPacket)
@@ -385,33 +386,43 @@ func (this *TcpConnection) SendPacket(packet Packet) bool {
 	return true
 }
 
-func (this *TcpConnection) RpcCall(request Packet, defaultValue proto.Message) (response proto.Message, err error) {
+// Rpc send a request to target and block wait reply
+func (this *TcpConnection) Rpc(request Packet, reply proto.Message) error {
 	if !this.IsConnected() {
-		return defaultValue, errors.New("disconnected")
+		return errors.New("disconnected")
 	}
 	call := this.rpcCalls.newRpcCall()
 	if rpcCallIdSetter, ok := request.(RpcCallIdSetter); ok {
 		rpcCallIdSetter.SetRpcCallId(call.id)
 	} else {
-		return defaultValue, errors.New("not a RpcCallIdSetter")
+		return errors.New("request must be RpcCallIdSetter")
 	}
 	// NOTE:当sendPacketCache满时,这里会阻塞
 	this.sendPacketCache <- request
 	timeout := time.After(time.Second * 3)
-	logger.Debug("RpcCall begin:%v", time.Now().Unix())
 	select {
 	case <-timeout:
-		logger.Debug("RpcCall timeout:%v", time.Now().Unix())
-		return defaultValue, errors.New("timeout")
-	case responsePacket := <-call.response:
-		if responsePacket.Message() != nil {
-			return responsePacket.Message(), nil
+		return errors.New("timeout")
+	case replyPacket := <-call.reply:
+		// 如果网络层已经反序列化了,直接赋值
+		if replyPacket.Message() != nil {
+			valueReply := reflect.ValueOf(reply)
+			if valueReply.Kind() != reflect.Ptr {
+				return errors.New("request is not a ptr")
+			}
+			dstMsg, srcMsg := reply.ProtoReflect(), replyPacket.Message().ProtoReflect()
+			if dstMsg.Descriptor() != srcMsg.Descriptor() {
+				return errors.New("proto message type err")
+			}
+			valueReply.Elem().Set(reflect.ValueOf(replyPacket.Message()).Elem())
+			return nil
 		}
-		err = proto.Unmarshal(responsePacket.GetStreamData(), defaultValue)
+		// 否则,反序列化
+		err := proto.Unmarshal(replyPacket.GetStreamData(), reply)
 		if err != nil {
-			return defaultValue, err
+			return err
 		}
-		return defaultValue, nil
+		return nil
 	}
 }
 
