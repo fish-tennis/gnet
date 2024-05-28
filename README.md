@@ -103,17 +103,6 @@ logger.Info("reply:%v", reply)
 
 ## Examples
 
-[echo with protobuf](https://github.com/fish-tennis/gnet/blob/main/echo_proto_test.go)
-
-[echo without protobuf](https://github.com/fish-tennis/gnet/blob/main/echo_data_test.go)
-
-[custom packet struct](https://github.com/fish-tennis/gnet/blob/main/custom_packet_no_ringbuffer_test.go)
-
-[simulate performance testing of a simple game server scenario](https://github.com/fish-tennis/gnet/blob/main/server_test.go)
-
-[tcp without ringbuffer](https://github.com/fish-tennis/gnet/blob/main/tcp_connection_simple_test.go)
-
-[websocket](https://github.com/fish-tennis/gnet/blob/main/ws_connection_test.go)
 
 ## Client Connector Library
 C#: [gnet_csharp](https://github.com/fish-tennis/gnet_csharp)

@@ -110,17 +110,6 @@ logger.Info("reply:%v", reply)
 
 ## 示例
 
-[使用proto的echo](https://github.com/fish-tennis/gnet/blob/main/example/echo_proto_test.go)
-
-[不使用proto的echo](https://github.com/fish-tennis/gnet/blob/main/example/echo_data_test.go)
-
-[自定义消息结构](https://github.com/fish-tennis/gnet/blob/main/example/custom_packet_no_ringbuffer_test.go)
-
-[模拟一个简单的游戏应用场景的性能测试](https://github.com/fish-tennis/gnet/blob/main/example/server_test.go)
-
-[不使用RingBuffer的Tcp](https://github.com/fish-tennis/gnet/blob/main/tcp_connection_simple_test.go)
-
-[Websocket](https://github.com/fish-tennis/gnet/blob/main/ws_connection_test.go)
 
 ## 客户端网络库 Connector Library
 C#: [gnet_csharp](https://github.com/fish-tennis/gnet_csharp)
