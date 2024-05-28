@@ -72,7 +72,7 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]
 		rpcCallIdBytes = make([]byte, 4)
 		binary.LittleEndian.PutUint32(rpcCallIdBytes, rpcCallId)
 		headerFlags = RpcCall
-		logger.Debug("write rpcCallId:%v", rpcCallId)
+		//logger.Debug("write rpcCallId:%v", rpcCallId)
 	}
 	var messageBytes []byte
 	if protoMessage != nil {
@@ -111,7 +111,10 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 	if len(decodedPacketData) < 2 {
 		return nil
 	}
-	isRpcCall := packetHeader.(*DefaultPacketHeader).HasFlag(RpcCall)
+	isRpcCall := false
+	if defaultPacketHeader, ok := packetHeader.(*DefaultPacketHeader); ok {
+		isRpcCall = defaultPacketHeader.HasFlag(RpcCall)
+	}
 	if isRpcCall && len(decodedPacketData) < 6 {
 		return nil
 	}
@@ -121,7 +124,7 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 	if isRpcCall {
 		rpcCallId = binary.LittleEndian.Uint32(decodedPacketData[offset : offset+4])
 		offset += 4
-		logger.Debug("read rpcCallId:%v", rpcCallId)
+		//logger.Debug("read rpcCallId:%v", rpcCallId)
 	}
 	if protoMessageType, ok := this.MessageCreatorMap[PacketCommand(command)]; ok {
 		if protoMessageType != nil {

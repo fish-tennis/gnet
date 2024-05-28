@@ -15,7 +15,7 @@ func TestXorCodec(t *testing.T) {
 			I32:  123,
 		})
 	xorCodec := NewXorProtoCodec([]byte("test"), nil)
-	encodedBytes := xorCodec.EncodePacket(nil, testProtoPacket)
+	encodedBytes, _ := xorCodec.EncodePacket(nil, testProtoPacket)
 	commandBytes, messageBytes := encodedBytes[0], encodedBytes[1]
 	packetBytes := make([]byte, len(commandBytes)+len(messageBytes))
 	copy(packetBytes, commandBytes)

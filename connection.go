@@ -13,6 +13,15 @@ import (
 
 var (
 	_connectionIdCounter uint32 = 0
+
+	DefaultConnectionConfig = ConnectionConfig{
+		SendPacketCacheCap: 16,
+		SendBufferSize:     4096,
+		RecvBufferSize:     4096,
+		MaxPacketSize:      MaxPacketDataSize,
+		RecvTimeout:        7,
+		HeartBeatInterval:  3,
+	}
 )
 
 // interface for Connection

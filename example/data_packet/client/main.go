@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"github.com/fish-tennis/gnet"
-	"github.com/fish-tennis/gnet/example/pb"
+	"time"
 )
 
 var (
@@ -16,25 +16,22 @@ func main() {
 	flag.Parse()
 
 	gnet.SetLogLevel(gnet.DebugLevel)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	clientCodec := gnet.NewProtoCodec(nil)
+	clientCodec := gnet.NewDefaultCodec()
 	clientHandler := gnet.NewDefaultConnectionHandler(clientCodec)
 	clientHandler.SetOnConnectedFunc(func(connection gnet.Connection, success bool) {
 		if success {
-			request := gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_HelloRequest), &pb.HelloRequest{
-				Name: "hello",
-			})
-			reply := new(pb.HelloReply)
-			err := connection.Rpc(request, reply)
-			if err != nil {
-				gnet.GetLogger().Error("RpcCallErr:%v", err)
-				return
-			}
-			logger.Info("reply:%v", reply)
-			connection.Close()
+			connection.SendPacket(gnet.NewDataPacket([]byte("hello")))
 		}
+	})
+	// 注册心跳包
+	clientHandler.RegisterHeartBeat(func() gnet.Packet {
+		return gnet.NewDataPacket([]byte("heartbeat"))
+	})
+	clientHandler.SetUnRegisterHandler(func(connection gnet.Connection, packet gnet.Packet) {
+		logger.Info("receive:%v", string(packet.GetStreamData()))
 	})
 
 	connectionConfig := gnet.DefaultConnectionConfig

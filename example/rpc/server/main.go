@@ -16,7 +16,6 @@ func main() {
 	flag.Parse()
 
 	gnet.SetLogLevel(gnet.DebugLevel)
-	// 10秒后触发关闭通知,所有监听<-ctx.Done()的地方会收到通知
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -25,17 +24,8 @@ func main() {
 	// 注册服务器的消息回调
 	serverHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_HelloRequest), onHelloRequest, new(pb.HelloRequest))
 
-	connectionConfig := gnet.ConnectionConfig{
-		SendPacketCacheCap: 100,
-		SendBufferSize:     60, // 设置的比较小,便于测试缓存写满的情况
-		RecvBufferSize:     60,
-		MaxPacketSize:      60,
-		RecvTimeout:        0,
-		HeartBeatInterval:  3,
-		WriteTimeout:       0,
-	}
 	listenerConfig := &gnet.ListenerConfig{
-		AcceptConfig: connectionConfig,
+		AcceptConfig: gnet.DefaultConnectionConfig,
 	}
 	listenerConfig.AcceptConfig.Codec = serverCodec
 	listenerConfig.AcceptConfig.Handler = serverHandler

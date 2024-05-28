@@ -358,11 +358,7 @@ func (this *TcpConnection) Close() {
 func (this *TcpConnection) createSendBuffer() *RingBuffer {
 	ringBufferSize := this.config.SendBufferSize
 	if ringBufferSize == 0 {
-		if this.config.MaxPacketSize > 0 {
-			ringBufferSize = this.config.MaxPacketSize * 2
-		} else {
-			ringBufferSize = 65535
-		}
+		ringBufferSize = DefaultConnectionConfig.SendBufferSize
 	}
 	return NewRingBuffer(int(ringBufferSize))
 }
@@ -371,11 +367,7 @@ func (this *TcpConnection) createSendBuffer() *RingBuffer {
 func (this *TcpConnection) createRecvBuffer() *RingBuffer {
 	ringBufferSize := this.config.RecvBufferSize
 	if ringBufferSize == 0 {
-		if this.config.MaxPacketSize > 0 {
-			ringBufferSize = this.config.MaxPacketSize * 2
-		} else {
-			ringBufferSize = 65535
-		}
+		ringBufferSize = DefaultConnectionConfig.RecvBufferSize
 	}
 	return NewRingBuffer(int(ringBufferSize))
 }
