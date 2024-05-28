@@ -123,6 +123,12 @@ type ConnectionConfig struct {
 	Scheme string
 }
 
+// TODO: support block send mode?
+type sendPacket struct {
+	packet  Packet
+	onSendC chan struct{}
+}
+
 type baseConnection struct {
 	// unique id
 	connectionId uint32
@@ -141,7 +147,7 @@ type baseConnection struct {
 	tag interface{}
 
 	// 发包缓存chan
-	sendPacketCache chan Packet
+	sendPacketCache chan Packet // TODO: chan sendPacket
 
 	rpcCalls *rpcCalls
 }
@@ -297,6 +303,10 @@ func (this *baseConnection) Rpc(request Packet, reply proto.Message, opts ...Sen
 		}
 		return nil
 	}
+}
+
+func (this *baseConnection) GetSendPacketChanLen() int {
+	return len(this.sendPacketCache)
 }
 
 func NewConnectionId() uint32 {

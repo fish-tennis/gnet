@@ -405,7 +405,3 @@ func (this *TcpConnection) RemoteAddr() net.Addr {
 	}
 	return this.conn.RemoteAddr()
 }
-
-func (this *TcpConnection) GetSendPacketChanLen() int {
-	return len(this.sendPacketCache)
-}

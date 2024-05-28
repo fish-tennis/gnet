@@ -277,10 +277,6 @@ func (this *WsConnection) onHeartBeatTimeUp(heartBeatTimer *time.Timer) bool {
 	return true
 }
 
-func (this *WsConnection) GetSendPacketChanLen() int {
-	return len(this.sendPacketCache)
-}
-
 func (this *WsConnection) GetConn() *websocket.Conn {
 	return this.conn
 }

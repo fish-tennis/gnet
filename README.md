@@ -84,7 +84,7 @@ func OnTest(conn Connection, packet Packet) {
 ![ringbuffer-performance](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/ringbuffer-performance.png)
 
 ### rpc
-Rpc send a request to target and block wait reply,similar to grpc-go
+Rpc send a request to target and block wait reply,similar to grpc-go,but gnet use command id instead of method name
 ```go
 request := gnet.NewProtoPacket(cmd, &pb.HelloRequest{
     Name: "hello",

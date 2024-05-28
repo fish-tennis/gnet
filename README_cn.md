@@ -90,7 +90,8 @@ func OnTest(conn Connection, packet Packet) {
 如果使用RingBuffer机制,就会在实际调用net.Conn.Write之前,对多个Packet进行合并,从而减少net.Conn.Write的调用次数,从而提高性能.
 
 ### rpc
-向目标连接发送请求,并阻塞等待回复,类似于grpc-go
+gnet提供了类似rpc的接口,并不是标准的rpc方法调用,gnet使用消息号作为标识,而不是方法名,
+向目标连接发送请求,并阻塞等待回复,本质类似于grpc-go
 ```go
 request := gnet.NewProtoPacket(cmd, &pb.HelloRequest{
     Name: "hello",
