@@ -27,21 +27,6 @@ func main() {
 	clientHandler.RegisterHeartBeat(func() gnet.Packet {
 		return codec.NewCustomDataPacket(1, []byte("heartbeat"))
 	})
-	clientHandler.SetOnConnectedFunc(func(connection gnet.Connection, success bool) {
-		if success {
-			connection.SendPacket(codec.NewCustomDataPacket(2, []byte("hello")))
-
-			// 模拟一个非常大的数据包
-			bigPacketSize := 1024 * 1024 * 30 // 30M
-			bigPacket := make([]byte, bigPacketSize)
-			for i := 0; i < len(bigPacket); i++ {
-				bigPacket[i] = byte(i)
-			}
-			sum := crc32.ChecksumIEEE(bigPacket)
-			connection.SendPacket(codec.NewCustomDataPacket(3, bigPacket))
-			logger.Info("%x", sum)
-		}
-	})
 	clientHandler.SetUnRegisterHandler(func(connection gnet.Connection, packet gnet.Packet) {
 		customDataPacket := packet.(*codec.CustomDataPacket)
 		if len(customDataPacket.GetStreamData()) < 100 {
@@ -57,12 +42,25 @@ func main() {
 	connectionConfig.MaxPacketSize = 1024 * 1024 * 32
 	connectionConfig.Codec = clientCodec
 	connectionConfig.Handler = clientHandler
-	if gnet.GetNetMgr().NewConnectorCustom(ctx, *addr, &connectionConfig, nil, func(config *gnet.ConnectionConfig) gnet.Connection {
+	connector := gnet.GetNetMgr().NewConnectorCustom(ctx, *addr, &connectionConfig, nil, func(config *gnet.ConnectionConfig) gnet.Connection {
 		// use TcpConnectionSimple
 		return gnet.NewTcpConnectionSimple(config)
-	}) == nil {
+	})
+	if connector == nil {
 		panic("connect failed")
 	}
+
+	connector.SendPacket(codec.NewCustomDataPacket(2, []byte("hello")))
+
+	// 模拟一个非常大的数据包
+	bigPacketSize := 1024 * 1024 * 30 // 30M
+	bigPacket := make([]byte, bigPacketSize)
+	for i := 0; i < len(bigPacket); i++ {
+		bigPacket[i] = byte(i)
+	}
+	sum := crc32.ChecksumIEEE(bigPacket)
+	connector.SendPacket(codec.NewCustomDataPacket(3, bigPacket))
+	logger.Info("%x", sum)
 
 	gnet.GetNetMgr().Shutdown(true)
 }

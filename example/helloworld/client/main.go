@@ -33,21 +33,17 @@ func main() {
 	clientHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_HeartBeat), onHeartBeatRes, new(pb.HeartBeatRes))
 	clientHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessage, new(pb.TestMessage))
 
-	clientHandler.SetOnConnectedFunc(func(connection gnet.Connection, success bool) {
-		if success {
-			connection.SendPacket(gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage),
-				&pb.TestMessage{
-					Name: "hello",
-				}))
-		}
-	})
-
 	connectionConfig := gnet.DefaultConnectionConfig
 	connectionConfig.Codec = clientCodec
 	connectionConfig.Handler = clientHandler
-	if gnet.GetNetMgr().NewConnector(ctx, *addr, &connectionConfig, nil) == nil {
+	connector := gnet.GetNetMgr().NewConnector(ctx, *addr, &connectionConfig, nil)
+	if connector == nil {
 		panic("connect failed")
 	}
+	connector.SendPacket(gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage),
+		&pb.TestMessage{
+			Name: "hello",
+		}))
 
 	gnet.GetNetMgr().Shutdown(true)
 }

@@ -21,28 +21,26 @@ func main() {
 
 	clientCodec := gnet.NewProtoCodec(nil)
 	clientHandler := gnet.NewDefaultConnectionHandler(clientCodec)
-	clientHandler.SetOnConnectedFunc(func(connection gnet.Connection, success bool) {
-		if success {
-			request := gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_HelloRequest), &pb.HelloRequest{
-				Name: "hello",
-			})
-			reply := new(pb.HelloReply)
-			err := connection.Rpc(request, reply)
-			if err != nil {
-				gnet.GetLogger().Error("RpcCallErr:%v", err)
-				return
-			}
-			logger.Info("reply:%v", reply)
-			connection.Close()
-		}
-	})
 
 	connectionConfig := gnet.DefaultConnectionConfig
 	connectionConfig.Codec = clientCodec
 	connectionConfig.Handler = clientHandler
-	if gnet.GetNetMgr().NewConnector(ctx, *addr, &connectionConfig, nil) == nil {
+	connector := gnet.GetNetMgr().NewConnector(ctx, *addr, &connectionConfig, nil)
+	if connector == nil {
 		panic("connect failed")
 	}
+
+	request := gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_HelloRequest), &pb.HelloRequest{
+		Name: "hello",
+	})
+	reply := new(pb.HelloReply)
+	err := connector.Rpc(request, reply)
+	if err != nil {
+		gnet.GetLogger().Error("RpcCallErr:%v", err)
+		return
+	}
+	logger.Info("reply:%v", reply)
+	connector.Close()
 
 	gnet.GetNetMgr().Shutdown(true)
 }

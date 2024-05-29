@@ -102,7 +102,21 @@ logger.Info("reply:%v", reply)
 ![connection_goroutine](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/connection_goroutine.png)
 
 ## Examples
+example/helloworld: a simple example use protobuf message
 
+example/data_packet: a simple example use DataPacket
+
+example/custom_packet: how to extend custom packet struct
+
+example/tcp_connection_simple: use protobuf message without RingBuffer
+
+example/packet_size: send big packet which size is bigger than RingBuffer's cap
+
+example/websocket: a simple example use websocket
+
+example/rpc: how to use rpc
+
+example/simulate_game: a performance test with a game application scenario
 
 ## Client Connector Library
 C#: [gnet_csharp](https://github.com/fish-tennis/gnet_csharp)

@@ -21,11 +21,6 @@ func main() {
 
 	clientCodec := gnet.NewDefaultCodec()
 	clientHandler := gnet.NewDefaultConnectionHandler(clientCodec)
-	clientHandler.SetOnConnectedFunc(func(connection gnet.Connection, success bool) {
-		if success {
-			connection.SendPacket(gnet.NewDataPacket([]byte("hello")))
-		}
-	})
 	// 注册心跳包
 	clientHandler.RegisterHeartBeat(func() gnet.Packet {
 		return gnet.NewDataPacket([]byte("heartbeat"))
@@ -37,9 +32,12 @@ func main() {
 	connectionConfig := gnet.DefaultConnectionConfig
 	connectionConfig.Codec = clientCodec
 	connectionConfig.Handler = clientHandler
-	if gnet.GetNetMgr().NewConnector(ctx, *addr, &connectionConfig, nil) == nil {
+	connector := gnet.GetNetMgr().NewConnector(ctx, *addr, &connectionConfig, nil)
+	if connector == nil {
 		panic("connect failed")
 	}
+
+	connector.SendPacket(gnet.NewDataPacket([]byte("hello")))
 
 	gnet.GetNetMgr().Shutdown(true)
 }

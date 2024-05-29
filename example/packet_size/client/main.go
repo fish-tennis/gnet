@@ -33,17 +33,6 @@ func main() {
 	clientHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_HeartBeat), onHeartBeatRes, new(pb.HeartBeatRes))
 	clientHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessage, new(pb.TestMessage))
 
-	clientHandler.SetOnConnectedFunc(func(connection gnet.Connection, success bool) {
-		if success {
-			// bigger than connectionConfig.SendBufferSize
-			// less than connectionConfig.MaxPacketSize
-			connection.SendPacket(gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage),
-				&pb.TestMessage{
-					Name: "hello,this is a big packet",
-				}))
-		}
-	})
-
 	connectionConfig := gnet.DefaultConnectionConfig
 	connectionConfig.SendPacketCacheCap = 2
 	connectionConfig.SendBufferSize = 4
@@ -51,9 +40,17 @@ func main() {
 	connectionConfig.MaxPacketSize = 32 // 允许超出RingBuffer的大小
 	connectionConfig.Codec = clientCodec
 	connectionConfig.Handler = clientHandler
-	if gnet.GetNetMgr().NewConnector(ctx, *addr, &connectionConfig, nil) == nil {
+	connector := gnet.GetNetMgr().NewConnector(ctx, *addr, &connectionConfig, nil)
+	if connector == nil {
 		panic("connect failed")
 	}
+
+	// bigger than connectionConfig.SendBufferSize
+	// less than connectionConfig.MaxPacketSize
+	connector.SendPacket(gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage),
+		&pb.TestMessage{
+			Name: "hello,this is a big packet",
+		}))
 
 	gnet.GetNetMgr().Shutdown(true)
 }
