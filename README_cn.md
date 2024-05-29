@@ -17,37 +17,36 @@
 - rpc
 - 目前支持Tcp,WebSocket(ws and wss)
 
-## 核心模块
-
-### 监听Listener(https://github.com/fish-tennis/gnet/blob/main/listener.go)
-
-监听某个端口,开启一个监听协程,并管理监听到的连接
-
-创建一个Listener:
-
+## 使用
+运行一个服务器
 ```go
-netMgr.NewListener("127.0.0.1:10001", connectionConfig, codec, &echoServerHandler{}, &echoListenerHandler{})
+codec := gnet.NewProtoCodec(nil)
+handler := gnet.NewDefaultConnectionHandler(codec)
+handler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessage, new(pb.TestMessage))
+listenerConfig := &gnet.ListenerConfig{
+    AcceptConfig: gnet.DefaultConnectionConfig,
+}
+listenerConfig.AcceptConfig.Codec = codec
+listenerConfig.AcceptConfig.Handler = handler
+gnet.GetNetMgr().NewListener(ctx, "localhost:10001", listenerConfig)
 ```
 
-### 连接Connection(https://github.com/fish-tennis/gnet/blob/main/connection.go)
-
-对连接的封装,连接有2种:
-
-- 一种是发起连接的一方(调用connect连接服务器的一方)
-- 一种是Listener监听到的连接(Listener通过accept监听到的连接)
-
-创建一个Connector:
-
+运行一个客户端
 ```go
-netMgr.NewConnector("127.0.0.1:10001", connectionConfig, codec, &echoClientHandler{}, nil)
+codec := gnet.NewProtoCodec(nil)
+handler := gnet.NewDefaultConnectionHandler(codec)
+handler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessage, new(pb.TestMessage))
+connectionConfig := gnet.DefaultConnectionConfig
+connectionConfig.Codec = clientCodec
+connectionConfig.Handler = clientHandler
+connector := gnet.GetNetMgr().NewConnector(ctx, "localhost:10001", &connectionConfig, nil)
+connector.SendPacket(gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage),
+    &pb.TestMessage{
+        Name: "hello",
+    }))
 ```
 
-### 数据包Packet(https://github.com/fish-tennis/gnet/blob/main/packet.go)
-
-游戏行业的常规做法,数据包由消息号和proto消息构成,同时预留一个二进制数据的接口(
-不使用proto消息的应用可以使用该接口,如示例[不使用proto的echo](https://github.com/fish-tennis/gnet/blob/main/example/echo_data_test.go))
-
-### 编解码Codec(https://github.com/fish-tennis/gnet/blob/main/codec.go)
+## 编解码Codec(https://github.com/fish-tennis/gnet/blob/main/codec.go)
 
 gnet把基于TCP流的解码分成3层
 
@@ -63,25 +62,7 @@ gnet把基于TCP流的解码分成3层
 
 ![decode](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/packet_decode.png)
 
-### 应用层接口Handler(https://github.com/fish-tennis/gnet/blob/main/handler.go)
-
-ListenerHandler:当监听到新连接和连接断开时,提供回调接口
-
-ConnectionHandler:在连接成功或失败,连接断开,收到数据包时,提供回调接口
-
-默认的ConnectionHandler用法:
-
-```go
-handler := NewDefaultConnectionHandler(codec)
-// 注册消息结构体和对应的回调函数
-handler.Register(123, OnTest, new(pb.TestMessage))
-func OnTest(conn Connection, packet Packet) {
-    testMessage := packet.Message().(*pb.TestMessage)
-    // do something
-}
-```
-
-### 使用RingBuffer来提高性能
+## 使用RingBuffer来提高性能
 
 ![ringbuffer-performance](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/ringbuffer-performance.png)
 
@@ -89,7 +70,7 @@ func OnTest(conn Connection, packet Packet) {
 
 如果使用RingBuffer机制,就会在实际调用net.Conn.Write之前,对多个Packet进行合并,从而减少net.Conn.Write的调用次数,从而提高性能.
 
-### rpc
+## rpc
 gnet提供了类似rpc的接口,并不是标准的rpc方法调用,gnet使用消息号作为标识,而不是方法名,
 向目标连接发送请求,并阻塞等待回复,本质类似于grpc-go
 ```go
@@ -104,12 +85,26 @@ if err != nil {
 logger.Info("reply:%v", reply)
 ```
 
-### go协程
+## go协程
 
 ![connection_goroutine](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/connection_goroutine.png)
 
 ## 示例
+example/helloworld: protobuf数据包
 
+example/data_packet: 非protobuf数据包
+
+example/custom_packet: 扩展自定义数据包
+
+example/tcp_connection_simple: 不使用RingBuffer
+
+example/packet_size: 数据包长度允许大于RingBuffer
+
+example/websocket: websocket
+
+example/rpc: rpc调用
+
+example/simulate_game: 模拟一个简单的游戏场景,对比使用RingBuffer的性能差异
 
 ## 客户端网络库 Connector Library
 C#: [gnet_csharp](https://github.com/fish-tennis/gnet_csharp)

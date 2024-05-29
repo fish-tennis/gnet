@@ -16,36 +16,36 @@ High performance network library,especially for game servers
 - rpc
 - Support Tcp,WebSocket(ws and wss)
 
-## Core module
-
-### Listener(https://github.com/fish-tennis/gnet/blob/main/listener.go)
-
-Listen to a certain port, start a listening goroutine, and manage the connected connections
-
-create a Listener:
-
+## Usage
+run a server
 ```go
-netMgr.NewListener("127.0.0.1:10001", connectionConfig, codec, &echoServerHandler{}, &echoListenerHandler{})
+codec := gnet.NewProtoCodec(nil)
+handler := gnet.NewDefaultConnectionHandler(codec)
+handler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessage, new(pb.TestMessage))
+listenerConfig := &gnet.ListenerConfig{
+    AcceptConfig: gnet.DefaultConnectionConfig,
+}
+listenerConfig.AcceptConfig.Codec = codec
+listenerConfig.AcceptConfig.Handler = handler
+gnet.GetNetMgr().NewListener(ctx, "localhost:10001", listenerConfig)
 ```
 
-### Connection(https://github.com/fish-tennis/gnet/blob/main/connection.go)
-
-There are two types of connection:
-
-- connector(call Connect() to connect the server)
-- accept by listener(the server call accept() to accept a new connection)
-
-create a Connector:
-
+run a client
 ```go
-netMgr.NewConnector("127.0.0.1:10001", connectionConfig, codec, &echoClientHandler{}, nil)
+codec := gnet.NewProtoCodec(nil)
+handler := gnet.NewDefaultConnectionHandler(codec)
+handler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessage, new(pb.TestMessage))
+connectionConfig := gnet.DefaultConnectionConfig
+connectionConfig.Codec = clientCodec
+connectionConfig.Handler = clientHandler
+connector := gnet.GetNetMgr().NewConnector(ctx, "localhost:10001", &connectionConfig, nil)
+connector.SendPacket(gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage),
+    &pb.TestMessage{
+        Name: "hello",
+    }))
 ```
 
-### Packet(https://github.com/fish-tennis/gnet/blob/main/packet.go)
-
-The common practices in game servers,the packet consists of a message number and a proto message,meanwhile gnet reserve a binary interface
-
-### Encoding and decoding(https://github.com/fish-tennis/gnet/blob/main/codec.go)
+## Encoding and decoding(https://github.com/fish-tennis/gnet/blob/main/codec.go)
 
 gnet divide TCP stream based decoding into three layers
 
@@ -61,29 +61,12 @@ Layer3:protobuf deserialize,generate proto.Message
 
 ![decode](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/packet_decode.png)
 
-### Handler(https://github.com/fish-tennis/gnet/blob/main/handler.go)
 
-ListenerHandler:when the server accept a new connection or the accepted connection disconnected
-
-ConnectionHandler:when the connection connected,disconnected,receive packet
-
-gnet provided a default ConnectionHandler:
-
-```go
-handler := NewDefaultConnectionHandler(codec)
-// register packet and process function
-handler.Register(123, OnTest, new(pb.TestMessage))
-func OnTest(conn Connection, packet Packet) {
-    testMessage := packet.Message().(*pb.TestMessage)
-    // do something
-}
-```
-
-### Use RingBuffer to increase performance
+## Use RingBuffer to increase performance
 
 ![ringbuffer-performance](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/ringbuffer-performance.png)
 
-### rpc
+## rpc
 Rpc send a request to target and block wait reply,similar to grpc-go,but gnet use command id instead of method name
 ```go
 request := gnet.NewProtoPacket(cmd, &pb.HelloRequest{
@@ -97,7 +80,7 @@ if err != nil {
 logger.Info("reply:%v", reply)
 ```
 
-### goroutine
+## goroutine
 
 ![connection_goroutine](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/connection_goroutine.png)
 
