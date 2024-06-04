@@ -123,6 +123,37 @@ type ProtoPacket struct {
 	data      []byte
 }
 
+func NewProtoPacketEx(args ...any) *ProtoPacket {
+	p := &ProtoPacket{}
+	for _, arg := range args {
+		switch v := arg.(type) {
+		case PacketCommand:
+			p.command = v
+		case uint16:
+			p.command = PacketCommand(v)
+		case int:
+			p.command = PacketCommand(v)
+		case int16:
+			p.command = PacketCommand(v)
+		case int32:
+			p.command = PacketCommand(v)
+		case int64:
+			p.command = PacketCommand(v)
+		case uint:
+			p.command = PacketCommand(v)
+		case uint32:
+			p.command = PacketCommand(v)
+		case uint64:
+			p.command = PacketCommand(v)
+		case proto.Message:
+			p.message = v
+		case []byte:
+			p.data = v
+		}
+	}
+	return p
+}
+
 func NewProtoPacket(command PacketCommand, message proto.Message) *ProtoPacket {
 	return &ProtoPacket{
 		command: command,
@@ -151,6 +182,16 @@ func (this *ProtoPacket) RpcCallId() uint32 {
 
 func (this *ProtoPacket) SetRpcCallId(rpcCallId uint32) {
 	this.rpcCallId = rpcCallId
+}
+
+func (this *ProtoPacket) WithRpc(arg any) *ProtoPacket {
+	switch v := arg.(type) {
+	case uint32:
+		this.rpcCallId = v
+	case RpcCallIdSetter:
+		this.rpcCallId = v.RpcCallId()
+	}
+	return this
 }
 
 // 某些特殊需求会直接使用序列化好的数据

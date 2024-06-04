@@ -9,7 +9,8 @@ import (
 )
 
 var (
-	port = flag.Int("port", 10001, "The server port")
+	port   = flag.Int("port", 10001, "The server port")
+	logger = gnet.GetLogger()
 )
 
 func main() {
@@ -38,9 +39,9 @@ func main() {
 
 func onHelloRequest(connection gnet.Connection, packet gnet.Packet) {
 	request := packet.Message().(*pb.HelloRequest)
-	replyPacket := gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_HelloReply), &pb.HelloReply{
+	logger.Info("request:%v", request)
+	replyPacket := gnet.NewProtoPacketEx(pb.CmdTest_Cmd_HelloReply, &pb.HelloReply{
 		Message: request.Name + " from server's reply",
-	})
-	replyPacket.SetRpcCallId(packet.(*gnet.ProtoPacket).RpcCallId())
+	}).WithRpc(packet)
 	connection.SendPacket(replyPacket)
 }
