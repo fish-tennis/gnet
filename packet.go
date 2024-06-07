@@ -3,6 +3,7 @@ package gnet
 import (
 	"encoding/binary"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"unsafe"
 )
 
@@ -126,9 +127,15 @@ type ProtoPacket struct {
 func NewProtoPacketEx(args ...any) *ProtoPacket {
 	p := &ProtoPacket{}
 	for _, arg := range args {
+		if arg == nil {
+			continue
+		}
 		switch v := arg.(type) {
 		case PacketCommand:
 			p.command = v
+		case protoreflect.Enum:
+			// protobuf生成的枚举值
+			p.command = PacketCommand(v.Number())
 		case uint16:
 			p.command = PacketCommand(v)
 		case int:
@@ -149,6 +156,8 @@ func NewProtoPacketEx(args ...any) *ProtoPacket {
 			p.message = v
 		case []byte:
 			p.data = v
+		default:
+			logger.Error("unsupported type:%v", v)
 		}
 	}
 	return p

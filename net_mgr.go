@@ -8,7 +8,7 @@ import (
 
 var (
 	// singleton
-	netMgr = &NetMgr{}
+	_netMgr = &NetMgr{}
 )
 
 // 网络管理类,提供对外接口
@@ -29,10 +29,10 @@ type NetMgr struct {
 //
 //	singleton mode, init once
 func GetNetMgr() *NetMgr {
-	netMgr.initOnce.Do(func() {
-		netMgr.init()
+	_netMgr.initOnce.Do(func() {
+		_netMgr.init()
 	})
-	return netMgr
+	return _netMgr
 }
 
 func (this *NetMgr) init() {

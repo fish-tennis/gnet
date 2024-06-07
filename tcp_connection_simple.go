@@ -280,7 +280,7 @@ func (this *TcpConnectionSimple) checkRecvTimeout(recvTimeoutTimer *time.Timer) 
 		} else {
 			// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
 			// 需要主动关闭该连接,防止连接"泄漏"
-			logger.Debug("recv timeout %v", this.GetConnectionId())
+			logger.Debug("recv Timeout %v", this.GetConnectionId())
 			return false
 		}
 	}

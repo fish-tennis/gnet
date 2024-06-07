@@ -203,7 +203,7 @@ func (this *WsConnection) writeLoop(ctx context.Context) {
 					this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout) * time.Second))
 				}
 				// Cleanly close the connection by sending a close message and then
-				// waiting (with timeout) for the server to close the connection.
+				// waiting (with Timeout) for the server to close the connection.
 				err := this.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				if err != nil {
 					logger.Debug("writeCloseMessageErr %v err:%v", this.GetConnectionId(), err.Error())
@@ -249,7 +249,7 @@ func (this *WsConnection) checkRecvTimeout(recvTimeoutTimer *time.Timer) bool {
 		} else {
 			// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
 			// 需要主动关闭该连接,防止连接"泄漏"
-			logger.Debug("recv timeout %v", this.GetConnectionId())
+			logger.Debug("recv Timeout %v", this.GetConnectionId())
 			return false
 		}
 	}

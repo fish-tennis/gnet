@@ -5,6 +5,10 @@ import (
 	"sync/atomic"
 )
 
+var (
+	_rpcCallSerialId = uint32(0)
+)
+
 type rpcCall struct {
 	// unique id of every rpc call
 	id    uint32
@@ -13,7 +17,6 @@ type rpcCall struct {
 
 // manage the pending rpcCall map
 type rpcCalls struct {
-	callId       uint32
 	rpcCallMutex sync.Mutex
 	rpcCalls     map[uint32]*rpcCall
 }
@@ -26,11 +29,11 @@ func newRpcCalls() *rpcCalls {
 
 func (this *rpcCalls) newRpcCall() *rpcCall {
 	call := &rpcCall{
-		id:    atomic.AddUint32(&this.callId, 1),
+		id:    atomic.AddUint32(&_rpcCallSerialId, 1),
 		reply: make(chan Packet),
 	}
 	if call.id == 0 {
-		call.id = atomic.AddUint32(&this.callId, 1)
+		call.id = atomic.AddUint32(&_rpcCallSerialId, 1)
 	}
 	this.rpcCallMutex.Lock()
 	this.rpcCalls[call.id] = call

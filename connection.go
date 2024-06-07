@@ -43,7 +43,7 @@ type Connection interface {
 	SendPacket(packet Packet, opts ...SendOption) bool
 
 	// 超时发包,超时未发送则丢弃,适用于某些允许丢弃的数据包
-	//  try send a packet with timeout
+	//  try send a packet with Timeout
 	TrySendPacket(packet Packet, timeout time.Duration, opts ...SendOption) bool
 
 	// Rpc send a request to target and block wait reply
@@ -109,7 +109,7 @@ type ConnectionConfig struct {
 
 	// 收包超时设置(秒)
 	//  if the connection dont recv packet for RecvTimeout seconds,the connection will close
-	//  if RecvTimeout is zero,it will not check timeout
+	//  if RecvTimeout is zero,it will not check Timeout
 	RecvTimeout uint32
 
 	// 心跳包发送间隔(秒),对connector有效
@@ -215,9 +215,9 @@ func (this *baseConnection) SendPacket(packet Packet, opts ...SendOption) bool {
 	if !this.IsConnected() {
 		return false
 	}
-	sendOpts := defaultSendOptions
+	sendOpts := defaultSendOptions()
 	for _, opt := range opts {
-		opt.apply(&sendOpts)
+		opt.apply(sendOpts)
 	}
 	// TODO: block mode
 	if sendOpts.timeout > 0 {
@@ -250,12 +250,12 @@ func (this *baseConnection) SendPacket(packet Packet, opts ...SendOption) bool {
 // 超时发包,超时未发送则丢弃,适用于某些允许丢弃的数据包
 // 可以防止某些"不重要的"数据包造成chan阻塞,比如游戏项目常见的聊天广播
 //
-//	asynchronous send with timeout (write to chan, not send immediately)
+//	asynchronous send with Timeout (write to chan, not send immediately)
 //	if return false, means not write to chan
 func (this *baseConnection) TrySendPacket(packet Packet, timeout time.Duration, opts ...SendOption) bool {
 	sendOpts := opts
 	if timeout == 0 {
-		sendOpts = append(sendOpts, Discard())
+		sendOpts = append(sendOpts, WithDiscard())
 	} else {
 		sendOpts = append(sendOpts, Timeout(timeout))
 	}
@@ -267,12 +267,9 @@ func (this *baseConnection) Rpc(request Packet, reply proto.Message, opts ...Sen
 	if !this.IsConnected() {
 		return errors.New("disconnected")
 	}
-	sendOpts := defaultSendOptions
+	sendOpts := defaultSendOptions()
 	for _, opt := range opts {
-		opt.apply(&sendOpts)
-	}
-	if sendOpts.timeout == 0 {
-		sendOpts.timeout = DefaultRpcTimeout
+		opt.apply(sendOpts)
 	}
 	call := this.rpcCalls.newRpcCall()
 	if rpcCallIdSetter, ok := request.(RpcCallIdSetter); ok {
@@ -282,16 +279,15 @@ func (this *baseConnection) Rpc(request Packet, reply proto.Message, opts ...Sen
 	}
 	// NOTE:当sendPacketCache满时,这里会阻塞
 	this.sendPacketCache <- request
-	sendTimeout := sendOpts.timeout
-	if sendTimeout < 0 {
-		sendTimeout = time.Hour * 24 * 365
-	}
-	timeout := time.After(sendTimeout)
+	timeout := time.After(sendOpts.timeout)
 	select {
 	case <-timeout:
 		this.rpcCalls.removeReply(call.id)
 		return errors.New("timeout")
 	case replyPacket := <-call.reply:
+		if replyPacket == nil {
+			return errors.New("reply is nil")
+		}
 		// 如果网络层已经反序列化了,直接赋值
 		if replyPacket.Message() != nil {
 			valueReply := reflect.ValueOf(reply)
