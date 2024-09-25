@@ -6,16 +6,6 @@ import (
 	"reflect"
 )
 
-// proto.Message ctor func
-type ProtoMessageCreator func() proto.Message
-
-// Packet ctor func
-type PacketCreator func() Packet
-
-type ProtoRegister interface {
-	Register(command PacketCommand, protoMessage proto.Message)
-}
-
 // codec for protobuf
 //
 //	use DefaultPacketHeader,RingBufferCodec
@@ -31,16 +21,13 @@ type ProtoCodec struct {
 	ProtoPacketBytesDecoder func(packetData []byte) []byte
 
 	// 消息号和proto.Message type的映射表
-	MessageCreatorMap map[PacketCommand]reflect.Type
+	MessageCreatorMap *MessageCreatorMap
 }
 
 func NewProtoCodec(protoMessageTypeMap map[PacketCommand]reflect.Type) *ProtoCodec {
 	codec := &ProtoCodec{
 		RingBufferCodec:   RingBufferCodec{},
-		MessageCreatorMap: protoMessageTypeMap,
-	}
-	if codec.MessageCreatorMap == nil {
-		codec.MessageCreatorMap = make(map[PacketCommand]reflect.Type)
+		MessageCreatorMap: NewMessageCreatorMap(true),
 	}
 	codec.DataEncoder = codec.EncodePacket
 	codec.DataDecoder = codec.DecodePacket
@@ -51,11 +38,7 @@ func NewProtoCodec(protoMessageTypeMap map[PacketCommand]reflect.Type) *ProtoCod
 //
 //	protoMessage can be nil
 func (this *ProtoCodec) Register(command PacketCommand, protoMessage proto.Message) {
-	if protoMessage == nil {
-		this.MessageCreatorMap[command] = nil
-		return
-	}
-	this.MessageCreatorMap[command] = reflect.TypeOf(protoMessage).Elem()
+	this.MessageCreatorMap.Register(command, protoMessage)
 }
 
 func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]byte, uint8) {
@@ -126,36 +109,49 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 		offset += 4
 		//logger.Debug("read rpcCallId:%v", rpcCallId)
 	}
-	if protoMessageType, ok := this.MessageCreatorMap[PacketCommand(command)]; ok {
-		if protoMessageType != nil {
-			newProtoMessage := reflect.New(protoMessageType).Interface().(proto.Message)
+	newProtoMessage, messagePool, hasRegister := this.MessageCreatorMap.NewMessage(PacketCommand(command))
+	if hasRegister {
+		if newProtoMessage != nil {
 			err := proto.Unmarshal(decodedPacketData[offset:], newProtoMessage)
 			if err != nil {
 				logger.Error("proto decode err:%v cmd:%v", err, command)
 				return nil
 			}
-			return &ProtoPacket{
-				command:   PacketCommand(command),
-				rpcCallId: rpcCallId,
-				message:   newProtoMessage,
-			}
+			newPacket := NewProtoPacketFromPool(PacketCommand(command))
+			newPacket.rpcCallId = rpcCallId
+			newPacket.message = newProtoMessage
+			newPacket.messagePool = messagePool
+			return newPacket
+			//return &ProtoPacket{
+			//	command:   PacketCommand(command),
+			//	rpcCallId: rpcCallId,
+			//	message:   newProtoMessage,
+			//}
 		} else {
 			// 支持只注册了消息号,没注册proto结构体的用法
 			// support Register(command, nil), return the direct stream data to application layer
-			return &ProtoPacket{
-				command:   PacketCommand(command),
-				rpcCallId: rpcCallId,
-				data:      decodedPacketData[offset:],
-			}
+			newPacket := NewProtoPacketFromPool(PacketCommand(command))
+			newPacket.rpcCallId = rpcCallId
+			newPacket.data = decodedPacketData[offset:]
+			return newPacket
+			//return &ProtoPacket{
+			//	command:   PacketCommand(command),
+			//	rpcCallId: rpcCallId,
+			//	data:      decodedPacketData[offset:],
+			//}
 		}
 	}
 	// rpc模式允许response消息不注册,留给业务层解析
 	if rpcCallId > 0 {
-		return &ProtoPacket{
-			command:   PacketCommand(command),
-			rpcCallId: rpcCallId,
-			data:      decodedPacketData[offset:],
-		}
+		newPacket := NewProtoPacketFromPool(PacketCommand(command))
+		newPacket.rpcCallId = rpcCallId
+		newPacket.data = decodedPacketData[offset:]
+		return newPacket
+		//return &ProtoPacket{
+		//	command:   PacketCommand(command),
+		//	rpcCallId: rpcCallId,
+		//	data:      decodedPacketData[offset:],
+		//}
 	}
 	logger.Error("unSupport command:%v", command)
 	return nil

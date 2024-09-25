@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"sync"
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -20,6 +22,18 @@ const (
 	RpcCall uint8 = 1 << 0
 	// compress packet data
 	Compress uint8 = 1 << 1
+)
+
+var (
+	NewAllocCount    atomic.Int64
+	TotalAllocCount  atomic.Int64
+	TotalFreeCount   atomic.Int64
+	_protoPacketPool = sync.Pool{
+		New: func() any {
+			NewAllocCount.Add(1)
+			return &ProtoPacket{}
+		},
+	}
 )
 
 // interface for PacketHeader
@@ -119,48 +133,54 @@ type RpcCallIdSetter interface {
 type ProtoPacket struct {
 	command PacketCommand
 	// use for rpc call
-	rpcCallId uint32
-	message   proto.Message
-	data      []byte
+	rpcCallId   uint32
+	message     proto.Message
+	data        []byte
+	pool        *sync.Pool
+	messagePool *sync.Pool
 }
 
 func NewProtoPacketEx(args ...any) *ProtoPacket {
 	p := &ProtoPacket{}
+	p.SetArgs(args)
+	return p
+}
+
+func (this *ProtoPacket) SetArgs(args ...any) {
 	for _, arg := range args {
 		if arg == nil {
 			continue
 		}
 		switch v := arg.(type) {
 		case PacketCommand:
-			p.command = v
+			this.command = v
 		case protoreflect.Enum:
 			// protobuf生成的枚举值
-			p.command = PacketCommand(v.Number())
+			this.command = PacketCommand(v.Number())
 		case uint16:
-			p.command = PacketCommand(v)
+			this.command = PacketCommand(v)
 		case int:
-			p.command = PacketCommand(v)
+			this.command = PacketCommand(v)
 		case int16:
-			p.command = PacketCommand(v)
+			this.command = PacketCommand(v)
 		case int32:
-			p.command = PacketCommand(v)
+			this.command = PacketCommand(v)
 		case int64:
-			p.command = PacketCommand(v)
+			this.command = PacketCommand(v)
 		case uint:
-			p.command = PacketCommand(v)
+			this.command = PacketCommand(v)
 		case uint32:
-			p.command = PacketCommand(v)
+			this.command = PacketCommand(v)
 		case uint64:
-			p.command = PacketCommand(v)
+			this.command = PacketCommand(v)
 		case proto.Message:
-			p.message = v
+			this.message = v
 		case []byte:
-			p.data = v
+			this.data = v
 		default:
 			logger.Error("unsupported type:%v", v)
 		}
 	}
-	return p
 }
 
 func NewProtoPacket(command PacketCommand, message proto.Message) *ProtoPacket {
@@ -175,6 +195,30 @@ func NewProtoPacketWithData(command PacketCommand, data []byte) *ProtoPacket {
 		command: command,
 		data:    data,
 	}
+}
+
+func NewProtoPacketFromPool(command PacketCommand) *ProtoPacket {
+	newPacket := _protoPacketPool.Get().(*ProtoPacket)
+	newPacket.pool = &_protoPacketPool
+	newPacket.command = command
+	TotalAllocCount.Add(1)
+	return newPacket
+}
+
+func (this *ProtoPacket) Free() {
+	if this.pool == nil {
+		return
+	}
+	this.pool = nil
+	this.command = 0
+	this.rpcCallId = 0
+	this.message = nil
+	this.data = nil
+	if this.messagePool != nil && this.message != nil {
+		this.messagePool.Put(this.message)
+	}
+	_protoPacketPool.Put(this)
+	TotalFreeCount.Add(1)
 }
 
 func (this *ProtoPacket) Command() PacketCommand {
@@ -212,6 +256,7 @@ func (this *ProtoPacket) GetStreamData() []byte {
 
 // deep copy
 func (this *ProtoPacket) Clone() Packet {
+	// TODO: use pool
 	newPacket := &ProtoPacket{
 		command: this.command,
 		message: proto.Clone(this.message),

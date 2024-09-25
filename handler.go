@@ -78,6 +78,10 @@ func (this *DefaultConnectionHandler) OnDisconnected(connection Connection) {
 
 func (this *DefaultConnectionHandler) OnRecvPacket(connection Connection, packet Packet) {
 	defer func() {
+		// put back to pool
+		if protoPacket, ok := packet.(*ProtoPacket); ok {
+			protoPacket.Free()
+		}
 		if err := recover(); err != nil {
 			logger.Error("fatal %v", err.(error))
 			LogStack()

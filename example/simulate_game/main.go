@@ -125,6 +125,7 @@ func main() {
 
 	println("*********************************************************")
 	println(fmt.Sprintf("serverRecv:%v clientRecv:%v", _serverRecvPacketCount, _clientRecvPacketCount))
+	println(fmt.Sprintf("New:%v Alloc:%v Free:%v", gnet.NewAllocCount.Load(), gnet.TotalAllocCount.Load(), gnet.TotalFreeCount.Load()))
 	println("*********************************************************")
 }
 
