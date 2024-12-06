@@ -241,6 +241,7 @@ func (this *ProtoPacket) Clone() Packet {
 //
 //	packet which only have a byte array
 type DataPacket struct {
+	// NOTE: 暂未实现rpcCallId和errorCode
 	data []byte
 }
 
@@ -264,17 +265,21 @@ func (this *DataPacket) GetStreamData() []byte {
 	return this.data
 }
 
+// NOTE: 暂未实现rpcCallId
 func (this *DataPacket) RpcCallId() uint32 {
 	return 0
 }
 
+// NOTE: 暂未实现rpcCallId
 func (this *DataPacket) SetRpcCallId(rpcCallId uint32) {
 }
 
+// NOTE: 暂未实现ErrorCode
 func (this *DataPacket) ErrorCode() uint32 {
 	return 0
 }
 
+// NOTE: 暂未实现ErrorCode
 func (this *DataPacket) SetErrorCode(code uint32) *DataPacket {
 	return this
 }

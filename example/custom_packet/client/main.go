@@ -28,12 +28,16 @@ func main() {
 		return codec.NewCustomDataPacket(1, []byte("heartbeat"))
 	})
 	clientHandler.SetUnRegisterHandler(func(connection gnet.Connection, packet gnet.Packet) {
-		customDataPacket := packet.(*codec.CustomDataPacket)
-		if len(customDataPacket.GetStreamData()) < 100 {
-			logger.Info("cmd:%v str:%v", customDataPacket.Command(), string(customDataPacket.GetStreamData()))
+		if packet.ErrorCode() == 0 {
+			customDataPacket := packet.(*codec.CustomDataPacket)
+			if len(customDataPacket.GetStreamData()) < 100 {
+				logger.Info("cmd:%v str:%v", customDataPacket.Command(), string(customDataPacket.GetStreamData()))
+			} else {
+				sum := crc32.ChecksumIEEE(customDataPacket.GetStreamData())
+				logger.Info("cmd:%v crc:%x len:%v", customDataPacket.Command(), sum, len(customDataPacket.GetStreamData()))
+			}
 		} else {
-			sum := crc32.ChecksumIEEE(customDataPacket.GetStreamData())
-			logger.Info("cmd:%v crc:%x len:%v", customDataPacket.Command(), sum, len(customDataPacket.GetStreamData()))
+			logger.Info("cmd:%v errorCode:%v", packet.Command(), packet.ErrorCode())
 		}
 	})
 

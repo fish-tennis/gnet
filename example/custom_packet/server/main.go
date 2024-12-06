@@ -37,6 +37,9 @@ func main() {
 		}
 		// echo
 		connection.SendPacket(customDataPacket)
+
+		// 模拟一个带错误码的消息
+		connection.SendPacket(codec.NewCustomDataPacket(uint16(packet.Command()), nil).SetErrorCode(12345))
 	})
 
 	listenerConfig := &gnet.ListenerConfig{
