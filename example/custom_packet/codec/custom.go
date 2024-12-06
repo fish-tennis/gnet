@@ -10,9 +10,11 @@ import (
 // 自定义包头
 // implement of PacketHeader
 type CustomPacketHeader struct {
-	len     uint32 // 支持更大的Packet
-	command uint16 // 消息号
-	flags   uint16 // 预留标记
+	len       uint32 // 支持更大的Packet
+	command   uint16 // 消息号
+	rpcCallId uint32
+	errorCode uint32
+	//flags   uint16 // 预留标记
 }
 
 // 包体长度,不包含包头的长度
@@ -21,35 +23,45 @@ func (this *CustomPacketHeader) Len() uint32 {
 	return this.len
 }
 
+func (this *CustomPacketHeader) HasFlag(flag uint8) bool {
+	return false
+}
+
 // 消息号
 func (this *CustomPacketHeader) Command() uint16 {
 	return this.command
 }
 
-// 标记
-func (this *CustomPacketHeader) Flags() uint16 {
-	return this.flags
-}
+//// 标记
+//func (this *CustomPacketHeader) Flags() uint16 {
+//	return this.flags
+//}
 
 // 从字节流读取数据,len(messageHeaderData)>=MessageHeaderSize
 // 使用小端字节序
 func (this *CustomPacketHeader) ReadFrom(packetHeaderData []byte) {
 	this.len = binary.LittleEndian.Uint32(packetHeaderData)
 	this.command = binary.LittleEndian.Uint16(packetHeaderData[4:])
-	this.flags = binary.LittleEndian.Uint16(packetHeaderData[6:])
+	this.rpcCallId = binary.LittleEndian.Uint32(packetHeaderData[6:])
+	this.errorCode = binary.LittleEndian.Uint32(packetHeaderData[10:])
+	//this.flags = binary.LittleEndian.Uint16(packetHeaderData[14:])
 }
 
 // 写入字节流,使用小端字节序
 func (this *CustomPacketHeader) WriteTo(packetHeaderData []byte) {
 	binary.LittleEndian.PutUint32(packetHeaderData, this.len)
 	binary.LittleEndian.PutUint16(packetHeaderData[4:], this.command)
-	binary.LittleEndian.PutUint16(packetHeaderData[6:], this.flags)
+	binary.LittleEndian.PutUint32(packetHeaderData[6:], this.rpcCallId)
+	binary.LittleEndian.PutUint32(packetHeaderData[10:], this.errorCode)
+	//binary.LittleEndian.PutUint16(packetHeaderData[14:], this.flags)
 }
 
 // 包含一个消息号和[]byte的数据包
 type CustomDataPacket struct {
-	command uint16
-	data    []byte
+	command   uint16
+	rpcCallId uint32
+	errorCode uint32
+	data      []byte
 }
 
 func NewCustomDataPacket(command uint16, data []byte) *CustomDataPacket {
@@ -67,6 +79,23 @@ func (this *CustomDataPacket) Message() proto.Message {
 	return nil
 }
 
+func (this *CustomDataPacket) RpcCallId() uint32 {
+	return this.rpcCallId
+}
+
+func (this *CustomDataPacket) SetRpcCallId(rpcCallId uint32) {
+	this.rpcCallId = rpcCallId
+}
+
+func (this *CustomDataPacket) ErrorCode() uint32 {
+	return this.errorCode
+}
+
+func (this *CustomDataPacket) SetErrorCode(code uint32) *CustomDataPacket {
+	this.errorCode = code
+	return this
+}
+
 func (this *CustomDataPacket) GetStreamData() []byte {
 	return this.data
 }
@@ -75,6 +104,8 @@ func (this *CustomDataPacket) GetStreamData() []byte {
 func (this *CustomDataPacket) Clone() gnet.Packet {
 	newPacket := &CustomDataPacket{data: make([]byte, len(this.data))}
 	newPacket.command = this.command
+	newPacket.rpcCallId = this.rpcCallId
+	newPacket.errorCode = this.errorCode
 	copy(newPacket.data, this.data)
 	return newPacket
 }
@@ -91,8 +122,10 @@ func (this *CustomCodec) CreatePacketHeader(connection gnet.Connection, packet g
 		}
 	}
 	return &CustomPacketHeader{
-		len:     uint32(len(packetData)),
-		command: uint16(packet.Command()),
+		len:       uint32(len(packetData)),
+		command:   uint16(packet.Command()),
+		rpcCallId: packet.RpcCallId(),
+		errorCode: packet.ErrorCode(),
 	}
 }
 
@@ -111,8 +144,10 @@ func (this *CustomCodec) Decode(connection gnet.Connection, data []byte) (newPac
 	packetHeader := &CustomPacketHeader{}
 	packetHeader.ReadFrom(data[0:])
 	newPacket = &CustomDataPacket{
-		command: packetHeader.Command(),
-		data:    data[this.PacketHeaderSize():],
+		command:   packetHeader.Command(),
+		rpcCallId: packetHeader.rpcCallId,
+		errorCode: packetHeader.errorCode,
+		data:      data[this.PacketHeaderSize():],
 	}
 	return
 }

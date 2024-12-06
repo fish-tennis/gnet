@@ -63,4 +63,7 @@ func onTestMessage(connection gnet.Connection, packet gnet.Packet) {
 	// echo
 	req.Name += " world from server"
 	connection.SendPacket(packet)
+
+	// 再模拟一个返回错误码的消息
+	connection.SendPacket(gnet.NewProtoPacketEx(packet.Command()).SetErrorCode(10001))
 }

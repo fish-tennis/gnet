@@ -20,11 +20,14 @@ const (
 	RpcCall uint8 = 1 << 0
 	// compress packet data
 	Compress uint8 = 1 << 1
+	// packet contains error code
+	HasError uint8 = 1 << 2
 )
 
 // interface for PacketHeader
 type PacketHeader interface {
 	Len() uint32
+	HasFlag(flag uint8) bool
 	ReadFrom(packetHeaderData []byte)
 	WriteTo(packetHeaderData []byte)
 }
@@ -98,6 +101,12 @@ type Packet interface {
 	//  packet command number
 	Command() PacketCommand
 
+	RpcCallId() uint32
+
+	SetRpcCallId(rpcCallId uint32)
+
+	ErrorCode() uint32
+
 	// default protobuf
 	Message() proto.Message
 
@@ -109,17 +118,11 @@ type Packet interface {
 	Clone() Packet
 }
 
-// get and set rpcCallId of packet
-type RpcCallIdSetter interface {
-	RpcCallId() uint32
-	SetRpcCallId(rpcCallId uint32)
-}
-
 // packet for proto.Message
 type ProtoPacket struct {
-	command PacketCommand
-	// use for rpc call
+	command   PacketCommand
 	rpcCallId uint32
+	errorCode uint32
 	message   proto.Message
 	data      []byte
 }
@@ -197,9 +200,18 @@ func (this *ProtoPacket) WithRpc(arg any) *ProtoPacket {
 	switch v := arg.(type) {
 	case uint32:
 		this.rpcCallId = v
-	case RpcCallIdSetter:
+	case Packet:
 		this.rpcCallId = v.RpcCallId()
 	}
+	return this
+}
+
+func (this *ProtoPacket) ErrorCode() uint32 {
+	return this.errorCode
+}
+
+func (this *ProtoPacket) SetErrorCode(code uint32) *ProtoPacket {
+	this.errorCode = code
 	return this
 }
 
@@ -213,8 +225,10 @@ func (this *ProtoPacket) GetStreamData() []byte {
 // deep copy
 func (this *ProtoPacket) Clone() Packet {
 	newPacket := &ProtoPacket{
-		command: this.command,
-		message: proto.Clone(this.message),
+		command:   this.command,
+		rpcCallId: this.rpcCallId,
+		errorCode: this.errorCode,
+		message:   proto.Clone(this.message),
 	}
 	if len(this.data) > 0 {
 		newPacket.data = make([]byte, len(this.data))
@@ -234,6 +248,10 @@ func NewDataPacket(data []byte) *DataPacket {
 	return &DataPacket{data: data}
 }
 
+func NewDataPacketWithHeader(header PacketHeader, data []byte) *DataPacket {
+	return &DataPacket{data: data}
+}
+
 func (this *DataPacket) Command() PacketCommand {
 	return 0
 }
@@ -244,6 +262,21 @@ func (this *DataPacket) Message() proto.Message {
 
 func (this *DataPacket) GetStreamData() []byte {
 	return this.data
+}
+
+func (this *DataPacket) RpcCallId() uint32 {
+	return 0
+}
+
+func (this *DataPacket) SetRpcCallId(rpcCallId uint32) {
+}
+
+func (this *DataPacket) ErrorCode() uint32 {
+	return 0
+}
+
+func (this *DataPacket) SetErrorCode(code uint32) *DataPacket {
+	return this
 }
 
 // deep copy

@@ -2,12 +2,14 @@ package gnet
 
 import (
 	"encoding/binary"
+	"errors"
 	"google.golang.org/protobuf/proto"
 	"reflect"
+	"unsafe"
 )
 
 const (
-	SimplePacketHeaderSize = 6
+	SimplePacketHeaderSize = int(unsafe.Sizeof(SimplePacketHeader{}))
 )
 
 // a simple packet header for TcpConnectionSimple
@@ -38,6 +40,19 @@ func (this *SimplePacketHeader) Len() uint32 {
 // 标记 [0,0xFF]
 func (this *SimplePacketHeader) Flags() uint8 {
 	return uint8(this.LenAndFlags >> 24)
+}
+
+func (this *SimplePacketHeader) SetFlags(flags uint8) {
+	this.LenAndFlags = uint32(flags)<<24 | this.Len()
+}
+
+func (this *SimplePacketHeader) AddFlags(flag uint8) {
+	flags := this.Flags() | flag
+	this.SetFlags(flags)
+}
+
+func (this *SimplePacketHeader) HasFlag(flag uint8) bool {
+	return (this.Flags() & flag) == flag
 }
 
 // 从字节流读取数据,len(messageHeaderData)>=MessageHeaderSize
@@ -106,36 +121,86 @@ func (this *SimpleProtoCodec) Encode(connection Connection, packet Packet) []byt
 			}
 		}
 	}
+	if packet.ErrorCode() != 0 || packet.RpcCallId() > 0 {
+		extraLen := 4
+		offset := 0
+		if packet.ErrorCode() != 0 && packet.RpcCallId() > 0 {
+			extraLen = 8
+		}
+		packetData := make([]byte, len(packetBodyData)+extraLen)
+		if packet.ErrorCode() != 0 {
+			binary.LittleEndian.PutUint32(packetData, packet.ErrorCode())
+			offset += 4
+		}
+		if packet.RpcCallId() > 0 {
+			binary.LittleEndian.PutUint32(packetData[offset:], packet.RpcCallId())
+			offset += 4
+		}
+		copy(packetData[offset:], packetBodyData)
+		return packetData
+	}
 	return packetBodyData
 }
 
 func (this *SimpleProtoCodec) Decode(connection Connection, data []byte) (newPacket Packet, err error) {
-	if len(data) < SimplePacketHeaderSize {
+	decodedPacketData := data
+	if len(decodedPacketData) < SimplePacketHeaderSize {
 		return nil, ErrPacketLength
 	}
 	packetHeader := &SimplePacketHeader{}
-	packetHeader.ReadFrom(data)
+	packetHeader.ReadFrom(decodedPacketData)
+	decodedPacketData = decodedPacketData[SimplePacketHeaderSize:]
 	command := packetHeader.Command
+	rpcCallId := uint32(0)
+	if packetHeader.HasFlag(RpcCall) {
+		if len(decodedPacketData) < 4 {
+			return nil, errors.New("rpcCallId decode err")
+		}
+		rpcCallId = binary.LittleEndian.Uint32(decodedPacketData[:4])
+		decodedPacketData = decodedPacketData[4:]
+	}
+	errorCode := uint32(0)
+	if packetHeader.HasFlag(HasError) {
+		if len(decodedPacketData) < 4 {
+			return nil, errors.New("errorCode decode err")
+		}
+		errorCode = binary.LittleEndian.Uint32(decodedPacketData[:4])
+		decodedPacketData = decodedPacketData[4:]
+	}
 	if protoMessageType, ok := this.MessageCreatorMap[PacketCommand(command)]; ok {
 		if protoMessageType != nil {
 			newProtoMessage := reflect.New(protoMessageType).Interface().(proto.Message)
-			err = proto.Unmarshal(data[SimplePacketHeaderSize:], newProtoMessage)
+			// TODO: check len(decodedPacketData) > 0?
+			err = proto.Unmarshal(decodedPacketData, newProtoMessage)
 			if err != nil {
 				logger.Error("proto decode err:%v cmd:%v", err, command)
 				return nil, err
 			}
 			return &ProtoPacket{
-				command: PacketCommand(command),
-				message: newProtoMessage,
+				command:   PacketCommand(command),
+				rpcCallId: rpcCallId,
+				errorCode: errorCode,
+				message:   newProtoMessage,
 			}, nil
 		} else {
 			// 支持只注册了消息号,没注册proto结构体的用法
 			// support Register(command, nil), return the direct stream data to application layer
 			return &ProtoPacket{
-				command: PacketCommand(command),
-				data:    data[SimplePacketHeaderSize:],
+				command:   PacketCommand(command),
+				rpcCallId: rpcCallId,
+				errorCode: errorCode,
+				data:      decodedPacketData,
 			}, nil
 		}
+	}
+	// rpc模式允许response消息不注册,留给业务层解析
+	if rpcCallId > 0 {
+		return &ProtoPacket{
+			command:   PacketCommand(command),
+			rpcCallId: rpcCallId,
+			errorCode: errorCode,
+			data:      decodedPacketData,
+		}, nil
 	}
 	logger.Error("unSupport command:%v", command)
 	return nil, ErrNotSupport

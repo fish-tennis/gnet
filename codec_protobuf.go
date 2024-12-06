@@ -71,8 +71,14 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]
 	if rpcCallId > 0 {
 		rpcCallIdBytes = make([]byte, 4)
 		binary.LittleEndian.PutUint32(rpcCallIdBytes, rpcCallId)
-		headerFlags = RpcCall
+		headerFlags |= RpcCall
 		//logger.Debug("write rpcCallId:%v", rpcCallId)
+	}
+	var errorCodeBytes []byte
+	if p, ok := packet.(*ProtoPacket); ok && p.errorCode != 0 {
+		errorCodeBytes = make([]byte, 4)
+		binary.LittleEndian.PutUint32(errorCodeBytes, uint32(p.errorCode))
+		headerFlags |= HasError
 	}
 	var messageBytes []byte
 	if protoMessage != nil {
@@ -91,14 +97,14 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]
 	// you can continue to encode messageBytes here, such as XOR, encryption, compression, etc
 	if this.ProtoPacketBytesEncoder != nil {
 		if rpcCallId > 0 {
-			return this.ProtoPacketBytesEncoder([][]byte{commandBytes, rpcCallIdBytes, messageBytes}), headerFlags
+			return this.ProtoPacketBytesEncoder([][]byte{commandBytes, rpcCallIdBytes, errorCodeBytes, messageBytes}), headerFlags
 		}
-		return this.ProtoPacketBytesEncoder([][]byte{commandBytes, messageBytes}), headerFlags
+		return this.ProtoPacketBytesEncoder([][]byte{commandBytes, errorCodeBytes, messageBytes}), headerFlags
 	}
 	if rpcCallId > 0 {
-		return [][]byte{commandBytes, rpcCallIdBytes, messageBytes}, headerFlags
+		return [][]byte{commandBytes, rpcCallIdBytes, errorCodeBytes, messageBytes}, headerFlags
 	}
-	return [][]byte{commandBytes, messageBytes}, headerFlags
+	return [][]byte{commandBytes, errorCodeBytes, messageBytes}, headerFlags
 }
 
 func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketHeader, packetData []byte) Packet {
@@ -111,25 +117,30 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 	if len(decodedPacketData) < 2 {
 		return nil
 	}
-	isRpcCall := false
-	if defaultPacketHeader, ok := packetHeader.(*DefaultPacketHeader); ok {
-		isRpcCall = defaultPacketHeader.HasFlag(RpcCall)
-	}
-	if isRpcCall && len(decodedPacketData) < 6 {
-		return nil
-	}
 	command := binary.LittleEndian.Uint16(decodedPacketData[:2])
-	offset := 2
+	decodedPacketData = decodedPacketData[2:]
 	rpcCallId := uint32(0)
-	if isRpcCall {
-		rpcCallId = binary.LittleEndian.Uint32(decodedPacketData[offset : offset+4])
-		offset += 4
+	if packetHeader.HasFlag(RpcCall) {
+		if len(decodedPacketData) < 4 {
+			return nil
+		}
+		rpcCallId = binary.LittleEndian.Uint32(decodedPacketData[:4])
+		decodedPacketData = decodedPacketData[4:]
 		//logger.Debug("read rpcCallId:%v", rpcCallId)
+	}
+	errorCode := uint32(0)
+	if packetHeader.HasFlag(HasError) {
+		if len(decodedPacketData) < 4 {
+			return nil
+		}
+		errorCode = binary.LittleEndian.Uint32(decodedPacketData[:4])
+		decodedPacketData = decodedPacketData[4:]
 	}
 	if protoMessageType, ok := this.MessageCreatorMap[PacketCommand(command)]; ok {
 		if protoMessageType != nil {
 			newProtoMessage := reflect.New(protoMessageType).Interface().(proto.Message)
-			err := proto.Unmarshal(decodedPacketData[offset:], newProtoMessage)
+			// TODO: check len(decodedPacketData) > 0?
+			err := proto.Unmarshal(decodedPacketData, newProtoMessage)
 			if err != nil {
 				logger.Error("proto decode err:%v cmd:%v", err, command)
 				return nil
@@ -137,6 +148,7 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 			return &ProtoPacket{
 				command:   PacketCommand(command),
 				rpcCallId: rpcCallId,
+				errorCode: errorCode,
 				message:   newProtoMessage,
 			}
 		} else {
@@ -145,7 +157,8 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 			return &ProtoPacket{
 				command:   PacketCommand(command),
 				rpcCallId: rpcCallId,
-				data:      decodedPacketData[offset:],
+				errorCode: errorCode,
+				data:      decodedPacketData,
 			}
 		}
 	}
@@ -154,7 +167,8 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 		return &ProtoPacket{
 			command:   PacketCommand(command),
 			rpcCallId: rpcCallId,
-			data:      decodedPacketData[offset:],
+			errorCode: errorCode,
+			data:      decodedPacketData,
 		}
 	}
 	logger.Error("unSupport command:%v", command)

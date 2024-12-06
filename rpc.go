@@ -42,11 +42,11 @@ func (this *rpcCalls) newRpcCall() *rpcCall {
 }
 
 func (this *rpcCalls) putReply(replyPacket Packet) bool {
-	if rpcCallIdSetter, ok := replyPacket.(RpcCallIdSetter); ok && rpcCallIdSetter.RpcCallId() > 0 {
+	if replyPacket.RpcCallId() > 0 {
 		this.rpcCallMutex.Lock()
-		call, exist := this.rpcCalls[rpcCallIdSetter.RpcCallId()]
+		call, exist := this.rpcCalls[replyPacket.RpcCallId()]
 		if exist {
-			delete(this.rpcCalls, rpcCallIdSetter.RpcCallId())
+			delete(this.rpcCalls, replyPacket.RpcCallId())
 		}
 		this.rpcCallMutex.Unlock()
 		if !exist {

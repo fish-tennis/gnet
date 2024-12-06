@@ -57,5 +57,5 @@ func onHeartBeatRes(connection gnet.Connection, packet gnet.Packet) {
 
 func onTestMessage(connection gnet.Connection, packet gnet.Packet) {
 	res := packet.Message().(*pb.TestMessage)
-	logger.Info(fmt.Sprintf("client onTestMessage: %v", res))
+	logger.Info(fmt.Sprintf("client onTestMessage: %v errCode:%v", res, packet.ErrorCode()))
 }

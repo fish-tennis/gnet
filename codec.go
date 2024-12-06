@@ -244,7 +244,7 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 			// 包体的解码接口
 			newPacket = this.DataDecoder(connection, header, packetData)
 		} else {
-			newPacket = NewDataPacket(packetData)
+			newPacket = NewDataPacketWithHeader(header, packetData)
 		}
 		tcpConnection.curReadPacketHeader = nil
 		return

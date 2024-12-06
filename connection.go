@@ -272,11 +272,7 @@ func (this *baseConnection) Rpc(request Packet, reply proto.Message, opts ...Sen
 		opt.apply(sendOpts)
 	}
 	call := this.rpcCalls.newRpcCall()
-	if rpcCallIdSetter, ok := request.(RpcCallIdSetter); ok {
-		rpcCallIdSetter.SetRpcCallId(call.id)
-	} else {
-		return errors.New("request must be RpcCallIdSetter")
-	}
+	request.SetRpcCallId(call.id)
 	// NOTE:当sendPacketCache满时,这里会阻塞
 	this.sendPacketCache <- request
 	timeout := time.After(sendOpts.timeout)
