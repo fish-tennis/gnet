@@ -46,8 +46,8 @@ type baseListener struct {
 	handler ListenerHandler
 }
 
-func (this *baseListener) GetListenerId() uint32 {
-	return this.listenerId
+func (l *baseListener) GetListenerId() uint32 {
+	return l.listenerId
 }
 
 func newListenerId() uint32 {

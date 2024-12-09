@@ -64,39 +64,39 @@ type DefaultConnectionHandler struct {
 	heartBeatPacketCreator PacketCreator
 }
 
-func (this *DefaultConnectionHandler) OnConnected(connection Connection, success bool) {
-	if this.onConnectedFunc != nil {
-		this.onConnectedFunc(connection, success)
+func (h *DefaultConnectionHandler) OnConnected(connection Connection, success bool) {
+	if h.onConnectedFunc != nil {
+		h.onConnectedFunc(connection, success)
 	}
 }
 
-func (this *DefaultConnectionHandler) OnDisconnected(connection Connection) {
-	if this.onDisconnectedFunc != nil {
-		this.onDisconnectedFunc(connection)
+func (h *DefaultConnectionHandler) OnDisconnected(connection Connection) {
+	if h.onDisconnectedFunc != nil {
+		h.onDisconnectedFunc(connection)
 	}
 }
 
-func (this *DefaultConnectionHandler) OnRecvPacket(connection Connection, packet Packet) {
+func (h *DefaultConnectionHandler) OnRecvPacket(connection Connection, packet Packet) {
 	defer func() {
 		if err := recover(); err != nil {
 			logger.Error("fatal %v", err.(error))
 			LogStack()
 		}
 	}()
-	if packetHandler, ok := this.PacketHandlers[packet.Command()]; ok {
+	if packetHandler, ok := h.PacketHandlers[packet.Command()]; ok {
 		if packetHandler != nil {
 			packetHandler(connection, packet)
 			return
 		}
 	}
-	if this.UnRegisterHandler != nil {
-		this.UnRegisterHandler(connection, packet)
+	if h.UnRegisterHandler != nil {
+		h.UnRegisterHandler(connection, packet)
 	}
 }
 
-func (this *DefaultConnectionHandler) CreateHeartBeatPacket(connection Connection) Packet {
-	if this.heartBeatPacketCreator != nil {
-		return this.heartBeatPacketCreator()
+func (h *DefaultConnectionHandler) CreateHeartBeatPacket(connection Connection) Packet {
+	if h.heartBeatPacketCreator != nil {
+		return h.heartBeatPacketCreator()
 	}
 	return nil
 }
@@ -108,48 +108,48 @@ func NewDefaultConnectionHandler(protoCodec Codec) *DefaultConnectionHandler {
 	}
 }
 
-func (this *DefaultConnectionHandler) GetCodec() Codec {
-	return this.protoCodec
+func (h *DefaultConnectionHandler) GetCodec() Codec {
+	return h.protoCodec
 }
 
 // 注册消息号和消息回调,proto.Message的映射
 // handler在TcpConnection的read协程中被调用
 //
 //	register PacketCommand,PacketHandler,proto.Message
-func (this *DefaultConnectionHandler) Register(packetCommand PacketCommand, handler PacketHandler, protoMessage proto.Message) {
-	this.PacketHandlers[packetCommand] = handler
-	if this.protoCodec != nil {
-		if protoRegister, ok := this.protoCodec.(ProtoRegister); ok {
+func (h *DefaultConnectionHandler) Register(packetCommand PacketCommand, handler PacketHandler, protoMessage proto.Message) {
+	h.PacketHandlers[packetCommand] = handler
+	if h.protoCodec != nil {
+		if protoRegister, ok := h.protoCodec.(ProtoRegister); ok {
 			protoRegister.Register(packetCommand, protoMessage)
 		}
 	}
 }
 
-func (this *DefaultConnectionHandler) GetPacketHandler(packetCommand PacketCommand) PacketHandler {
-	return this.PacketHandlers[packetCommand]
+func (h *DefaultConnectionHandler) GetPacketHandler(packetCommand PacketCommand) PacketHandler {
+	return h.PacketHandlers[packetCommand]
 }
 
 // 注册心跳包(只对connector有效)
 //
 //	register heartBeatPacketCreator, only valid for connector
-func (this *DefaultConnectionHandler) RegisterHeartBeat(heartBeatPacketCreator PacketCreator) {
-	this.heartBeatPacketCreator = heartBeatPacketCreator
+func (h *DefaultConnectionHandler) RegisterHeartBeat(heartBeatPacketCreator PacketCreator) {
+	h.heartBeatPacketCreator = heartBeatPacketCreator
 }
 
 // 未注册消息的处理函数
 // unRegisterHandler在TcpConnection的read协程中被调用
 //
 //	register the PacketHandler for unRegister PacketCommand
-func (this *DefaultConnectionHandler) SetUnRegisterHandler(unRegisterHandler PacketHandler) {
-	this.UnRegisterHandler = unRegisterHandler
+func (h *DefaultConnectionHandler) SetUnRegisterHandler(unRegisterHandler PacketHandler) {
+	h.UnRegisterHandler = unRegisterHandler
 }
 
 // set connected callback
-func (this *DefaultConnectionHandler) SetOnConnectedFunc(onConnectedFunc func(connection Connection, success bool)) {
-	this.onConnectedFunc = onConnectedFunc
+func (h *DefaultConnectionHandler) SetOnConnectedFunc(onConnectedFunc func(connection Connection, success bool)) {
+	h.onConnectedFunc = onConnectedFunc
 }
 
 // set disconnected callback
-func (this *DefaultConnectionHandler) SetOnDisconnectedFunc(onDisconnectedFunc func(connection Connection)) {
-	this.onDisconnectedFunc = onDisconnectedFunc
+func (h *DefaultConnectionHandler) SetOnDisconnectedFunc(onDisconnectedFunc func(connection Connection)) {
+	h.onDisconnectedFunc = onDisconnectedFunc
 }

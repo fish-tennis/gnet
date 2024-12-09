@@ -162,57 +162,57 @@ type baseConnection struct {
 }
 
 // unique id
-func (this *baseConnection) GetConnectionId() uint32 {
-	return this.connectionId
+func (c *baseConnection) GetConnectionId() uint32 {
+	return c.connectionId
 }
 
-func (this *baseConnection) IsConnector() bool {
-	return this.isConnector
+func (c *baseConnection) IsConnector() bool {
+	return c.isConnector
 }
 
-func (this *baseConnection) IsConnected() bool {
-	return atomic.LoadInt32(&this.isConnected) > 0
+func (c *baseConnection) IsConnected() bool {
+	return atomic.LoadInt32(&c.isConnected) > 0
 }
 
-func (this *baseConnection) GetCodec() Codec {
-	return this.codec
+func (c *baseConnection) GetCodec() Codec {
+	return c.codec
 }
 
-func (this *baseConnection) SetCodec(codec Codec) {
-	this.codec = codec
+func (c *baseConnection) SetCodec(codec Codec) {
+	c.codec = codec
 }
 
 // 获取关联数据
 //
 //	get the associated tag
-func (this *baseConnection) GetTag() interface{} {
-	return this.tag
+func (c *baseConnection) GetTag() interface{} {
+	return c.tag
 }
 
 // 设置关联数据
 //
 //	set the associated tag
-func (this *baseConnection) SetTag(tag interface{}) {
-	this.tag = tag
+func (c *baseConnection) SetTag(tag interface{}) {
+	c.tag = tag
 }
 
-func (this *baseConnection) GetHandler() ConnectionHandler {
-	return this.handler
+func (c *baseConnection) GetHandler() ConnectionHandler {
+	return c.handler
 }
 
 // 发送proto包
 //
 //	NOTE:如果是异步调用Send(command,message),调用之后,不要再对message进行读写!
-func (this *baseConnection) Send(command PacketCommand, message proto.Message, opts ...SendOption) bool {
+func (c *baseConnection) Send(command PacketCommand, message proto.Message, opts ...SendOption) bool {
 	packet := NewProtoPacket(command, message)
-	return this.SendPacket(packet, opts...)
+	return c.SendPacket(packet, opts...)
 }
 
 // 发送数据
 //
 //	NOTE:如果是异步调用SendPacket(command,message),调用之后,不要再对message进行读写!
-func (this *baseConnection) SendPacket(packet Packet, opts ...SendOption) bool {
-	if !this.IsConnected() {
+func (c *baseConnection) SendPacket(packet Packet, opts ...SendOption) bool {
+	if !c.IsConnected() {
 		return false
 	}
 	sendOpts := defaultSendOptions()
@@ -224,7 +224,7 @@ func (this *baseConnection) SendPacket(packet Packet, opts ...SendOption) bool {
 		sendTimeout := time.After(sendOpts.timeout)
 		for {
 			select {
-			case this.sendPacketCache <- packet:
+			case c.sendPacketCache <- packet:
 				return true
 			case <-sendTimeout:
 				return false
@@ -234,14 +234,14 @@ func (this *baseConnection) SendPacket(packet Packet, opts ...SendOption) bool {
 		if sendOpts.discard {
 			// 非阻塞方式写chan
 			select {
-			case this.sendPacketCache <- packet:
+			case c.sendPacketCache <- packet:
 				return true
 			default:
 				return false
 			}
 		} else {
 			// NOTE:当sendPacketCache满时,这里会阻塞
-			this.sendPacketCache <- packet
+			c.sendPacketCache <- packet
 		}
 	}
 	return true
@@ -252,33 +252,33 @@ func (this *baseConnection) SendPacket(packet Packet, opts ...SendOption) bool {
 //
 //	asynchronous send with Timeout (write to chan, not send immediately)
 //	if return false, means not write to chan
-func (this *baseConnection) TrySendPacket(packet Packet, timeout time.Duration, opts ...SendOption) bool {
+func (c *baseConnection) TrySendPacket(packet Packet, timeout time.Duration, opts ...SendOption) bool {
 	sendOpts := opts
 	if timeout == 0 {
 		sendOpts = append(sendOpts, WithDiscard())
 	} else {
 		sendOpts = append(sendOpts, Timeout(timeout))
 	}
-	return this.SendPacket(packet, sendOpts...)
+	return c.SendPacket(packet, sendOpts...)
 }
 
 // Rpc send a request to target and block wait reply
-func (this *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOption) error {
-	if !this.IsConnected() {
+func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOption) error {
+	if !c.IsConnected() {
 		return errors.New("disconnected")
 	}
 	sendOpts := defaultSendOptions()
 	for _, opt := range opts {
 		opt.apply(sendOpts)
 	}
-	call := this.rpcCalls.newRpcCall()
+	call := c.rpcCalls.newRpcCall()
 	request.SetRpcCallId(call.id)
 	// NOTE:当sendPacketCache满时,这里会阻塞
-	this.sendPacketCache <- request
+	c.sendPacketCache <- request
 	timeout := time.After(sendOpts.timeout)
 	select {
 	case <-timeout:
-		this.rpcCalls.removeReply(call.id)
+		c.rpcCalls.removeReply(call.id)
 		return errors.New("timeout")
 	case replyPacket := <-call.reply:
 		if replyPacket == nil {
@@ -306,8 +306,8 @@ func (this *baseConnection) Rpc(request Packet, reply proto.Message, opts ...Sen
 	}
 }
 
-func (this *baseConnection) GetSendPacketChanLen() int {
-	return len(this.sendPacketCache)
+func (c *baseConnection) GetSendPacketChanLen() int {
+	return len(c.sendPacketCache)
 }
 
 func NewConnectionId() uint32 {

@@ -51,11 +51,11 @@ type RingBufferCodec struct {
 	DataDecoder func(connection Connection, packetHeader PacketHeader, packetData []byte) Packet
 }
 
-func (this *RingBufferCodec) PacketHeaderSize() uint32 {
+func (c *RingBufferCodec) PacketHeaderSize() uint32 {
 	return uint32(DefaultPacketHeaderSize)
 }
 
-func (this *RingBufferCodec) CreatePacketHeader(connection Connection, packet Packet, packetData []byte) PacketHeader {
+func (c *RingBufferCodec) CreatePacketHeader(connection Connection, packet Packet, packetData []byte) PacketHeader {
 	return NewDefaultPacketHeader(0, 0)
 }
 
@@ -63,18 +63,18 @@ func (this *RingBufferCodec) CreatePacketHeader(connection Connection, packet Pa
 // 返回值:未能写入sendBuffer的数据(sendBuffer写满了的情况)
 // encode packet and write encoded data to sendBuffer
 // return the remain encoded data not wrote to sendBuffer(when sendBuffer is full)
-func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte {
+func (c *RingBufferCodec) Encode(connection Connection, packet Packet) []byte {
 	// 优化思路:编码后的数据直接写入RingBuffer.sendBuffer,可以减少一些内存分配
 	if tcpConnection, ok := connection.(*TcpConnection); ok {
-		packetHeaderSize := int(this.PacketHeaderSize())
+		packetHeaderSize := int(c.PacketHeaderSize())
 		sendBuffer := tcpConnection.sendBuffer
 		var encodedData [][]byte
 		headerFlags := uint8(0)
-		if this.DataEncoder != nil {
+		if c.DataEncoder != nil {
 			// 编码接口可能把消息分解成了几段字节流数组,如消息头和消息体
 			// 如果只是返回一个[]byte结果的话,那么编码接口还需要把消息头和消息体进行合并,从而多一次内存分配和拷贝
 			// encoder may decompose the packet into several []byte,such as the packet header and packet body
-			encodedData, headerFlags = this.DataEncoder(connection, packet)
+			encodedData, headerFlags = c.DataEncoder(connection, packet)
 		} else {
 			// 支持在应用层做数据包的序列化和编码
 			// support direct encoded data from outside
@@ -92,8 +92,8 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 			// If there is enough continuous space to write, write directly to RingBuffer
 			// reduce one memory allocation operation: make([]byte, PacketHeaderSize)
 			packetHeader.WriteTo(writeBuffer)
-			if this.HeaderEncoder != nil {
-				this.HeaderEncoder(connection, packet, writeBuffer[0:packetHeaderSize])
+			if c.HeaderEncoder != nil {
+				c.HeaderEncoder(connection, packet, writeBuffer[0:packetHeaderSize])
 			}
 			sendBuffer.SetWrote(packetHeaderSize)
 		} else {
@@ -102,8 +102,8 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 			// with some being written to the tail and some being written to the head
 			packetHeaderData := make([]byte, packetHeaderSize)
 			packetHeader.WriteTo(packetHeaderData)
-			if this.HeaderEncoder != nil {
-				this.HeaderEncoder(connection, packet, packetHeaderData)
+			if c.HeaderEncoder != nil {
+				c.HeaderEncoder(connection, packet, packetHeaderData)
 			}
 			writedHeaderLen, _ := sendBuffer.Write(packetHeaderData)
 			if writedHeaderLen < packetHeaderSize {
@@ -143,13 +143,13 @@ func (this *RingBufferCodec) Encode(connection Connection, packet Packet) []byte
 	return packet.GetStreamData()
 }
 
-func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPacket Packet, err error) {
+func (c *RingBufferCodec) Decode(connection Connection, data []byte) (newPacket Packet, err error) {
 	if tcpConnection, ok := connection.(*TcpConnection); ok {
 		// TcpConnection用了RingBuffer,解码时,尽可能的不产生copy
 		recvBuffer := tcpConnection.recvBuffer
 		// 先解码包头
 		if tcpConnection.curReadPacketHeader == nil {
-			packetHeaderSize := int(this.PacketHeaderSize())
+			packetHeaderSize := int(c.PacketHeaderSize())
 			if recvBuffer.UnReadLength() < packetHeaderSize {
 				return
 			}
@@ -170,8 +170,8 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 				copy(packetHeaderData[n:], recvBuffer.buffer)
 			}
 			recvBuffer.SetReaded(packetHeaderSize)
-			if this.HeaderDecoder != nil {
-				this.HeaderDecoder(connection, packetHeaderData)
+			if c.HeaderDecoder != nil {
+				c.HeaderDecoder(connection, packetHeaderData)
 			}
 			tcpConnection.curReadPacketHeader = tcpConnection.tmpReadPacketHeader
 			tcpConnection.curReadPacketHeader.ReadFrom(packetHeaderData)
@@ -241,9 +241,9 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 				copy(packetData[n:], remainData)
 			}
 		}
-		if this.DataDecoder != nil {
+		if c.DataDecoder != nil {
 			// 包体的解码接口
-			newPacket = this.DataDecoder(connection, header, packetData)
+			newPacket = c.DataDecoder(connection, header, packetData)
 		} else {
 			newPacket = NewDataPacketWithHeader(header, packetData)
 		}

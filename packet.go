@@ -55,41 +55,41 @@ func NewDefaultPacketHeader(len uint32, flags uint8) *DefaultPacketHeader {
 //
 //	packet body length (without packet header's length)
 //	[0,0x00FFFFFF]
-func (this *DefaultPacketHeader) Len() uint32 {
-	return this.LenAndFlags & 0x00FFFFFF
+func (h *DefaultPacketHeader) Len() uint32 {
+	return h.LenAndFlags & 0x00FFFFFF
 }
 
 // 标记 [0,0xFF]
-func (this *DefaultPacketHeader) Flags() uint8 {
-	return uint8(this.LenAndFlags >> 24)
+func (h *DefaultPacketHeader) Flags() uint8 {
+	return uint8(h.LenAndFlags >> 24)
 }
 
-func (this *DefaultPacketHeader) SetFlags(flags uint8) {
-	this.LenAndFlags = uint32(flags)<<24 | this.Len()
+func (h *DefaultPacketHeader) SetFlags(flags uint8) {
+	h.LenAndFlags = uint32(flags)<<24 | h.Len()
 }
 
-func (this *DefaultPacketHeader) AddFlags(flag uint8) {
-	flags := this.Flags() | flag
-	this.SetFlags(flags)
+func (h *DefaultPacketHeader) AddFlags(flag uint8) {
+	flags := h.Flags() | flag
+	h.SetFlags(flags)
 }
 
-func (this *DefaultPacketHeader) HasFlag(flag uint8) bool {
-	return (this.Flags() & flag) == flag
+func (h *DefaultPacketHeader) HasFlag(flag uint8) bool {
+	return (h.Flags() & flag) == flag
 }
 
 // 从字节流读取数据,len(messageHeaderData)>=MessageHeaderSize
 // 使用小端字节序
 //
 //	parse LenAndFlags from stream data
-func (this *DefaultPacketHeader) ReadFrom(packetHeaderData []byte) {
-	this.LenAndFlags = binary.LittleEndian.Uint32(packetHeaderData)
+func (h *DefaultPacketHeader) ReadFrom(packetHeaderData []byte) {
+	h.LenAndFlags = binary.LittleEndian.Uint32(packetHeaderData)
 }
 
 // 写入字节流,使用小端字节序
 //
 //	write LenAndFlags to stream data
-func (this *DefaultPacketHeader) WriteTo(packetHeaderData []byte) {
-	binary.LittleEndian.PutUint32(packetHeaderData, this.LenAndFlags)
+func (h *DefaultPacketHeader) WriteTo(packetHeaderData []byte) {
+	binary.LittleEndian.PutUint32(packetHeaderData, h.LenAndFlags)
 }
 
 // interface for packet
@@ -180,59 +180,59 @@ func NewProtoPacketWithData(command PacketCommand, data []byte) *ProtoPacket {
 	}
 }
 
-func (this *ProtoPacket) Command() PacketCommand {
-	return this.command
+func (p *ProtoPacket) Command() PacketCommand {
+	return p.command
 }
 
-func (this *ProtoPacket) Message() proto.Message {
-	return this.message
+func (p *ProtoPacket) Message() proto.Message {
+	return p.message
 }
 
-func (this *ProtoPacket) RpcCallId() uint32 {
-	return this.rpcCallId
+func (p *ProtoPacket) RpcCallId() uint32 {
+	return p.rpcCallId
 }
 
-func (this *ProtoPacket) SetRpcCallId(rpcCallId uint32) {
-	this.rpcCallId = rpcCallId
+func (p *ProtoPacket) SetRpcCallId(rpcCallId uint32) {
+	p.rpcCallId = rpcCallId
 }
 
-func (this *ProtoPacket) WithRpc(arg any) *ProtoPacket {
+func (p *ProtoPacket) WithRpc(arg any) *ProtoPacket {
 	switch v := arg.(type) {
 	case uint32:
-		this.rpcCallId = v
+		p.rpcCallId = v
 	case Packet:
-		this.rpcCallId = v.RpcCallId()
+		p.rpcCallId = v.RpcCallId()
 	}
-	return this
+	return p
 }
 
-func (this *ProtoPacket) ErrorCode() uint32 {
-	return this.errorCode
+func (p *ProtoPacket) ErrorCode() uint32 {
+	return p.errorCode
 }
 
-func (this *ProtoPacket) SetErrorCode(code uint32) *ProtoPacket {
-	this.errorCode = code
-	return this
+func (p *ProtoPacket) SetErrorCode(code uint32) *ProtoPacket {
+	p.errorCode = code
+	return p
 }
 
 // 某些特殊需求会直接使用序列化好的数据
 //
 //	support stream data
-func (this *ProtoPacket) GetStreamData() []byte {
-	return this.data
+func (p *ProtoPacket) GetStreamData() []byte {
+	return p.data
 }
 
 // deep copy
-func (this *ProtoPacket) Clone() Packet {
+func (p *ProtoPacket) Clone() Packet {
 	newPacket := &ProtoPacket{
-		command:   this.command,
-		rpcCallId: this.rpcCallId,
-		errorCode: this.errorCode,
-		message:   proto.Clone(this.message),
+		command:   p.command,
+		rpcCallId: p.rpcCallId,
+		errorCode: p.errorCode,
+		message:   proto.Clone(p.message),
 	}
-	if len(this.data) > 0 {
-		newPacket.data = make([]byte, len(this.data))
-		copy(newPacket.data, this.data)
+	if len(p.data) > 0 {
+		newPacket.data = make([]byte, len(p.data))
+		copy(newPacket.data, p.data)
 	}
 	return newPacket
 }
@@ -255,40 +255,40 @@ func NewDataPacketWithHeader(header PacketHeader, data []byte) *DataPacket {
 	return &DataPacket{data: data}
 }
 
-func (this *DataPacket) Command() PacketCommand {
+func (p *DataPacket) Command() PacketCommand {
 	return 0
 }
 
-func (this *DataPacket) Message() proto.Message {
+func (p *DataPacket) Message() proto.Message {
 	return nil
 }
 
-func (this *DataPacket) GetStreamData() []byte {
-	return this.data
+func (p *DataPacket) GetStreamData() []byte {
+	return p.data
 }
 
 // NOTE: 暂未实现rpcCallId
-func (this *DataPacket) RpcCallId() uint32 {
+func (p *DataPacket) RpcCallId() uint32 {
 	return 0
 }
 
 // NOTE: 暂未实现rpcCallId
-func (this *DataPacket) SetRpcCallId(rpcCallId uint32) {
+func (p *DataPacket) SetRpcCallId(rpcCallId uint32) {
 }
 
 // NOTE: 暂未实现ErrorCode
-func (this *DataPacket) ErrorCode() uint32 {
+func (p *DataPacket) ErrorCode() uint32 {
 	return 0
 }
 
 // NOTE: 暂未实现ErrorCode
-func (this *DataPacket) SetErrorCode(code uint32) *DataPacket {
-	return this
+func (p *DataPacket) SetErrorCode(code uint32) *DataPacket {
+	return p
 }
 
 // deep copy
-func (this *DataPacket) Clone() Packet {
-	newPacket := &DataPacket{data: make([]byte, len(this.data))}
-	copy(newPacket.data, this.data)
+func (p *DataPacket) Clone() Packet {
+	newPacket := &DataPacket{data: make([]byte, len(p.data))}
+	copy(newPacket.data, p.data)
 	return newPacket
 }

@@ -53,20 +53,20 @@ func NewTcpListener(listenerConfig *ListenerConfig) *TcpListener {
 	}
 }
 
-func (this *TcpListener) GetConnection(connectionId uint32) Connection {
-	this.connectionMapLock.RLock()
-	conn := this.connectionMap[connectionId]
-	this.connectionMapLock.RUnlock()
+func (l *TcpListener) GetConnection(connectionId uint32) Connection {
+	l.connectionMapLock.RLock()
+	conn := l.connectionMap[connectionId]
+	l.connectionMapLock.RUnlock()
 	return conn
 }
 
 // 广播消息
 //
 //	broadcast packet to accepted connections
-func (this *TcpListener) Broadcast(packet Packet) {
-	this.connectionMapLock.RLock()
-	defer this.connectionMapLock.RUnlock()
-	for _, conn := range this.connectionMap {
+func (l *TcpListener) Broadcast(packet Packet) {
+	l.connectionMapLock.RLock()
+	defer l.connectionMapLock.RUnlock()
+	for _, conn := range l.connectionMap {
 		if conn.IsConnected() {
 			conn.SendPacket(packet.Clone())
 		}
@@ -74,10 +74,10 @@ func (this *TcpListener) Broadcast(packet Packet) {
 }
 
 // range for accepted connections
-func (this *TcpListener) RangeConnections(f func(conn Connection) bool) {
-	this.connectionMapLock.RLock()
-	defer this.connectionMapLock.RUnlock()
-	for _, conn := range this.connectionMap {
+func (l *TcpListener) RangeConnections(f func(conn Connection) bool) {
+	l.connectionMapLock.RLock()
+	defer l.connectionMapLock.RUnlock()
+	for _, conn := range l.connectionMap {
 		if conn.IsConnected() {
 			if !f(conn) {
 				return
@@ -87,40 +87,40 @@ func (this *TcpListener) RangeConnections(f func(conn Connection) bool) {
 }
 
 // start goroutine
-func (this *TcpListener) Start(ctx context.Context, listenAddress string) bool {
+func (l *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 	var err error
-	this.netListener, err = net.Listen("tcp", listenAddress)
+	l.netListener, err = net.Listen("tcp", listenAddress)
 	if err != nil {
-		logger.Error("Listen Failed %v: %v", this.GetListenerId(), err.Error())
+		logger.Error("Listen Failed %v: %v", l.GetListenerId(), err.Error())
 		return false
 	}
-	logger.Debug("TcpListener Start %v", this.GetListenerId())
+	logger.Debug("TcpListener Start %v", l.GetListenerId())
 
 	// 监听协程
-	atomic.StoreInt32(&this.isRunning, 1)
-	this.netMgrWg.Add(1)
+	atomic.StoreInt32(&l.isRunning, 1)
+	l.netMgrWg.Add(1)
 	go func(ctx context.Context) {
-		defer this.netMgrWg.Done()
-		this.acceptLoop(ctx)
-		this.acceptStopNotifyChan <- struct{}{}
-		logger.Debug("acceptLoop end %v", this.GetListenerId())
+		defer l.netMgrWg.Done()
+		l.acceptLoop(ctx)
+		l.acceptStopNotifyChan <- struct{}{}
+		logger.Debug("acceptLoop end %v", l.GetListenerId())
 	}(ctx)
 
 	// 关闭响应协程
-	this.netMgrWg.Add(1)
+	l.netMgrWg.Add(1)
 	go func() {
-		defer this.netMgrWg.Done()
-		for this.IsRunning() {
+		defer l.netMgrWg.Done()
+		for l.IsRunning() {
 			select {
 			// 关闭通知
 			case <-ctx.Done():
-				logger.Debug("recv closeNotify %v", this.GetListenerId())
-				this.Close()
+				logger.Debug("recv closeNotify %v", l.GetListenerId())
+				l.Close()
 				return
 
-			case <-this.acceptStopNotifyChan:
-				logger.Debug("recv acceptStopNotify %v", this.GetListenerId())
-				this.Close()
+			case <-l.acceptStopNotifyChan:
+				logger.Debug("recv acceptStopNotify %v", l.GetListenerId())
+				l.Close()
 				return
 			}
 		}
@@ -132,93 +132,93 @@ func (this *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 // 关闭监听,并关闭管理的连接
 //
 //	close listen, close the accepted connections
-func (this *TcpListener) Close() {
-	this.closeOnce.Do(func() {
-		atomic.StoreInt32(&this.isRunning, 0)
-		if this.netListener != nil {
-			this.netListener.Close()
+func (l *TcpListener) Close() {
+	l.closeOnce.Do(func() {
+		atomic.StoreInt32(&l.isRunning, 0)
+		if l.netListener != nil {
+			l.netListener.Close()
 		}
 		connMap := make(map[uint32]Connection)
-		this.connectionMapLock.RLock()
-		for k, v := range this.connectionMap {
+		l.connectionMapLock.RLock()
+		for k, v := range l.connectionMap {
 			connMap[k] = v
 		}
-		this.connectionMapLock.RUnlock()
+		l.connectionMapLock.RUnlock()
 		// 关闭管理的连接
 		for _, conn := range connMap {
 			conn.Close()
 		}
-		if this.onClose != nil {
-			this.onClose(this)
+		if l.onClose != nil {
+			l.onClose(l)
 		}
 	})
 }
 
-func (this *TcpListener) IsRunning() bool {
-	return atomic.LoadInt32(&this.isRunning) > 0
+func (l *TcpListener) IsRunning() bool {
+	return atomic.LoadInt32(&l.isRunning) > 0
 }
 
 // accept goroutine
-func (this *TcpListener) acceptLoop(ctx context.Context) {
+func (l *TcpListener) acceptLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
+			logger.Error("acceptLoop fatal %v: %v", l.GetListenerId(), err.(error))
 			LogStack()
 		}
 	}()
 
-	for this.IsRunning() {
+	for l.IsRunning() {
 		// 阻塞accept,当netListener关闭时,会返回err
-		newConn, err := this.netListener.Accept()
+		newConn, err := l.netListener.Accept()
 		if err != nil {
-			logger.Error("%v accept err:%v", this.GetListenerId(), err.Error())
+			logger.Error("%v accept err:%v", l.GetListenerId(), err.Error())
 			var netError net.Error
 			if errors.As(err, &netError) && netError.Temporary() {
-				logger.Error("accept temporary err:%v", this.GetListenerId())
+				logger.Error("accept temporary err:%v", l.GetListenerId())
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
 			// 有可能是因为open file数量限制 而导致的accept失败
 			if err == syscall.EMFILE {
-				logger.Error("accept failed id:%v syscall.EMFILE", this.GetListenerId())
+				logger.Error("accept failed id:%v syscall.EMFILE", l.GetListenerId())
 				// 这个错误只是导致新连接暂时无法连接,不应该退出监听,当有连接释放后,新连接又可以连接上
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
 			break
 		}
-		this.netMgrWg.Add(1)
+		l.netMgrWg.Add(1)
 		go func() {
 			defer func() {
-				this.netMgrWg.Done()
+				l.netMgrWg.Done()
 				if err := recover(); err != nil {
-					logger.Error("acceptLoop fatal %v: %v", this.GetListenerId(), err.(error))
+					logger.Error("acceptLoop fatal %v: %v", l.GetListenerId(), err.(error))
 					LogStack()
 				}
 			}()
-			newTcpConn := this.acceptConnectionCreator(newConn, &this.acceptConnectionConfig)
-			this.connectionMapLock.Lock()
-			this.connectionMap[newTcpConn.GetConnectionId()] = newTcpConn
-			this.connectionMapLock.Unlock()
-			newTcpConn.Start(ctx, this.netMgrWg, func(connection Connection) {
-				if this.handler != nil {
-					this.handler.OnConnectionDisconnect(this, connection)
+			newTcpConn := l.acceptConnectionCreator(newConn, &l.acceptConnectionConfig)
+			l.connectionMapLock.Lock()
+			l.connectionMap[newTcpConn.GetConnectionId()] = newTcpConn
+			l.connectionMapLock.Unlock()
+			newTcpConn.Start(ctx, l.netMgrWg, func(connection Connection) {
+				if l.handler != nil {
+					l.handler.OnConnectionDisconnect(l, connection)
 				}
-				this.connectionMapLock.Lock()
-				delete(this.connectionMap, connection.GetConnectionId())
-				this.connectionMapLock.Unlock()
+				l.connectionMapLock.Lock()
+				delete(l.connectionMap, connection.GetConnectionId())
+				l.connectionMapLock.Unlock()
 			})
-			if this.handler != nil {
-				this.handler.OnConnectionConnected(this, newTcpConn)
+			if l.handler != nil {
+				l.handler.OnConnectionConnected(l, newTcpConn)
 			}
 		}()
 	}
 }
 
 // Addr returns the listener's network address.
-func (this *TcpListener) Addr() net.Addr {
-	if this.netListener == nil {
+func (l *TcpListener) Addr() net.Addr {
+	if l.netListener == nil {
 		return nil
 	}
-	return this.netListener.Addr()
+	return l.netListener.Addr()
 }

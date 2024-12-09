@@ -55,39 +55,39 @@ func createTcpConnectionSimple(config *ConnectionConfig) *TcpConnectionSimple {
 	return newConnection
 }
 
-func (this *TcpConnectionSimple) Connect(address string) bool {
+func (c *TcpConnectionSimple) Connect(address string) bool {
 	conn, err := net.DialTimeout("tcp", address, time.Second)
 	if err != nil {
-		atomic.StoreInt32(&this.isConnected, 0)
-		logger.Error("Connect failed %v: %v", this.GetConnectionId(), err.Error())
-		if this.handler != nil {
-			this.handler.OnConnected(this, false)
+		atomic.StoreInt32(&c.isConnected, 0)
+		logger.Error("Connect failed %v: %v", c.GetConnectionId(), err.Error())
+		if c.handler != nil {
+			c.handler.OnConnected(c, false)
 		}
 		return false
 	}
-	this.conn = conn
-	atomic.StoreInt32(&this.isConnected, 1)
+	c.conn = conn
+	atomic.StoreInt32(&c.isConnected, 1)
 	return true
 }
 
 // start read&write goroutine
-func (this *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onClose func(connection Connection)) {
-	this.onClose = onClose
+func (c *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onClose func(connection Connection)) {
+	c.onClose = onClose
 	// 开启收包协程
 	netMgrWg.Add(1)
 	go func() {
 		defer func() {
 			netMgrWg.Done()
 			if err := recover(); err != nil {
-				logger.Error("read fatal %v: %v", this.GetConnectionId(), err.(error))
+				logger.Error("read fatal %v: %v", c.GetConnectionId(), err.(error))
 				LogStack()
 			}
 		}()
-		this.readLoop()
-		this.Close()
+		c.readLoop()
+		c.Close()
 		// 读协程结束了,通知写协程也结束
 		// when read goroutine end, notify write goroutine to exit
-		this.readStopNotifyChan <- struct{}{}
+		c.readStopNotifyChan <- struct{}{}
 	}()
 
 	// 开启发包协程
@@ -96,44 +96,44 @@ func (this *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitG
 		defer func() {
 			netMgrWg.Done()
 			if err := recover(); err != nil {
-				logger.Error("write fatal %v: %v", this.GetConnectionId(), err.(error))
+				logger.Error("write fatal %v: %v", c.GetConnectionId(), err.(error))
 				LogStack()
 			}
 		}()
-		this.writeLoop(ctx)
-		this.Close()
+		c.writeLoop(ctx)
+		c.Close()
 	}(ctx)
 
-	if this.handler != nil {
-		this.handler.OnConnected(this, true)
+	if c.handler != nil {
+		c.handler.OnConnected(c, true)
 	}
 }
 
 // read goroutine
-func (this *TcpConnectionSimple) readLoop() {
+func (c *TcpConnectionSimple) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("readLoop fatal %v: %v", this.GetConnectionId(), err.(error))
+			logger.Error("readLoop fatal %v: %v", c.GetConnectionId(), err.(error))
 			LogStack()
 		}
 	}()
 
-	logger.Debug("readLoop begin %v isConnector:%v", this.GetConnectionId(), this.IsConnector())
-	for this.IsConnected() {
+	logger.Debug("readLoop begin %v isConnector:%v", c.GetConnectionId(), c.IsConnector())
+	for c.IsConnected() {
 		// 先读取消息头
 		// read packet header first
-		messageHeaderData := make([]byte, this.codec.PacketHeaderSize())
-		readHeaderSize, err := io.ReadFull(this.conn, messageHeaderData)
+		messageHeaderData := make([]byte, c.codec.PacketHeaderSize())
+		readHeaderSize, err := io.ReadFull(c.conn, messageHeaderData)
 		if err != nil {
 			if err != io.EOF {
-				logger.Debug("readLoop %v err:%v", this.GetConnectionId(), err.Error())
+				logger.Debug("readLoop %v err:%v", c.GetConnectionId(), err.Error())
 			}
 			break
 		}
 		if readHeaderSize != len(messageHeaderData) {
 			break
 		}
-		newPacketHeader := this.codec.CreatePacketHeader(this, nil, nil)
+		newPacketHeader := c.codec.CreatePacketHeader(c, nil, nil)
 		newPacketHeader.ReadFrom(messageHeaderData)
 		packetDataLen := int(newPacketHeader.Len())
 		fullPacketData := make([]byte, len(messageHeaderData)+packetDataLen)
@@ -141,10 +141,10 @@ func (this *TcpConnectionSimple) readLoop() {
 		if packetDataLen > 0 {
 			// 读取消息体
 			// read packet body
-			readDataSize, err := io.ReadFull(this.conn, fullPacketData[readHeaderSize:])
+			readDataSize, err := io.ReadFull(c.conn, fullPacketData[readHeaderSize:])
 			if err != nil {
 				if err != io.EOF {
-					logger.Debug("readLoop %v err:%v", this.GetConnectionId(), err.Error())
+					logger.Debug("readLoop %v err:%v", c.GetConnectionId(), err.Error())
 				}
 				break
 			}
@@ -152,96 +152,96 @@ func (this *TcpConnectionSimple) readLoop() {
 				break
 			}
 		}
-		newPacket, decodeError := this.codec.Decode(this, fullPacketData)
+		newPacket, decodeError := c.codec.Decode(c, fullPacketData)
 		if decodeError != nil {
-			logger.Error("%v decodeError:%v", this.GetConnectionId(), decodeError.Error())
+			logger.Error("%v decodeError:%v", c.GetConnectionId(), decodeError.Error())
 			return
 		}
 		if newPacket == nil {
 			break
 		}
 		// 最近收到完整数据包的时间
-		this.lastRecvPacketTick = GetCurrentTimeStamp()
-		if this.handler != nil {
-			this.handler.OnRecvPacket(this, newPacket)
+		c.lastRecvPacketTick = GetCurrentTimeStamp()
+		if c.handler != nil {
+			c.handler.OnRecvPacket(c, newPacket)
 		}
 	}
-	//logger.Debug("readLoop end %v IsConnector:%v", this.GetConnectionId(), this.IsConnector())
+	//logger.Debug("readLoop end %v IsConnector:%v", c.GetConnectionId(), c.IsConnector())
 }
 
 // write goroutine
-func (this *TcpConnectionSimple) writeLoop(ctx context.Context) {
+func (c *TcpConnectionSimple) writeLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("writeLoop fatal %v: %v", this.GetConnectionId(), err.(error))
+			logger.Error("writeLoop fatal %v: %v", c.GetConnectionId(), err.(error))
 			LogStack()
 		}
-		logger.Debug("writeLoop end %v IsConnector:%v", this.GetConnectionId(), this.IsConnector())
+		logger.Debug("writeLoop end %v IsConnector:%v", c.GetConnectionId(), c.IsConnector())
 	}()
 
-	logger.Debug("writeLoop begin %v isConnector:%v", this.GetConnectionId(), this.IsConnector())
+	logger.Debug("writeLoop begin %v isConnector:%v", c.GetConnectionId(), c.IsConnector())
 	// 收包超时计时,用于检测掉线
-	recvTimeoutTimer := time.NewTimer(time.Second * time.Duration(this.config.RecvTimeout))
+	recvTimeoutTimer := time.NewTimer(time.Second * time.Duration(c.config.RecvTimeout))
 	defer recvTimeoutTimer.Stop()
 	// 心跳包计时
-	heartBeatTimer := time.NewTimer(time.Second * time.Duration(this.config.HeartBeatInterval))
+	heartBeatTimer := time.NewTimer(time.Second * time.Duration(c.config.HeartBeatInterval))
 	defer heartBeatTimer.Stop()
-	for this.IsConnected() {
+	for c.IsConnected() {
 		select {
-		case packet := <-this.sendPacketCache:
+		case packet := <-c.sendPacketCache:
 			if packet == nil {
-				logger.Error("packet==nil %v", this.GetConnectionId())
+				logger.Error("packet==nil %v", c.GetConnectionId())
 				return
 			}
-			if !this.writePacket(packet) {
+			if !c.writePacket(packet) {
 				return
 			}
 
 		case <-recvTimeoutTimer.C:
-			if !this.checkRecvTimeout(recvTimeoutTimer) {
+			if !c.checkRecvTimeout(recvTimeoutTimer) {
 				return
 			}
 
 		case <-heartBeatTimer.C:
-			if !this.onHeartBeatTimeUp(heartBeatTimer) {
+			if !c.onHeartBeatTimeUp(heartBeatTimer) {
 				return
 			}
 
-		case <-this.readStopNotifyChan:
-			logger.Debug("recv readStopNotify %v", this.GetConnectionId())
+		case <-c.readStopNotifyChan:
+			logger.Debug("recv readStopNotify %v", c.GetConnectionId())
 			return
 
 		case <-ctx.Done():
 			// 收到外部的关闭通知
-			logger.Debug("recv closeNotify %v", this.GetConnectionId())
+			logger.Debug("recv closeNotify %v", c.GetConnectionId())
 			return
 		}
 	}
-	//logger.Debug("writeLoop end %v isConnector:%v", this.GetConnectionId(), this.IsConnector())
+	//logger.Debug("writeLoop end %v isConnector:%v", c.GetConnectionId(), c.IsConnector())
 }
 
-func (this *TcpConnectionSimple) writePacket(packet Packet) bool {
+func (c *TcpConnectionSimple) writePacket(packet Packet) bool {
 	// 这里编码的是包体,不包含包头
-	packetData := this.codec.Encode(this, packet)
+	packetData := c.codec.Encode(c, packet)
 	// 包头数据
-	newPacketHeader := this.codec.CreatePacketHeader(this, packet, packetData)
-	packetHeaderData := make([]byte, this.codec.PacketHeaderSize())
+	newPacketHeader := c.codec.CreatePacketHeader(c, packet, packetData)
+	packetHeaderData := make([]byte, c.codec.PacketHeaderSize())
 	newPacketHeader.WriteTo(packetHeaderData)
 	writeCount := 0
 	// 先发送包头数据
 	for writeCount < len(packetHeaderData) {
-		if this.config.WriteTimeout > 0 {
-			setTimeoutErr := this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout) * time.Second))
+		if c.config.WriteTimeout > 0 {
+			setTimeoutErr := c.conn.SetWriteDeadline(time.Now().Add(time.Duration(c.config.WriteTimeout) * time.Second))
 			// Q:什么情况会导致SetWriteDeadline返回err?
 			if setTimeoutErr != nil {
 				// ...
-				logger.Debug("%v setTimeoutErr:%v", this.GetConnectionId(), setTimeoutErr.Error())
+				logger.Debug("%v setTimeoutErr:%v", c.GetConnectionId(), setTimeoutErr.Error())
 				return false
 			}
 		}
-		n, err := this.conn.Write(packetHeaderData[writeCount:])
+		n, err := c.conn.Write(packetHeaderData[writeCount:])
 		if err != nil {
-			logger.Error("%v send error:%v", this.GetConnectionId(), err.Error())
+			logger.Error("%v send error:%v", c.GetConnectionId(), err.Error())
 			return false
 		}
 		writeCount += n
@@ -250,18 +250,18 @@ func (this *TcpConnectionSimple) writePacket(packet Packet) bool {
 	writeCount = 0
 	// 再发送包体数据
 	for writeCount < len(packetData) {
-		if this.config.WriteTimeout > 0 {
-			setTimeoutErr := this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout) * time.Second))
+		if c.config.WriteTimeout > 0 {
+			setTimeoutErr := c.conn.SetWriteDeadline(time.Now().Add(time.Duration(c.config.WriteTimeout) * time.Second))
 			// Q:什么情况会导致SetWriteDeadline返回err?
 			if setTimeoutErr != nil {
 				// ...
-				logger.Debug("%v setTimeoutErr:%v", this.GetConnectionId(), setTimeoutErr.Error())
+				logger.Debug("%v setTimeoutErr:%v", c.GetConnectionId(), setTimeoutErr.Error())
 				return false
 			}
 		}
-		n, err := this.conn.Write(packetData[writeCount:])
+		n, err := c.conn.Write(packetData[writeCount:])
 		if err != nil {
-			logger.Error("%v send error:%v", this.GetConnectionId(), err.Error())
+			logger.Error("%v send error:%v", c.GetConnectionId(), err.Error())
 			return false
 		}
 		writeCount += n
@@ -269,64 +269,64 @@ func (this *TcpConnectionSimple) writePacket(packet Packet) bool {
 	return true
 }
 
-func (this *TcpConnectionSimple) checkRecvTimeout(recvTimeoutTimer *time.Timer) bool {
-	if this.config.RecvTimeout > 0 {
-		nextTimeoutTime := int64(this.config.RecvTimeout) + this.lastRecvPacketTick - GetCurrentTimeStamp()
+func (c *TcpConnectionSimple) checkRecvTimeout(recvTimeoutTimer *time.Timer) bool {
+	if c.config.RecvTimeout > 0 {
+		nextTimeoutTime := int64(c.config.RecvTimeout) + c.lastRecvPacketTick - GetCurrentTimeStamp()
 		if nextTimeoutTime > 0 {
-			if nextTimeoutTime > int64(this.config.RecvTimeout) {
-				nextTimeoutTime = int64(this.config.RecvTimeout)
+			if nextTimeoutTime > int64(c.config.RecvTimeout) {
+				nextTimeoutTime = int64(c.config.RecvTimeout)
 			}
 			recvTimeoutTimer.Reset(time.Second * time.Duration(nextTimeoutTime))
 		} else {
 			// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
 			// 需要主动关闭该连接,防止连接"泄漏"
-			logger.Debug("recv Timeout %v", this.GetConnectionId())
+			logger.Debug("recv Timeout %v", c.GetConnectionId())
 			return false
 		}
 	}
 	return true
 }
 
-func (this *TcpConnectionSimple) onHeartBeatTimeUp(heartBeatTimer *time.Timer) bool {
-	if this.isConnector && this.config.HeartBeatInterval > 0 && this.handler != nil {
-		if heartBeatPacket := this.handler.CreateHeartBeatPacket(this); heartBeatPacket != nil {
-			if !this.writePacket(heartBeatPacket) {
+func (c *TcpConnectionSimple) onHeartBeatTimeUp(heartBeatTimer *time.Timer) bool {
+	if c.isConnector && c.config.HeartBeatInterval > 0 && c.handler != nil {
+		if heartBeatPacket := c.handler.CreateHeartBeatPacket(c); heartBeatPacket != nil {
+			if !c.writePacket(heartBeatPacket) {
 				return false
 			}
-			heartBeatTimer.Reset(time.Second * time.Duration(this.config.HeartBeatInterval))
+			heartBeatTimer.Reset(time.Second * time.Duration(c.config.HeartBeatInterval))
 		}
 	}
 	return true
 }
 
-func (this *TcpConnectionSimple) Close() {
-	this.closeOnce.Do(func() {
-		atomic.StoreInt32(&this.isConnected, 0)
-		if this.conn != nil {
-			this.conn.Close()
-			//this.conn = nil
+func (c *TcpConnectionSimple) Close() {
+	c.closeOnce.Do(func() {
+		atomic.StoreInt32(&c.isConnected, 0)
+		if c.conn != nil {
+			c.conn.Close()
+			//c.conn = nil
 		}
-		if this.handler != nil {
-			this.handler.OnDisconnected(this)
+		if c.handler != nil {
+			c.handler.OnDisconnected(c)
 		}
-		if this.onClose != nil {
-			this.onClose(this)
+		if c.onClose != nil {
+			c.onClose(c)
 		}
 	})
 }
 
 // LocalAddr returns the local network address.
-func (this *TcpConnectionSimple) LocalAddr() net.Addr {
-	if this.conn == nil {
+func (c *TcpConnectionSimple) LocalAddr() net.Addr {
+	if c.conn == nil {
 		return nil
 	}
-	return this.conn.LocalAddr()
+	return c.conn.LocalAddr()
 }
 
 // RemoteAddr returns the remote network address.
-func (this *TcpConnectionSimple) RemoteAddr() net.Addr {
-	if this.conn == nil {
+func (c *TcpConnectionSimple) RemoteAddr() net.Addr {
+	if c.conn == nil {
 		return nil
 	}
-	return this.conn.RemoteAddr()
+	return c.conn.RemoteAddr()
 }

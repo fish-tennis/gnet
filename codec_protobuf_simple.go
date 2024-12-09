@@ -33,43 +33,43 @@ func NewSimplePacketHeader(len uint32, flags uint8, command PacketCommand) *Simp
 //
 //	packet body length (without packet header's length)
 //	[0,0x00FFFFFF]
-func (this *SimplePacketHeader) Len() uint32 {
-	return this.LenAndFlags & 0x00FFFFFF
+func (h *SimplePacketHeader) Len() uint32 {
+	return h.LenAndFlags & 0x00FFFFFF
 }
 
 // 标记 [0,0xFF]
-func (this *SimplePacketHeader) Flags() uint8 {
-	return uint8(this.LenAndFlags >> 24)
+func (h *SimplePacketHeader) Flags() uint8 {
+	return uint8(h.LenAndFlags >> 24)
 }
 
-func (this *SimplePacketHeader) SetFlags(flags uint8) {
-	this.LenAndFlags = uint32(flags)<<24 | this.Len()
+func (h *SimplePacketHeader) SetFlags(flags uint8) {
+	h.LenAndFlags = uint32(flags)<<24 | h.Len()
 }
 
-func (this *SimplePacketHeader) AddFlags(flag uint8) {
-	flags := this.Flags() | flag
-	this.SetFlags(flags)
+func (h *SimplePacketHeader) AddFlags(flag uint8) {
+	flags := h.Flags() | flag
+	h.SetFlags(flags)
 }
 
-func (this *SimplePacketHeader) HasFlag(flag uint8) bool {
-	return (this.Flags() & flag) == flag
+func (h *SimplePacketHeader) HasFlag(flag uint8) bool {
+	return (h.Flags() & flag) == flag
 }
 
 // 从字节流读取数据,len(messageHeaderData)>=MessageHeaderSize
 // 使用小端字节序
 //
 //	parse LenAndFlags,Command from stream data
-func (this *SimplePacketHeader) ReadFrom(packetHeaderData []byte) {
-	this.LenAndFlags = binary.LittleEndian.Uint32(packetHeaderData)
-	this.Command = binary.LittleEndian.Uint16(packetHeaderData[4:])
+func (h *SimplePacketHeader) ReadFrom(packetHeaderData []byte) {
+	h.LenAndFlags = binary.LittleEndian.Uint32(packetHeaderData)
+	h.Command = binary.LittleEndian.Uint16(packetHeaderData[4:])
 }
 
 // 写入字节流,使用小端字节序
 //
 //	write LenAndFlags,Command to stream data
-func (this *SimplePacketHeader) WriteTo(packetHeaderData []byte) {
-	binary.LittleEndian.PutUint32(packetHeaderData, this.LenAndFlags)
-	binary.LittleEndian.PutUint16(packetHeaderData[4:], this.Command)
+func (h *SimplePacketHeader) WriteTo(packetHeaderData []byte) {
+	binary.LittleEndian.PutUint32(packetHeaderData, h.LenAndFlags)
+	binary.LittleEndian.PutUint16(packetHeaderData[4:], h.Command)
 }
 
 // a simple protobuf codec for TcpConnectionSimple, without RingBuffer
@@ -86,29 +86,29 @@ func NewSimpleProtoCodec() *SimpleProtoCodec {
 	return codec
 }
 
-func (this *SimpleProtoCodec) PacketHeaderSize() uint32 {
+func (c *SimpleProtoCodec) PacketHeaderSize() uint32 {
 	return uint32(SimplePacketHeaderSize)
 }
 
 // 注册消息和proto.Message的映射
 //
 //	protoMessage can be nil
-func (this *SimpleProtoCodec) Register(command PacketCommand, protoMessage proto.Message) {
+func (c *SimpleProtoCodec) Register(command PacketCommand, protoMessage proto.Message) {
 	if protoMessage == nil {
-		this.MessageCreatorMap[command] = nil
+		c.MessageCreatorMap[command] = nil
 		return
 	}
-	this.MessageCreatorMap[command] = reflect.TypeOf(protoMessage).Elem()
+	c.MessageCreatorMap[command] = reflect.TypeOf(protoMessage).Elem()
 }
 
-func (this *SimpleProtoCodec) CreatePacketHeader(connection Connection, packet Packet, packetData []byte) PacketHeader {
+func (c *SimpleProtoCodec) CreatePacketHeader(connection Connection, packet Packet, packetData []byte) PacketHeader {
 	if packet == nil {
 		return NewSimplePacketHeader(0, 0, 0)
 	}
 	return NewSimplePacketHeader(uint32(len(packetData)), 0, packet.Command())
 }
 
-func (this *SimpleProtoCodec) Encode(connection Connection, packet Packet) []byte {
+func (c *SimpleProtoCodec) Encode(connection Connection, packet Packet) []byte {
 	packetBodyData := packet.GetStreamData()
 	if packetBodyData == nil {
 		protoMsg := packet.Message()
@@ -142,7 +142,7 @@ func (this *SimpleProtoCodec) Encode(connection Connection, packet Packet) []byt
 	return packetBodyData
 }
 
-func (this *SimpleProtoCodec) Decode(connection Connection, data []byte) (newPacket Packet, err error) {
+func (c *SimpleProtoCodec) Decode(connection Connection, data []byte) (newPacket Packet, err error) {
 	decodedPacketData := data
 	if len(decodedPacketData) < SimplePacketHeaderSize {
 		return nil, ErrPacketLength
@@ -167,7 +167,7 @@ func (this *SimpleProtoCodec) Decode(connection Connection, data []byte) (newPac
 		errorCode = binary.LittleEndian.Uint32(decodedPacketData[:4])
 		decodedPacketData = decodedPacketData[4:]
 	}
-	if protoMessageType, ok := this.MessageCreatorMap[PacketCommand(command)]; ok {
+	if protoMessageType, ok := c.MessageCreatorMap[PacketCommand(command)]; ok {
 		if protoMessageType != nil {
 			newProtoMessage := reflect.New(protoMessageType).Interface().(proto.Message)
 			// TODO: check len(decodedPacketData) > 0?

@@ -25,67 +25,67 @@ type WsConnection struct {
 	lastRecvPacketTick int64
 }
 
-func (this *WsConnection) LocalAddr() net.Addr {
-	return this.conn.LocalAddr()
+func (c *WsConnection) LocalAddr() net.Addr {
+	return c.conn.LocalAddr()
 }
 
-func (this *WsConnection) RemoteAddr() net.Addr {
-	return this.conn.RemoteAddr()
+func (c *WsConnection) RemoteAddr() net.Addr {
+	return c.conn.RemoteAddr()
 }
 
-func (this *WsConnection) Close() {
-	this.closeOnce.Do(func() {
-		atomic.StoreInt32(&this.isConnected, 0)
-		if this.conn != nil {
-			_ = this.conn.Close()
-			//this.conn = nil
+func (c *WsConnection) Close() {
+	c.closeOnce.Do(func() {
+		atomic.StoreInt32(&c.isConnected, 0)
+		if c.conn != nil {
+			_ = c.conn.Close()
+			//c.conn = nil
 		}
-		if this.handler != nil {
-			this.handler.OnDisconnected(this)
+		if c.handler != nil {
+			c.handler.OnDisconnected(c)
 		}
-		if this.onClose != nil {
-			this.onClose(this)
+		if c.onClose != nil {
+			c.onClose(c)
 		}
 	})
 }
 
-func (this *WsConnection) Connect(address string) bool {
-	u := url.URL{Scheme: this.config.Scheme, Host: address, Path: this.config.Path}
+func (c *WsConnection) Connect(address string) bool {
+	u := url.URL{Scheme: c.config.Scheme, Host: address, Path: c.config.Path}
 	dialer := *websocket.DefaultDialer
-	if this.config.Scheme == "wss" {
+	if c.config.Scheme == "wss" {
 		dialer.TLSClientConfig = &tls.Config{RootCAs: nil, InsecureSkipVerify: true}
 	}
 	conn, _, err := dialer.Dial(u.String(), nil)
 	if err != nil {
-		atomic.StoreInt32(&this.isConnected, 0)
-		logger.Error("Connect failed %v: %v", this.GetConnectionId(), err.Error())
-		if this.handler != nil {
-			this.handler.OnConnected(this, false)
+		atomic.StoreInt32(&c.isConnected, 0)
+		logger.Error("Connect failed %v: %v", c.GetConnectionId(), err.Error())
+		if c.handler != nil {
+			c.handler.OnConnected(c, false)
 		}
 		return false
 	}
-	this.conn = conn
-	atomic.StoreInt32(&this.isConnected, 1)
+	c.conn = conn
+	atomic.StoreInt32(&c.isConnected, 1)
 	return true
 }
 
-func (this *WsConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onClose func(connection Connection)) {
-	this.onClose = onClose
+func (c *WsConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onClose func(connection Connection)) {
+	c.onClose = onClose
 	// 开启收包协程
 	netMgrWg.Add(1)
 	go func() {
 		defer func() {
 			netMgrWg.Done()
 			if err := recover(); err != nil {
-				logger.Error("read fatal %v: %v", this.GetConnectionId(), err.(error))
+				logger.Error("read fatal %v: %v", c.GetConnectionId(), err.(error))
 				LogStack()
 			}
 		}()
-		this.readLoop()
-		this.Close()
+		c.readLoop()
+		c.Close()
 		// 读协程结束了,通知写协程也结束
 		// when read goroutine end, notify write goroutine to exit
-		close(this.readStopNotifyChan)
+		close(c.readStopNotifyChan)
 	}()
 
 	// 开启发包协程
@@ -94,123 +94,123 @@ func (this *WsConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, o
 		defer func() {
 			netMgrWg.Done()
 			if err := recover(); err != nil {
-				logger.Error("write fatal %v: %v", this.GetConnectionId(), err.(error))
+				logger.Error("write fatal %v: %v", c.GetConnectionId(), err.(error))
 				LogStack()
 			}
 		}()
-		this.writeLoop(ctx)
-		this.Close()
+		c.writeLoop(ctx)
+		c.Close()
 	}(ctx)
 
-	if this.handler != nil {
-		this.handler.OnConnected(this, true)
+	if c.handler != nil {
+		c.handler.OnConnected(c, true)
 	}
 }
 
-func (this *WsConnection) readLoop() {
+func (c *WsConnection) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("readLoop fatal %v: %v", this.GetConnectionId(), err.(error))
+			logger.Error("readLoop fatal %v: %v", c.GetConnectionId(), err.(error))
 			LogStack()
 		}
 	}()
 
-	logger.Debug("readLoop begin %v isConnector:%v", this.GetConnectionId(), this.IsConnector())
-	if this.config.MaxPacketSize > 0 {
-		this.conn.SetReadLimit(int64(this.config.MaxPacketSize))
+	logger.Debug("readLoop begin %v isConnector:%v", c.GetConnectionId(), c.IsConnector())
+	if c.config.MaxPacketSize > 0 {
+		c.conn.SetReadLimit(int64(c.config.MaxPacketSize))
 	}
-	for this.IsConnected() {
-		if this.config.RecvTimeout > 0 {
-			this.conn.SetReadDeadline(time.Now().Add(time.Duration(this.config.RecvTimeout) * time.Second))
+	for c.IsConnected() {
+		if c.config.RecvTimeout > 0 {
+			c.conn.SetReadDeadline(time.Now().Add(time.Duration(c.config.RecvTimeout) * time.Second))
 		}
-		messageType, data, err := this.conn.ReadMessage()
+		messageType, data, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				logger.Error("readLoopErr %v err:%v", this.GetConnectionId(), err.Error())
+				logger.Error("readLoopErr %v err:%v", c.GetConnectionId(), err.Error())
 			}
 			break
 		}
 		if messageType != websocket.BinaryMessage {
-			logger.Debug("messageTypeErr %v messageType:%v", this.GetConnectionId(), messageType)
+			logger.Debug("messageTypeErr %v messageType:%v", c.GetConnectionId(), messageType)
 			break
 		}
-		if len(data) < int(this.codec.PacketHeaderSize()) {
-			logger.Debug("messageType Err %v messageType:%v", this.GetConnectionId(), messageType)
+		if len(data) < int(c.codec.PacketHeaderSize()) {
+			logger.Debug("messageType Err %v messageType:%v", c.GetConnectionId(), messageType)
 			break
 		}
-		newPacket, decodeError := this.codec.Decode(this, data)
+		newPacket, decodeError := c.codec.Decode(c, data)
 		if decodeError != nil {
-			logger.Error("%v decodeError:%v", this.GetConnectionId(), decodeError.Error())
+			logger.Error("%v decodeError:%v", c.GetConnectionId(), decodeError.Error())
 			return
 		}
 		if newPacket == nil {
 			break
 		}
 		// 最近收到完整数据包的时间
-		this.lastRecvPacketTick = GetCurrentTimeStamp()
-		if this.handler != nil {
-			this.handler.OnRecvPacket(this, newPacket)
+		c.lastRecvPacketTick = GetCurrentTimeStamp()
+		if c.handler != nil {
+			c.handler.OnRecvPacket(c, newPacket)
 		}
 	}
 }
 
-func (this *WsConnection) writeLoop(ctx context.Context) {
+func (c *WsConnection) writeLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("writeLoop fatal %v: %v", this.GetConnectionId(), err.(error))
+			logger.Error("writeLoop fatal %v: %v", c.GetConnectionId(), err.(error))
 			LogStack()
 		}
-		logger.Debug("writeLoop end %v IsConnector:%v", this.GetConnectionId(), this.IsConnector())
+		logger.Debug("writeLoop end %v IsConnector:%v", c.GetConnectionId(), c.IsConnector())
 	}()
 
-	logger.Debug("writeLoop begin %v isConnector:%v", this.GetConnectionId(), this.IsConnector())
+	logger.Debug("writeLoop begin %v isConnector:%v", c.GetConnectionId(), c.IsConnector())
 	// 收包超时计时,用于检测掉线
-	recvTimeoutTimer := time.NewTimer(time.Second * time.Duration(this.config.RecvTimeout))
+	recvTimeoutTimer := time.NewTimer(time.Second * time.Duration(c.config.RecvTimeout))
 	defer recvTimeoutTimer.Stop()
 	// 心跳包计时
-	heartBeatTimer := time.NewTimer(time.Second * time.Duration(this.config.HeartBeatInterval))
+	heartBeatTimer := time.NewTimer(time.Second * time.Duration(c.config.HeartBeatInterval))
 	defer heartBeatTimer.Stop()
-	for this.IsConnected() {
+	for c.IsConnected() {
 		select {
-		case packet := <-this.sendPacketCache:
+		case packet := <-c.sendPacketCache:
 			if packet == nil {
-				logger.Error("packet==nil %v", this.GetConnectionId())
+				logger.Error("packet==nil %v", c.GetConnectionId())
 				return
 			}
-			if !this.writePacket(packet) {
+			if !c.writePacket(packet) {
 				return
 			}
 
 		case <-recvTimeoutTimer.C:
-			if !this.checkRecvTimeout(recvTimeoutTimer) {
+			if !c.checkRecvTimeout(recvTimeoutTimer) {
 				return
 			}
 
 		case <-heartBeatTimer.C:
-			if !this.onHeartBeatTimeUp(heartBeatTimer) {
+			if !c.onHeartBeatTimeUp(heartBeatTimer) {
 				return
 			}
 
-		case <-this.readStopNotifyChan:
-			logger.Debug("recv readStopNotify %v", this.GetConnectionId())
+		case <-c.readStopNotifyChan:
+			logger.Debug("recv readStopNotify %v", c.GetConnectionId())
 			return
 
 		case <-ctx.Done():
 			// 收到外部的关闭通知
-			logger.Debug("recv closeNotify %v isConnector:%v", this.GetConnectionId(), this.isConnector)
-			if this.isConnector {
-				if this.config.WriteTimeout > 0 {
-					this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout) * time.Second))
+			logger.Debug("recv closeNotify %v isConnector:%v", c.GetConnectionId(), c.isConnector)
+			if c.isConnector {
+				if c.config.WriteTimeout > 0 {
+					c.conn.SetWriteDeadline(time.Now().Add(time.Duration(c.config.WriteTimeout) * time.Second))
 				}
 				// Cleanly close the connection by sending a close message and then
 				// waiting (with Timeout) for the server to close the connection.
-				err := this.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+				err := c.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				if err != nil {
-					logger.Debug("writeCloseMessageErr %v err:%v", this.GetConnectionId(), err.Error())
+					logger.Debug("writeCloseMessageErr %v err:%v", c.GetConnectionId(), err.Error())
 					return
 				}
 				select {
-				case <-this.readStopNotifyChan:
+				case <-c.readStopNotifyChan:
 				case <-time.After(time.Second):
 				}
 			}
@@ -219,66 +219,66 @@ func (this *WsConnection) writeLoop(ctx context.Context) {
 	}
 }
 
-func (this *WsConnection) writePacket(packet Packet) bool {
+func (c *WsConnection) writePacket(packet Packet) bool {
 	// 这里编码的是包体,不包含包头
-	packetData := this.codec.Encode(this, packet)
+	packetData := c.codec.Encode(c, packet)
 	// 包头数据
-	newPacketHeader := this.codec.CreatePacketHeader(this, packet, packetData)
-	fullData := make([]byte, int(this.codec.PacketHeaderSize())+len(packetData))
+	newPacketHeader := c.codec.CreatePacketHeader(c, packet, packetData)
+	fullData := make([]byte, int(c.codec.PacketHeaderSize())+len(packetData))
 	newPacketHeader.WriteTo(fullData)
-	copy(fullData[this.codec.PacketHeaderSize():], packetData)
-	if this.config.WriteTimeout > 0 {
-		this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout) * time.Second))
+	copy(fullData[c.codec.PacketHeaderSize():], packetData)
+	if c.config.WriteTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(time.Duration(c.config.WriteTimeout) * time.Second))
 	}
-	err := this.conn.WriteMessage(websocket.BinaryMessage, fullData)
+	err := c.conn.WriteMessage(websocket.BinaryMessage, fullData)
 	if err != nil {
-		logger.Debug("writePacketErr %v %v", this.GetConnectionId(), err.Error())
+		logger.Debug("writePacketErr %v %v", c.GetConnectionId(), err.Error())
 		return false
 	}
 	return true
 }
 
-func (this *WsConnection) checkRecvTimeout(recvTimeoutTimer *time.Timer) bool {
-	if this.config.RecvTimeout > 0 {
-		nextTimeoutTime := int64(this.config.RecvTimeout) + this.lastRecvPacketTick - GetCurrentTimeStamp()
+func (c *WsConnection) checkRecvTimeout(recvTimeoutTimer *time.Timer) bool {
+	if c.config.RecvTimeout > 0 {
+		nextTimeoutTime := int64(c.config.RecvTimeout) + c.lastRecvPacketTick - GetCurrentTimeStamp()
 		if nextTimeoutTime > 0 {
-			if nextTimeoutTime > int64(this.config.RecvTimeout) {
-				nextTimeoutTime = int64(this.config.RecvTimeout)
+			if nextTimeoutTime > int64(c.config.RecvTimeout) {
+				nextTimeoutTime = int64(c.config.RecvTimeout)
 			}
 			recvTimeoutTimer.Reset(time.Second * time.Duration(nextTimeoutTime))
 		} else {
 			// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
 			// 需要主动关闭该连接,防止连接"泄漏"
-			logger.Debug("recv Timeout %v", this.GetConnectionId())
+			logger.Debug("recv Timeout %v", c.GetConnectionId())
 			return false
 		}
 	}
 	return true
 }
 
-func (this *WsConnection) onHeartBeatTimeUp(heartBeatTimer *time.Timer) bool {
-	if this.isConnector && this.config.HeartBeatInterval > 0 && this.handler != nil {
-		if this.config.WriteTimeout > 0 {
-			this.conn.SetWriteDeadline(time.Now().Add(time.Duration(this.config.WriteTimeout) * time.Second))
+func (c *WsConnection) onHeartBeatTimeUp(heartBeatTimer *time.Timer) bool {
+	if c.isConnector && c.config.HeartBeatInterval > 0 && c.handler != nil {
+		if c.config.WriteTimeout > 0 {
+			c.conn.SetWriteDeadline(time.Now().Add(time.Duration(c.config.WriteTimeout) * time.Second))
 		}
 		// WebSocket的内部协议
-		if err := this.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-			logger.Debug("PingMessageErr %v err:%v", this.GetConnectionId(), err.Error())
+		if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			logger.Debug("PingMessageErr %v err:%v", c.GetConnectionId(), err.Error())
 			return false
 		}
 		// 自定义的心跳协议
-		if heartBeatPacket := this.handler.CreateHeartBeatPacket(this); heartBeatPacket != nil {
-			if !this.writePacket(heartBeatPacket) {
+		if heartBeatPacket := c.handler.CreateHeartBeatPacket(c); heartBeatPacket != nil {
+			if !c.writePacket(heartBeatPacket) {
 				return false
 			}
 		}
-		heartBeatTimer.Reset(time.Second * time.Duration(this.config.HeartBeatInterval))
+		heartBeatTimer.Reset(time.Second * time.Duration(c.config.HeartBeatInterval))
 	}
 	return true
 }
 
-func (this *WsConnection) GetConn() *websocket.Conn {
-	return this.conn
+func (c *WsConnection) GetConn() *websocket.Conn {
+	return c.conn
 }
 
 func createWsConnection(config *ConnectionConfig) *WsConnection {

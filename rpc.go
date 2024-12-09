@@ -27,7 +27,7 @@ func newRpcCalls() *rpcCalls {
 	}
 }
 
-func (this *rpcCalls) newRpcCall() *rpcCall {
+func (c *rpcCalls) newRpcCall() *rpcCall {
 	call := &rpcCall{
 		id:    atomic.AddUint32(&_rpcCallSerialId, 1),
 		reply: make(chan Packet),
@@ -35,20 +35,20 @@ func (this *rpcCalls) newRpcCall() *rpcCall {
 	if call.id == 0 {
 		call.id = atomic.AddUint32(&_rpcCallSerialId, 1)
 	}
-	this.rpcCallMutex.Lock()
-	this.rpcCalls[call.id] = call
-	this.rpcCallMutex.Unlock()
+	c.rpcCallMutex.Lock()
+	c.rpcCalls[call.id] = call
+	c.rpcCallMutex.Unlock()
 	return call
 }
 
-func (this *rpcCalls) putReply(replyPacket Packet) bool {
+func (c *rpcCalls) putReply(replyPacket Packet) bool {
 	if replyPacket.RpcCallId() > 0 {
-		this.rpcCallMutex.Lock()
-		call, exist := this.rpcCalls[replyPacket.RpcCallId()]
+		c.rpcCallMutex.Lock()
+		call, exist := c.rpcCalls[replyPacket.RpcCallId()]
 		if exist {
-			delete(this.rpcCalls, replyPacket.RpcCallId())
+			delete(c.rpcCalls, replyPacket.RpcCallId())
 		}
-		this.rpcCallMutex.Unlock()
+		c.rpcCallMutex.Unlock()
 		if !exist {
 			return false
 		}
@@ -58,8 +58,8 @@ func (this *rpcCalls) putReply(replyPacket Packet) bool {
 	return false
 }
 
-func (this *rpcCalls) removeReply(rpcCallId uint32) {
-	this.rpcCallMutex.Lock()
-	defer this.rpcCallMutex.Unlock()
-	delete(this.rpcCalls, rpcCallId)
+func (c *rpcCalls) removeReply(rpcCallId uint32) {
+	c.rpcCallMutex.Lock()
+	defer c.rpcCallMutex.Unlock()
+	delete(c.rpcCalls, rpcCallId)
 }

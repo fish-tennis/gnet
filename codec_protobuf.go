@@ -50,15 +50,15 @@ func NewProtoCodec(protoMessageTypeMap map[PacketCommand]reflect.Type) *ProtoCod
 // 注册消息和proto.Message的映射
 //
 //	protoMessage can be nil
-func (this *ProtoCodec) Register(command PacketCommand, protoMessage proto.Message) {
+func (c *ProtoCodec) Register(command PacketCommand, protoMessage proto.Message) {
 	if protoMessage == nil {
-		this.MessageCreatorMap[command] = nil
+		c.MessageCreatorMap[command] = nil
 		return
 	}
-	this.MessageCreatorMap[command] = reflect.TypeOf(protoMessage).Elem()
+	c.MessageCreatorMap[command] = reflect.TypeOf(protoMessage).Elem()
 }
 
-func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]byte, uint8) {
+func (c *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]byte, uint8) {
 	protoMessage := packet.Message()
 	headerFlags := uint8(0)
 	// 先写入消息号
@@ -95,11 +95,11 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]
 	}
 	// 这里可以继续对messageBytes进行编码,如异或,加密,压缩等
 	// you can continue to encode messageBytes here, such as XOR, encryption, compression, etc
-	if this.ProtoPacketBytesEncoder != nil {
+	if c.ProtoPacketBytesEncoder != nil {
 		if rpcCallId > 0 {
-			return this.ProtoPacketBytesEncoder([][]byte{commandBytes, rpcCallIdBytes, errorCodeBytes, messageBytes}), headerFlags
+			return c.ProtoPacketBytesEncoder([][]byte{commandBytes, rpcCallIdBytes, errorCodeBytes, messageBytes}), headerFlags
 		}
-		return this.ProtoPacketBytesEncoder([][]byte{commandBytes, errorCodeBytes, messageBytes}), headerFlags
+		return c.ProtoPacketBytesEncoder([][]byte{commandBytes, errorCodeBytes, messageBytes}), headerFlags
 	}
 	if rpcCallId > 0 {
 		return [][]byte{commandBytes, rpcCallIdBytes, errorCodeBytes, messageBytes}, headerFlags
@@ -107,12 +107,12 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]
 	return [][]byte{commandBytes, errorCodeBytes, messageBytes}, headerFlags
 }
 
-func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketHeader, packetData []byte) Packet {
+func (c *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketHeader, packetData []byte) Packet {
 	decodedPacketData := packetData
 	// Q:这里可以对packetData进行解码,如异或,解密,解压等
 	// you can decode packetData here, such as XOR, decryption, decompression, etc
-	if this.ProtoPacketBytesDecoder != nil {
-		decodedPacketData = this.ProtoPacketBytesDecoder(packetData)
+	if c.ProtoPacketBytesDecoder != nil {
+		decodedPacketData = c.ProtoPacketBytesDecoder(packetData)
 	}
 	if len(decodedPacketData) < 2 {
 		return nil
@@ -136,7 +136,7 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 		errorCode = binary.LittleEndian.Uint32(decodedPacketData[:4])
 		decodedPacketData = decodedPacketData[4:]
 	}
-	if protoMessageType, ok := this.MessageCreatorMap[PacketCommand(command)]; ok {
+	if protoMessageType, ok := c.MessageCreatorMap[PacketCommand(command)]; ok {
 		if protoMessageType != nil {
 			newProtoMessage := reflect.New(protoMessageType).Interface().(proto.Message)
 			// TODO: check len(decodedPacketData) > 0?
