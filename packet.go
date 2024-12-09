@@ -21,7 +21,7 @@ const (
 	// compress packet data
 	Compress uint8 = 1 << 1
 	// packet contains error code
-	HasError uint8 = 1 << 2
+	ErrorCode uint8 = 1 << 2
 )
 
 // interface for PacketHeader
@@ -242,6 +242,8 @@ func (this *ProtoPacket) Clone() Packet {
 //	packet which only have a byte array
 type DataPacket struct {
 	// NOTE: 暂未实现rpcCallId和errorCode
+	// 由业务层自行实现
+	// ProtoPacket也支持[]byte,所以建议直接使用ProtoPacket
 	data []byte
 }
 

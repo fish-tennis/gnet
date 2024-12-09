@@ -179,6 +179,7 @@ func (this *RingBufferCodec) Decode(connection Connection, data []byte) (newPack
 			// check packet length
 			if tcpConnection.config.MaxPacketSize > 0 && tcpConnection.curReadPacketHeader.Len() > tcpConnection.config.MaxPacketSize {
 				logger.Error("%v ErrPacketLengthExceed len:%v max:%v", tcpConnection.GetConnectionId(), tcpConnection.curReadPacketHeader.Len(), tcpConnection.config.MaxPacketSize)
+				logger.Error("curReadPacketHeader:%v", tcpConnection.curReadPacketHeader)
 				return nil, ErrPacketLengthExceed
 			}
 		}

@@ -78,7 +78,7 @@ func (this *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]
 	if p, ok := packet.(*ProtoPacket); ok && p.errorCode != 0 {
 		errorCodeBytes = make([]byte, 4)
 		binary.LittleEndian.PutUint32(errorCodeBytes, uint32(p.errorCode))
-		headerFlags |= HasError
+		headerFlags |= ErrorCode
 	}
 	var messageBytes []byte
 	if protoMessage != nil {
@@ -129,7 +129,7 @@ func (this *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketH
 		//logger.Debug("read rpcCallId:%v", rpcCallId)
 	}
 	errorCode := uint32(0)
-	if packetHeader.HasFlag(HasError) {
+	if packetHeader.HasFlag(ErrorCode) {
 		if len(decodedPacketData) < 4 {
 			return nil
 		}

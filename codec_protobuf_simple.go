@@ -160,7 +160,7 @@ func (this *SimpleProtoCodec) Decode(connection Connection, data []byte) (newPac
 		decodedPacketData = decodedPacketData[4:]
 	}
 	errorCode := uint32(0)
-	if packetHeader.HasFlag(HasError) {
+	if packetHeader.HasFlag(ErrorCode) {
 		if len(decodedPacketData) < 4 {
 			return nil, errors.New("errorCode decode err")
 		}
