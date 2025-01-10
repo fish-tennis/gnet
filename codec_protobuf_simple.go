@@ -185,23 +185,24 @@ func (c *SimpleProtoCodec) Decode(connection Connection, data []byte) (newPacket
 		} else {
 			// 支持只注册了消息号,没注册proto结构体的用法
 			// support Register(command, nil), return the direct stream data to application layer
+			rawData := decodedPacketData // SimpleProtoCodec没使用ringbuffer,所以这里不需要拷贝
 			return &ProtoPacket{
 				command:   PacketCommand(command),
 				rpcCallId: rpcCallId,
 				errorCode: errorCode,
-				data:      decodedPacketData,
+				data:      rawData,
 			}, nil
 		}
 	}
-	// rpc模式允许response消息不注册,留给业务层解析
-	if rpcCallId > 0 {
-		return &ProtoPacket{
-			command:   PacketCommand(command),
-			rpcCallId: rpcCallId,
-			errorCode: errorCode,
-			data:      decodedPacketData,
-		}, nil
+	if rpcCallId == 0 {
+		logger.Warn("unregistered command:%v", command)
 	}
-	logger.Error("unSupport command:%v", command)
-	return nil, ErrNotSupport
+	// 允许command不注册,留给业务层解析
+	rawData := decodedPacketData // SimpleProtoCodec没使用ringbuffer,所以这里不需要拷贝s
+	return &ProtoPacket{
+		command:   PacketCommand(command),
+		rpcCallId: rpcCallId,
+		errorCode: errorCode,
+		data:      rawData,
+	}, nil
 }

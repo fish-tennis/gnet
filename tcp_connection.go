@@ -2,6 +2,7 @@ package gnet
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"sync"
@@ -159,17 +160,18 @@ func (c *TcpConnection) readLoop() {
 		c.recvBuffer.SetWrote(n)
 		for c.IsConnected() {
 			newPacket, decodeError := c.codec.Decode(c, c.recvBuffer.ReadBuffer())
+			if errors.Is(decodeError, ErrPacketDataNotRead) {
+				// recvBuffer中的未读取数据还不够组成一个完整的包
+				break
+			}
 			if decodeError != nil {
 				logger.Error("%v decodeError:%v", c.GetConnectionId(), decodeError.Error())
 				return
 			}
-			if newPacket == nil {
-				break
-			}
 			// 最近收到完整数据包的时间
 			// 有一种极端情况,网速太慢,即使没有掉线,也可能触发收包超时检测
 			atomic.StoreInt64(&c.lastRecvPacketTick, GetCurrentTimeStamp())
-			if c.handler != nil {
+			if c.handler != nil && newPacket != nil {
 				if c.rpcCalls.putReply(newPacket) {
 					continue
 				}

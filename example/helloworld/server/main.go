@@ -28,6 +28,10 @@ func main() {
 	// 注册服务器的消息回调
 	serverHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_HeartBeat), onHeartBeatReq, new(pb.HeartBeatReq))
 	serverHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessage, new(pb.TestMessage))
+	serverHandler.SetOnConnectedFunc(func(connection gnet.Connection, success bool) {
+		logger.Info("OnConnected:%v success:%v", connection, success)
+		return
+	})
 	serverHandler.SetUnRegisterHandler(func(connection gnet.Connection, packet gnet.Packet) {
 		logger.Info("UnRegister:%v", packet)
 	})

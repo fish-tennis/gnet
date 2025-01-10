@@ -9,4 +9,5 @@ var (
 	// 数据包长度超出设置
 	ErrPacketLengthExceed = errors.New("packet length exceed")
 	ErrReadRemainPacket   = errors.New("read remain packet data error")
+	ErrPacketDataNotRead  = errors.New("packet data not read")
 )

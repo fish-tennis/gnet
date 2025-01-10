@@ -151,7 +151,7 @@ func (c *RingBufferCodec) Decode(connection Connection, data []byte) (newPacket 
 		if tcpConnection.curReadPacketHeader == nil {
 			packetHeaderSize := int(c.PacketHeaderSize())
 			if recvBuffer.UnReadLength() < packetHeaderSize {
-				return
+				return nil, ErrPacketDataNotRead
 			}
 			var packetHeaderData []byte
 			readBuffer := recvBuffer.ReadBuffer()
@@ -199,7 +199,7 @@ func (c *RingBufferCodec) Decode(connection Connection, data []byte) (newPacket 
 		if int(header.Len()) <= recvBuffer.Size() {
 			if recvBuffer.UnReadLength() < int(header.Len()) {
 				// 包体数据还没收完整
-				return
+				return nil, ErrPacketDataNotRead
 			}
 			// 从RingBuffer中读取完整包体数据
 			// read full packet body data from RingBuffer
