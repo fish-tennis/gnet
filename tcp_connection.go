@@ -15,7 +15,7 @@ type TcpConnection struct {
 	baseConnection
 	conn net.Conn
 	// 读协程结束标记
-	// notify chan for read goroutine end
+	// notify chan for readLoop goroutine end
 	readStopNotifyChan chan struct{}
 	// 防止执行多次关闭操作
 	closeOnce sync.Once
@@ -62,12 +62,13 @@ func NewTcpConnectionAccept(conn net.Conn, config *ConnectionConfig) *TcpConnect
 func createTcpConnection(config *ConnectionConfig) *TcpConnection {
 	newConnection := &TcpConnection{
 		baseConnection: baseConnection{
-			connectionId:    NewConnectionId(),
-			config:          config,
-			codec:           config.Codec,
-			handler:         config.Handler,
-			sendPacketCache: make(chan Packet, config.SendPacketCacheCap),
-			rpcCalls:        newRpcCalls(),
+			connectionId:        NewConnectionId(),
+			config:              config,
+			codec:               config.Codec,
+			handler:             config.Handler,
+			sendPacketCache:     make(chan Packet, config.SendPacketCacheCap),
+			writeStopNotifyChan: make(chan struct{}),
+			rpcCalls:            newRpcCalls(),
 		},
 		readStopNotifyChan: make(chan struct{}, 1),
 	}
@@ -122,6 +123,8 @@ func (c *TcpConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onC
 		}()
 		c.writeLoop(ctx)
 		c.Close()
+		// 写协程结束了,通知阻塞中的SendPacket结束
+		close(c.writeStopNotifyChan)
 	}(ctx)
 
 	if c.handler != nil {

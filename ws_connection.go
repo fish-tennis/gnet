@@ -100,6 +100,8 @@ func (c *WsConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onCl
 		}()
 		c.writeLoop(ctx)
 		c.Close()
+		// 写协程结束了,通知阻塞中的SendPacket结束
+		close(c.writeStopNotifyChan)
 	}(ctx)
 
 	if c.handler != nil {
@@ -284,12 +286,13 @@ func (c *WsConnection) GetConn() *websocket.Conn {
 func createWsConnection(config *ConnectionConfig) *WsConnection {
 	newConnection := &WsConnection{
 		baseConnection: baseConnection{
-			connectionId:    NewConnectionId(),
-			config:          config,
-			codec:           config.Codec,
-			handler:         config.Handler,
-			sendPacketCache: make(chan Packet, config.SendPacketCacheCap),
-			rpcCalls:        newRpcCalls(),
+			connectionId:        NewConnectionId(),
+			config:              config,
+			codec:               config.Codec,
+			handler:             config.Handler,
+			sendPacketCache:     make(chan Packet, config.SendPacketCacheCap),
+			writeStopNotifyChan: make(chan struct{}),
+			rpcCalls:            newRpcCalls(),
 		},
 		readStopNotifyChan: make(chan struct{}),
 	}

@@ -157,6 +157,8 @@ type baseConnection struct {
 
 	// 发包缓存chan
 	sendPacketCache chan Packet // TODO: chan sendPacket
+	// notify chan for writeLoop goroutine end
+	writeStopNotifyChan chan struct{}
 
 	rpcCalls *rpcCalls
 }
@@ -219,7 +221,6 @@ func (c *baseConnection) SendPacket(packet Packet, opts ...SendOption) bool {
 	for _, opt := range opts {
 		opt.apply(sendOpts)
 	}
-	// TODO: block mode
 	if sendOpts.timeout > 0 {
 		sendTimeout := time.After(sendOpts.timeout)
 		for {
@@ -227,6 +228,8 @@ func (c *baseConnection) SendPacket(packet Packet, opts ...SendOption) bool {
 			case c.sendPacketCache <- packet:
 				return true
 			case <-sendTimeout:
+				return false
+			case <-c.writeStopNotifyChan:
 				return false
 			}
 		}
@@ -236,15 +239,21 @@ func (c *baseConnection) SendPacket(packet Packet, opts ...SendOption) bool {
 			select {
 			case c.sendPacketCache <- packet:
 				return true
+			case <-c.writeStopNotifyChan:
+				return false
 			default:
 				return false
 			}
 		} else {
+			select {
 			// NOTE:当sendPacketCache满时,这里会阻塞
-			c.sendPacketCache <- packet
+			case c.sendPacketCache <- packet:
+				return true
+			case <-c.writeStopNotifyChan:
+				return false
+			}
 		}
 	}
-	return true
 }
 
 // 超时发包,超时未发送则丢弃,适用于某些允许丢弃的数据包

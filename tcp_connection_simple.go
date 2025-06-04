@@ -43,12 +43,13 @@ func NewTcpConnectionSimpleAccept(conn net.Conn, config *ConnectionConfig) *TcpC
 func createTcpConnectionSimple(config *ConnectionConfig) *TcpConnectionSimple {
 	newConnection := &TcpConnectionSimple{
 		baseConnection: baseConnection{
-			connectionId:    NewConnectionId(),
-			config:          config,
-			codec:           config.Codec,
-			handler:         config.Handler,
-			sendPacketCache: make(chan Packet, config.SendPacketCacheCap),
-			rpcCalls:        newRpcCalls(),
+			connectionId:        NewConnectionId(),
+			config:              config,
+			codec:               config.Codec,
+			handler:             config.Handler,
+			sendPacketCache:     make(chan Packet, config.SendPacketCacheCap),
+			writeStopNotifyChan: make(chan struct{}),
+			rpcCalls:            newRpcCalls(),
 		},
 		readStopNotifyChan: make(chan struct{}, 1),
 	}
@@ -102,6 +103,8 @@ func (c *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitGrou
 		}()
 		c.writeLoop(ctx)
 		c.Close()
+		// 写协程结束了,通知阻塞中的SendPacket结束
+		close(c.writeStopNotifyChan)
 	}(ctx)
 
 	if c.handler != nil {
