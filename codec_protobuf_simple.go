@@ -5,11 +5,11 @@ import (
 	"errors"
 	"google.golang.org/protobuf/proto"
 	"reflect"
-	"unsafe"
 )
 
 const (
-	SimplePacketHeaderSize = int(unsafe.Sizeof(SimplePacketHeader{}))
+	// NOTE: unsafe.Sizeof(SimplePacketHeader{})=8
+	SimplePacketHeaderSize = 6 // int(unsafe.Sizeof(SimplePacketHeader{}))
 )
 
 // a simple packet header for TcpConnectionSimple

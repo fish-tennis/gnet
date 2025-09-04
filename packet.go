@@ -4,13 +4,12 @@ import (
 	"encoding/binary"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
-	"unsafe"
 )
 
 const (
 	// 默认包头长度
 	// the default packet header size
-	DefaultPacketHeaderSize = int(unsafe.Sizeof(DefaultPacketHeader{}))
+	DefaultPacketHeaderSize = 4 // int(unsafe.Sizeof(DefaultPacketHeader{}))
 
 	// 数据包长度限制(16M)
 	// the default packet data size limit

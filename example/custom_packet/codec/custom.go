@@ -4,8 +4,9 @@ import (
 	"encoding/binary"
 	"github.com/fish-tennis/gnet"
 	"google.golang.org/protobuf/proto"
-	"unsafe"
 )
+
+const CustomPacketHeaderSize = 14 // int(unsafe.Sizeof(CustomPacketHeader{}))
 
 // 自定义包头
 // implement of PacketHeader
@@ -130,7 +131,7 @@ func (this *CustomCodec) CreatePacketHeader(connection gnet.Connection, packet g
 }
 
 func (this *CustomCodec) PacketHeaderSize() uint32 {
-	return uint32(int(unsafe.Sizeof(CustomPacketHeader{})))
+	return uint32(CustomPacketHeaderSize)
 }
 
 // 这里直接返回原包的字节流数据

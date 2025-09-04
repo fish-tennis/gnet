@@ -5,6 +5,7 @@ import (
 	"github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/pb"
 	"testing"
+	"unsafe"
 )
 
 func TestPacketEx(t *testing.T) {
@@ -12,4 +13,10 @@ func TestPacketEx(t *testing.T) {
 		Name: "test",
 	})
 	t.Log(fmt.Sprintf("%v", packet))
+
+	packetHeaderSize := unsafe.Sizeof(gnet.DefaultPacketHeader{})
+	t.Log(fmt.Sprintf("DefaultPacketHeaderSize:%v", packetHeaderSize))
+
+	packetHeaderSize = unsafe.Sizeof(gnet.SimplePacketHeader{})
+	t.Log(fmt.Sprintf("SimplePacketHeaderSize:%v", packetHeaderSize))
 }
