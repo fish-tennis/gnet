@@ -46,6 +46,9 @@ func (c *WsConnection) Close() {
 		if c.onClose != nil {
 			c.onClose(c)
 		}
+		if c.sendPacketCache != nil {
+			close(c.sendPacketCache)
+		}
 	})
 }
 

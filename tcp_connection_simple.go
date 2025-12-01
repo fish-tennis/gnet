@@ -315,6 +315,9 @@ func (c *TcpConnectionSimple) Close() {
 		if c.onClose != nil {
 			c.onClose(c)
 		}
+		if c.sendPacketCache != nil {
+			close(c.sendPacketCache)
+		}
 	})
 }
 
