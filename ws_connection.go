@@ -179,7 +179,9 @@ func (c *WsConnection) writeLoop(ctx context.Context) {
 		select {
 		case packet := <-c.sendPacketCache:
 			if packet == nil {
-				logger.Error("packet==nil %v", c.GetConnectionId())
+				if c.IsConnected() {
+					logger.Error("packet==nil %v", c.GetConnectionId())
+				}
 				return
 			}
 			if !c.writePacket(packet) {
