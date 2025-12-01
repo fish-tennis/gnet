@@ -213,10 +213,19 @@ func (c *baseConnection) Send(command PacketCommand, message proto.Message, opts
 // 发送数据
 //
 //	NOTE:如果是异步调用SendPacket(command,message),调用之后,不要再对message进行读写!
-func (c *baseConnection) SendPacket(packet Packet, opts ...SendOption) bool {
+func (c *baseConnection) SendPacket(packet Packet, opts ...SendOption) (ret bool) {
 	if !c.IsConnected() {
 		return false
 	}
+	defer func() {
+		// close(sendPacketCache)后,再执行sendPacketCache <- packet,会panic
+		if err := recover(); err != nil {
+			ret = false
+			if c.IsConnected() {
+				logger.Error("SendPacket fatal %v: %v", c.GetConnectionId(), err.(error))
+			}
+		}
+	}()
 	sendOpts := defaultSendOptions()
 	for _, opt := range opts {
 		opt.apply(sendOpts)
@@ -272,10 +281,19 @@ func (c *baseConnection) TrySendPacket(packet Packet, timeout time.Duration, opt
 }
 
 // Rpc send a request to target and block wait reply
-func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOption) error {
+func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOption) (rpcErr error) {
 	if !c.IsConnected() {
 		return errors.New("disconnected")
 	}
+	defer func() {
+		// close(sendPacketCache)后,再执行sendPacketCache <- packet,会panic
+		if err := recover(); err != nil {
+			rpcErr = errors.New("rpc panic")
+			if c.IsConnected() {
+				logger.Error("Rpc fatal %v: %v", c.GetConnectionId(), err.(error))
+			}
+		}
+	}()
 	sendOpts := defaultSendOptions()
 	for _, opt := range opts {
 		opt.apply(sendOpts)
