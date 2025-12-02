@@ -15,12 +15,13 @@ var (
 	_connectionIdCounter uint32 = 0
 
 	DefaultConnectionConfig = ConnectionConfig{
-		SendPacketCacheCap: 16,
-		SendBufferSize:     4096,
-		RecvBufferSize:     4096,
+		SendPacketCacheCap: 256,
+		SendBufferSize:     4096, // 4K
+		RecvBufferSize:     4096, // 4K
 		MaxPacketSize:      MaxPacketDataSize,
-		RecvTimeout:        7,
-		HeartBeatInterval:  3,
+		RecvTimeout:        20, // 20s
+		WriteTimeout:       10, // 10s
+		HeartBeatInterval:  5,  // 5s
 	}
 )
 
