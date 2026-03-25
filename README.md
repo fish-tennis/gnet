@@ -106,7 +106,6 @@ C#: [gnet_csharp](https://github.com/fish-tennis/gnet_csharp)
 
 ## Project
 
-[game db&cache framework](https://github.com/fish-tennis/gentity)
 
 [distributed game server framework](https://github.com/fish-tennis/gserver)
 

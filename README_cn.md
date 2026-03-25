@@ -111,7 +111,6 @@ C#: [gnet_csharp](https://github.com/fish-tennis/gnet_csharp)
 
 ## 项目演示
 
-[游戏实体接口gentity](https://github.com/fish-tennis/gentity)
 
 [分布式游戏服务器框架gserver](https://github.com/fish-tennis/gserver)
 
