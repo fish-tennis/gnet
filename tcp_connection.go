@@ -55,6 +55,9 @@ func NewTcpConnectionAccept(conn net.Conn, config *ConnectionConfig) *TcpConnect
 	newConnection := createTcpConnection(config)
 	newConnection.isConnector = false
 	atomic.StoreInt32(&newConnection.isConnected, 1)
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		tcpConn.SetNoDelay(true)
+	}
 	newConnection.conn = conn
 	return newConnection
 }
@@ -85,6 +88,9 @@ func (c *TcpConnection) Connect(address string) bool {
 			c.handler.OnConnected(c, false)
 		}
 		return false
+	}
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		tcpConn.SetNoDelay(true)
 	}
 	c.conn = conn
 	atomic.StoreInt32(&c.isConnected, 1)
