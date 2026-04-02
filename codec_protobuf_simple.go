@@ -105,7 +105,14 @@ func (c *SimpleProtoCodec) CreatePacketHeader(connection Connection, packet Pack
 	if packet == nil {
 		return NewSimplePacketHeader(0, 0, 0)
 	}
-	return NewSimplePacketHeader(uint32(len(packetData)), 0, packet.Command())
+	flags := uint8(0)
+	if packet.ErrorCode() > 0 {
+		flags = ErrorCode
+	}
+	if packet.RpcCallId() > 0 {
+		flags = RpcCall
+	}
+	return NewSimplePacketHeader(uint32(len(packetData)), flags, packet.Command())
 }
 
 func (c *SimpleProtoCodec) Encode(connection Connection, packet Packet) []byte {
