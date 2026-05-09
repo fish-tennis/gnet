@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/pb"
 	"time"
@@ -52,10 +51,10 @@ func main() {
 func onHeartBeatRes(connection gnet.Connection, packet gnet.Packet) {
 	res := packet.Message().(*pb.HeartBeatRes)
 	ping := res.ResponseTimestamp - res.RequestTimestamp
-	logger.Debug(fmt.Sprintf("ping: %v ms", ping))
+	logger.Debug("ping: %v ms", ping)
 }
 
 func onTestMessage(connection gnet.Connection, packet gnet.Packet) {
 	res := packet.Message().(*pb.TestMessage)
-	logger.Info(fmt.Sprintf("client onTestMessage: %v errCode:%v", res, packet.ErrorCode()))
+	logger.Info("client onTestMessage: %v errCode:%v", res, packet.ErrorCode())
 }

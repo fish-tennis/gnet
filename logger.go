@@ -87,5 +87,5 @@ func SetLogLevel(level int8) {
 
 func LogStack() {
 	buf := make([]byte, 1<<12)
-	logger.Error(string(buf[:runtime.Stack(buf, false)]))
+	logger.Error("%s", buf[:runtime.Stack(buf, false)])
 }

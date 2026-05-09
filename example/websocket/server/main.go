@@ -57,7 +57,7 @@ func main() {
 // 服务器收到客户端的心跳包
 func onHeartBeatReq(connection gnet.Connection, packet gnet.Packet) {
 	req := packet.Message().(*pb.HeartBeatReq)
-	logger.Debug(fmt.Sprintf("Server onHeartBeatReq: %v", req))
+	logger.Debug("Server onHeartBeatReq: %v", req)
 	// 模拟网络延迟
 	time.Sleep(time.Millisecond * 10)
 	connection.Send(gnet.PacketCommand(pb.CmdTest_Cmd_HeartBeat), &pb.HeartBeatRes{
@@ -69,7 +69,7 @@ func onHeartBeatReq(connection gnet.Connection, packet gnet.Packet) {
 // 服务器收到客户端的TestMessage
 func onTestMessage(connection gnet.Connection, packet gnet.Packet) {
 	req := packet.Message().(*pb.TestMessage)
-	logger.Debug(fmt.Sprintf("Server onTestMessage: %v", req))
+	logger.Debug("Server onTestMessage: %v", req)
 	// echo
 	req.Name += " world from server"
 	connection.SendPacket(packet)
