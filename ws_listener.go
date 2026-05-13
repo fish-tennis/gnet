@@ -72,13 +72,14 @@ func (l *WsListener) IsRunning() bool {
 	return atomic.LoadInt32(&l.isRunning) > 0
 }
 
-func (l *WsListener) Start(ctx context.Context, listenAddress string) bool {
+func (l *WsListener) Start(ctx context.Context, listenAddress string, checkOrigin func(r *http.Request) bool) bool {
 	http.HandleFunc(l.config.Path, func(w http.ResponseWriter, r *http.Request) {
 		l.serve(ctx, w, r)
 	})
 	l.upgrader = websocket.Upgrader{
 		ReadBufferSize:  int(l.acceptConnectionConfig.RecvBufferSize),
 		WriteBufferSize: int(l.acceptConnectionConfig.SendBufferSize),
+		CheckOrigin: checkOrigin,
 	}
 	// 监听协程
 	atomic.StoreInt32(&l.isRunning, 1)

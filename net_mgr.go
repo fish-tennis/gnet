@@ -68,7 +68,7 @@ func (m *NetMgr) NewListener(ctx context.Context, address string, listenerConfig
 func (m *NetMgr) NewWsListener(ctx context.Context, address string, listenerConfig *ListenerConfig) Listener {
 	newListener := NewWsListener(listenerConfig)
 	newListener.netMgrWg = &m.wg
-	if !newListener.Start(ctx, address) {
+	if !newListener.Start(ctx, address, listenerConfig.CheckOrigin) {
 		logger.Error("NewWsListener Start Failed")
 		return nil
 	}
