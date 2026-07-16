@@ -107,10 +107,10 @@ func (c *SimpleProtoCodec) CreatePacketHeader(connection Connection, packet Pack
 	}
 	flags := uint8(0)
 	if packet.ErrorCode() > 0 {
-		flags = ErrorCode
+		flags |= ErrorCode
 	}
 	if packet.RpcCallId() > 0 {
-		flags = RpcCall
+		flags |= RpcCall
 	}
 	return NewSimplePacketHeader(uint32(len(packetData)), flags, packet.Command())
 }
@@ -135,12 +135,12 @@ func (c *SimpleProtoCodec) Encode(connection Connection, packet Packet) []byte {
 			extraLen = 8
 		}
 		packetData := make([]byte, len(packetBodyData)+extraLen)
-		if packet.ErrorCode() != 0 {
-			binary.LittleEndian.PutUint32(packetData, packet.ErrorCode())
+		if packet.RpcCallId() > 0 {
+			binary.LittleEndian.PutUint32(packetData, packet.RpcCallId())
 			offset += 4
 		}
-		if packet.RpcCallId() > 0 {
-			binary.LittleEndian.PutUint32(packetData[offset:], packet.RpcCallId())
+		if packet.ErrorCode() != 0 {
+			binary.LittleEndian.PutUint32(packetData[offset:], packet.ErrorCode())
 			offset += 4
 		}
 		copy(packetData[offset:], packetBodyData)

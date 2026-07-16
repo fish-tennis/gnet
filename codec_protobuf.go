@@ -120,21 +120,25 @@ func (c *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketHead
 	command := binary.LittleEndian.Uint16(decodedPacketData[:2])
 	decodedPacketData = decodedPacketData[2:]
 	rpcCallId := uint32(0)
-	if packetHeader.HasFlag(RpcCall) {
-		if len(decodedPacketData) < 4 {
-			return nil
-		}
-		rpcCallId = binary.LittleEndian.Uint32(decodedPacketData[:4])
-		decodedPacketData = decodedPacketData[4:]
-		//logger.Debug("read rpcCallId:%v", rpcCallId)
-	}
 	errorCode := uint32(0)
-	if packetHeader.HasFlag(ErrorCode) {
-		if len(decodedPacketData) < 4 {
-			return nil
+	// packetHeader can be nil when called directly (e.g. in tests),
+	// in which case rpcCallId and errorCode are absent.
+	if packetHeader != nil {
+		if packetHeader.HasFlag(RpcCall) {
+			if len(decodedPacketData) < 4 {
+				return nil
+			}
+			rpcCallId = binary.LittleEndian.Uint32(decodedPacketData[:4])
+			decodedPacketData = decodedPacketData[4:]
+			//logger.Debug("read rpcCallId:%v", rpcCallId)
 		}
-		errorCode = binary.LittleEndian.Uint32(decodedPacketData[:4])
-		decodedPacketData = decodedPacketData[4:]
+		if packetHeader.HasFlag(ErrorCode) {
+			if len(decodedPacketData) < 4 {
+				return nil
+			}
+			errorCode = binary.LittleEndian.Uint32(decodedPacketData[:4])
+			decodedPacketData = decodedPacketData[4:]
+		}
 	}
 	if protoMessageType, ok := c.MessageCreatorMap[PacketCommand(command)]; ok {
 		if protoMessageType != nil {
