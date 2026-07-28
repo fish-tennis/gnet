@@ -264,6 +264,12 @@ func (c *WsConnection) checkRecvTimeout(recvTimeoutTimer *time.Timer) bool {
 }
 
 func (c *WsConnection) onHeartBeatTimeUp(heartBeatTimer *time.Timer) bool {
+	// 无论本次是否发送心跳包,都要Reset,否则Timer触发后不Reset将永不再触发
+	defer func() {
+		if c.config.HeartBeatInterval > 0 {
+			heartBeatTimer.Reset(time.Second * time.Duration(c.config.HeartBeatInterval))
+		}
+	}()
 	if c.isConnector && c.config.HeartBeatInterval > 0 && c.handler != nil {
 		if c.config.WriteTimeout > 0 {
 			c.conn.SetWriteDeadline(time.Now().Add(time.Duration(c.config.WriteTimeout) * time.Second))
@@ -279,7 +285,6 @@ func (c *WsConnection) onHeartBeatTimeUp(heartBeatTimer *time.Timer) bool {
 				return false
 			}
 		}
-		heartBeatTimer.Reset(time.Second * time.Duration(c.config.HeartBeatInterval))
 	}
 	return true
 }

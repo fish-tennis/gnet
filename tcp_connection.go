@@ -342,10 +342,15 @@ func (c *TcpConnection) checkRecvTimeout(recvTimeoutTimer *time.Timer) bool {
 }
 
 func (c *TcpConnection) onHeartBeatTimeUp(heartBeatTimer *time.Timer) (delaySendDecodePacketData []byte) {
+	// 无论本次是否发送心跳包,都要Reset,否则Timer触发后不Reset将永不再触发
+	defer func() {
+		if c.config.HeartBeatInterval > 0 {
+			heartBeatTimer.Reset(time.Second * time.Duration(c.config.HeartBeatInterval))
+		}
+	}()
 	if c.isConnector && c.config.HeartBeatInterval > 0 && c.handler != nil {
 		if heartBeatPacket := c.handler.CreateHeartBeatPacket(c); heartBeatPacket != nil {
 			delaySendDecodePacketData = c.codec.Encode(c, heartBeatPacket)
-			heartBeatTimer.Reset(time.Second * time.Duration(c.config.HeartBeatInterval))
 		}
 	}
 	return

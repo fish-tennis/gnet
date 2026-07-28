@@ -13,6 +13,8 @@ import (
 type WsListener struct {
 	baseListener
 	upgrader websocket.Upgrader
+	// http server,用于优雅关闭
+	httpServer *http.Server
 
 	acceptConnectionConfig  ConnectionConfig
 	acceptConnectionCodec   Codec
@@ -65,7 +67,30 @@ func (l *WsListener) Addr() net.Addr {
 	return nil
 }
 
+// 关闭监听,并关闭管理的连接
+//
+//	close listen, close the accepted connections
 func (l *WsListener) Close() {
+	l.closeOnce.Do(func() {
+		atomic.StoreInt32(&l.isRunning, 0)
+		// 关闭HTTP server,停止接受新的WebSocket连接
+		if l.httpServer != nil {
+			_ = l.httpServer.Close()
+		}
+		// 快照并关闭所有已建立的连接
+		connMap := make(map[uint32]Connection)
+		l.connectionMapLock.RLock()
+		for k, v := range l.connectionMap {
+			connMap[k] = v
+		}
+		l.connectionMapLock.RUnlock()
+		for _, conn := range connMap {
+			conn.Close()
+		}
+		if l.onClose != nil {
+			l.onClose(l)
+		}
+	})
 }
 
 func (l *WsListener) IsRunning() bool {
@@ -83,15 +108,17 @@ func (l *WsListener) Start(ctx context.Context, listenAddress string, checkOrigi
 	}
 	// 监听协程
 	atomic.StoreInt32(&l.isRunning, 1)
+	l.httpServer = &http.Server{Addr: listenAddress}
 	go func() {
 		var err error
 		if l.config.CertFile != "" {
-			err = http.ListenAndServeTLS(listenAddress, l.config.CertFile, l.config.KeyFile, nil)
+			err = l.httpServer.ListenAndServeTLS(l.config.CertFile, l.config.KeyFile)
 		} else {
-			err = http.ListenAndServe(listenAddress, nil)
+			err = l.httpServer.ListenAndServe()
 		}
-		if err != nil {
+		if err != nil && err != http.ErrServerClosed {
 			atomic.StoreInt32(&l.isRunning, 0)
+			logger.Error("ListenAndServe failed %v: %v", l.GetListenerId(), err.Error())
 			return
 		}
 	}()

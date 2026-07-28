@@ -29,8 +29,10 @@ func newRpcCalls() *rpcCalls {
 
 func (c *rpcCalls) newRpcCall() *rpcCall {
 	call := &rpcCall{
-		id:    atomic.AddUint32(&_rpcCallSerialId, 1),
-		reply: make(chan Packet),
+		id: atomic.AddUint32(&_rpcCallSerialId, 1),
+		// 使用带1个缓冲的channel,防止readLoop在putReply时,
+		// 因调用方已超时退出而不再读取channel,导致readLoop永久阻塞
+		reply: make(chan Packet, 1),
 	}
 	if call.id == 0 {
 		call.id = atomic.AddUint32(&_rpcCallSerialId, 1)
