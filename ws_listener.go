@@ -54,12 +54,17 @@ func (l *WsListener) RangeConnections(f func(conn Connection) bool) {
 }
 
 func (l *WsListener) Broadcast(packet Packet) {
+	// 先快照连接列表,释放锁后再发送,避免慢消费连接阻塞其他需要写锁的操作
+	conns := make([]Connection, 0, len(l.connectionMap))
 	l.connectionMapLock.RLock()
-	defer l.connectionMapLock.RUnlock()
 	for _, conn := range l.connectionMap {
 		if conn.IsConnected() {
-			conn.SendPacket(packet.Clone())
+			conns = append(conns, conn)
 		}
+	}
+	l.connectionMapLock.RUnlock()
+	for _, conn := range conns {
+		conn.SendPacket(packet.Clone())
 	}
 }
 
@@ -151,7 +156,7 @@ func (l *WsListener) Start(ctx context.Context, listenAddress string, checkOrigi
 func (l *WsListener) serve(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	conn, err := l.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		logger.Error("serveErr %v: %v", l.GetListenerId(), err.(error))
+		logger.Error("serveErr %v: %v", l.GetListenerId(), err)
 		return
 	}
 	newTcpConn := NewWsConnectionAccept(conn, &l.acceptConnectionConfig, l.acceptConnectionCodec, l.acceptConnectionHandler)

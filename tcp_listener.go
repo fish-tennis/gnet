@@ -64,12 +64,17 @@ func (l *TcpListener) GetConnection(connectionId uint32) Connection {
 //
 //	broadcast packet to accepted connections
 func (l *TcpListener) Broadcast(packet Packet) {
+	// 先快照连接列表,释放锁后再发送,避免慢消费连接阻塞其他需要写锁的操作
+	conns := make([]Connection, 0, len(l.connectionMap))
 	l.connectionMapLock.RLock()
-	defer l.connectionMapLock.RUnlock()
 	for _, conn := range l.connectionMap {
 		if conn.IsConnected() {
-			conn.SendPacket(packet.Clone())
+			conns = append(conns, conn)
 		}
+	}
+	l.connectionMapLock.RUnlock()
+	for _, conn := range conns {
+		conn.SendPacket(packet.Clone())
 	}
 }
 
@@ -162,7 +167,7 @@ func (l *TcpListener) IsRunning() bool {
 func (l *TcpListener) acceptLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("acceptLoop fatal %v: %v", l.GetListenerId(), err.(error))
+			logger.Error("acceptLoop fatal %v: %v", l.GetListenerId(), err)
 			LogStack()
 		}
 	}()
@@ -192,7 +197,7 @@ func (l *TcpListener) acceptLoop(ctx context.Context) {
 			defer func() {
 				l.netMgrWg.Done()
 				if err := recover(); err != nil {
-					logger.Error("acceptLoop fatal %v: %v", l.GetListenerId(), err.(error))
+					logger.Error("acceptLoop fatal %v: %v", l.GetListenerId(), err)
 					LogStack()
 				}
 			}()

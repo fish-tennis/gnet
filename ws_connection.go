@@ -80,7 +80,7 @@ func (c *WsConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onCl
 		defer func() {
 			netMgrWg.Done()
 			if err := recover(); err != nil {
-				logger.Error("read fatal %v: %v", c.GetConnectionId(), err.(error))
+				logger.Error("read fatal %v: %v", c.GetConnectionId(), err)
 				LogStack()
 			}
 		}()
@@ -97,7 +97,7 @@ func (c *WsConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onCl
 		defer func() {
 			netMgrWg.Done()
 			if err := recover(); err != nil {
-				logger.Error("write fatal %v: %v", c.GetConnectionId(), err.(error))
+				logger.Error("write fatal %v: %v", c.GetConnectionId(), err)
 				LogStack()
 			}
 		}()
@@ -115,12 +115,13 @@ func (c *WsConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onCl
 func (c *WsConnection) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("readLoop fatal %v: %v", c.GetConnectionId(), err.(error))
+			logger.Error("readLoop fatal %v: %v", c.GetConnectionId(), err)
 			LogStack()
 		}
 	}()
 
 	logger.Debug("readLoop begin %v isConnector:%v", c.GetConnectionId(), c.IsConnector())
+	codec := c.GetCodec()
 	if c.config.MaxPacketSize > 0 {
 		c.conn.SetReadLimit(int64(c.config.MaxPacketSize))
 	}
@@ -139,11 +140,11 @@ func (c *WsConnection) readLoop() {
 			logger.Debug("messageTypeErr %v messageType:%v", c.GetConnectionId(), messageType)
 			break
 		}
-		if len(data) < int(c.codec.PacketHeaderSize()) {
+		if len(data) < int(codec.PacketHeaderSize()) {
 			logger.Debug("messageType Err %v messageType:%v", c.GetConnectionId(), messageType)
 			break
 		}
-		newPacket, decodeError := c.codec.Decode(c, data)
+		newPacket, decodeError := codec.Decode(c, data)
 		if decodeError != nil {
 			logger.Error("%v decodeError:%v", c.GetConnectionId(), decodeError.Error())
 			return
@@ -152,7 +153,7 @@ func (c *WsConnection) readLoop() {
 			break
 		}
 		// 最近收到完整数据包的时间
-		c.lastRecvPacketTick = GetCurrentTimeStamp()
+		atomic.StoreInt64(&c.lastRecvPacketTick, GetCurrentTimeStamp())
 		if c.handler != nil {
 			c.handler.OnRecvPacket(c, newPacket)
 		}
@@ -162,7 +163,7 @@ func (c *WsConnection) readLoop() {
 func (c *WsConnection) writeLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("writeLoop fatal %v: %v", c.GetConnectionId(), err.(error))
+			logger.Error("writeLoop fatal %v: %v", c.GetConnectionId(), err)
 			LogStack()
 		}
 		logger.Debug("writeLoop end %v IsConnector:%v", c.GetConnectionId(), c.IsConnector())
@@ -227,13 +228,15 @@ func (c *WsConnection) writeLoop(ctx context.Context) {
 }
 
 func (c *WsConnection) writePacket(packet Packet) bool {
+	codec := c.GetCodec()
 	// 这里编码的是包体,不包含包头
-	packetData := c.codec.Encode(c, packet)
+	packetData := codec.Encode(c, packet)
 	// 包头数据
-	newPacketHeader := c.codec.CreatePacketHeader(c, packet, packetData)
-	fullData := make([]byte, int(c.codec.PacketHeaderSize())+len(packetData))
+	newPacketHeader := codec.CreatePacketHeader(c, packet, packetData)
+	headerSize := int(codec.PacketHeaderSize())
+	fullData := make([]byte, headerSize+len(packetData))
 	newPacketHeader.WriteTo(fullData)
-	copy(fullData[c.codec.PacketHeaderSize():], packetData)
+	copy(fullData[headerSize:], packetData)
 	if c.config.WriteTimeout > 0 {
 		c.conn.SetWriteDeadline(time.Now().Add(time.Duration(c.config.WriteTimeout) * time.Second))
 	}
@@ -247,7 +250,7 @@ func (c *WsConnection) writePacket(packet Packet) bool {
 
 func (c *WsConnection) checkRecvTimeout(recvTimeoutTimer *time.Timer) bool {
 	if c.config.RecvTimeout > 0 {
-		nextTimeoutTime := int64(c.config.RecvTimeout) + c.lastRecvPacketTick - GetCurrentTimeStamp()
+		nextTimeoutTime := int64(c.config.RecvTimeout) + atomic.LoadInt64(&c.lastRecvPacketTick) - GetCurrentTimeStamp()
 		if nextTimeoutTime > 0 {
 			if nextTimeoutTime > int64(c.config.RecvTimeout) {
 				nextTimeoutTime = int64(c.config.RecvTimeout)

@@ -152,9 +152,13 @@ type baseConnection struct {
 	handler ConnectionHandler
 	// 编解码接口
 	codec Codec
+	// 保护codec并发读写
+	codecLock sync.RWMutex
 	// 关联数据
 	//  the associated tag
 	tag interface{}
+	// 保护tag并发读写
+	tagLock sync.RWMutex
 
 	// 发包缓存chan
 	sendPacketCache chan Packet // TODO: chan sendPacket
@@ -178,10 +182,14 @@ func (c *baseConnection) IsConnected() bool {
 }
 
 func (c *baseConnection) GetCodec() Codec {
+	c.codecLock.RLock()
+	defer c.codecLock.RUnlock()
 	return c.codec
 }
 
 func (c *baseConnection) SetCodec(codec Codec) {
+	c.codecLock.Lock()
+	defer c.codecLock.Unlock()
 	c.codec = codec
 }
 
@@ -189,6 +197,8 @@ func (c *baseConnection) SetCodec(codec Codec) {
 //
 //	get the associated tag
 func (c *baseConnection) GetTag() interface{} {
+	c.tagLock.RLock()
+	defer c.tagLock.RUnlock()
 	return c.tag
 }
 
@@ -196,6 +206,8 @@ func (c *baseConnection) GetTag() interface{} {
 //
 //	set the associated tag
 func (c *baseConnection) SetTag(tag interface{}) {
+	c.tagLock.Lock()
+	defer c.tagLock.Unlock()
 	c.tag = tag
 }
 
@@ -223,7 +235,7 @@ func (c *baseConnection) SendPacket(packet Packet, opts ...SendOption) (ret bool
 		if err := recover(); err != nil {
 			ret = false
 			if c.IsConnected() {
-				logger.Error("SendPacket fatal %v: %v", c.GetConnectionId(), err.(error))
+				logger.Error("SendPacket fatal %v: %v", c.GetConnectionId(), err)
 			}
 		}
 	}()
@@ -291,7 +303,7 @@ func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOp
 		if err := recover(); err != nil {
 			rpcErr = errors.New("rpc panic")
 			if c.IsConnected() {
-				logger.Error("Rpc fatal %v: %v", c.GetConnectionId(), err.(error))
+				logger.Error("Rpc fatal %v: %v", c.GetConnectionId(), err)
 			}
 		}
 	}()
@@ -301,8 +313,13 @@ func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOp
 	}
 	call := c.rpcCalls.newRpcCall()
 	request.SetRpcCallId(call.id)
-	// NOTE:当sendPacketCache满时,这里会阻塞
-	c.sendPacketCache <- request
+	// 当sendPacketCache满时,通过select防止永久阻塞
+	select {
+	case c.sendPacketCache <- request:
+	case <-c.writeStopNotifyChan:
+		c.rpcCalls.removeReply(call.id)
+		return errors.New("connection closed")
+	}
 	timeout := time.After(sendOpts.timeout)
 	select {
 	case <-timeout:

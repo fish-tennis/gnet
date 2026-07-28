@@ -106,7 +106,7 @@ func (c *TcpConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onC
 		defer func() {
 			netMgrWg.Done()
 			if err := recover(); err != nil {
-				logger.Error("read fatal %v: %v", c.GetConnectionId(), err.(error))
+				logger.Error("read fatal %v: %v", c.GetConnectionId(), err)
 				LogStack()
 			}
 		}()
@@ -123,7 +123,7 @@ func (c *TcpConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onC
 		defer func() {
 			netMgrWg.Done()
 			if err := recover(); err != nil {
-				logger.Error("write fatal %v: %v", c.GetConnectionId(), err.(error))
+				logger.Error("write fatal %v: %v", c.GetConnectionId(), err)
 				LogStack()
 			}
 		}()
@@ -142,14 +142,15 @@ func (c *TcpConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onC
 func (c *TcpConnection) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("readLoop fatal %v: %v", c.GetConnectionId(), err.(error))
+			logger.Error("readLoop fatal %v: %v", c.GetConnectionId(), err)
 			LogStack()
 		}
 	}()
 
 	logger.Debug("readLoop begin %v", c.GetConnectionId())
 	c.recvBuffer = c.createRecvBuffer()
-	c.tmpReadPacketHeaderData = make([]byte, c.codec.PacketHeaderSize())
+	codec := c.GetCodec()
+	c.tmpReadPacketHeaderData = make([]byte, codec.PacketHeaderSize())
 	for c.IsConnected() {
 		// 可写入的连续buffer
 		writeBuffer := c.recvBuffer.WriteBuffer()
@@ -168,7 +169,7 @@ func (c *TcpConnection) readLoop() {
 		//LogDebug("%v Read:%v", c.GetConnectionId(), n)
 		c.recvBuffer.SetWrote(n)
 		for c.IsConnected() {
-			newPacket, decodeError := c.codec.Decode(c, c.recvBuffer.ReadBuffer())
+			newPacket, decodeError := codec.Decode(c, c.recvBuffer.ReadBuffer())
 			if errors.Is(decodeError, ErrPacketDataNotRead) {
 				// recvBuffer中的未读取数据还不够组成一个完整的包
 				break
@@ -195,7 +196,7 @@ func (c *TcpConnection) readLoop() {
 func (c *TcpConnection) writeLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("writeLoop fatal %v: %v", c.GetConnectionId(), err.(error))
+			logger.Error("writeLoop fatal %v: %v", c.GetConnectionId(), err)
 			//LogStack()
 		}
 		logger.Debug("writeLoop end %v", c.GetConnectionId())
@@ -253,9 +254,10 @@ func (c *TcpConnection) writeLoop(ctx context.Context) {
 // 数据包编码
 // Encode里面会把编码后的数据直接写入sendBuffer
 func (c *TcpConnection) writePacket(packet Packet) (delaySendDecodePacketData []byte, hasError bool) {
+	codec := c.GetCodec()
 	// 数据包编码
 	// Encode里面会把编码后的数据直接写入sendBuffer
-	delaySendDecodePacketData = c.codec.Encode(c, packet)
+	delaySendDecodePacketData = codec.Encode(c, packet)
 	if len(delaySendDecodePacketData) > 0 {
 		// Encode里面写不完的数据延后处理
 		logger.Debug("%v sendBuffer is full delaySize:%v", c.GetConnectionId(), len(delaySendDecodePacketData))
@@ -275,7 +277,7 @@ func (c *TcpConnection) writePacket(packet Packet) (delaySendDecodePacketData []
 				return
 			}
 			// 数据包编码
-			delaySendDecodePacketData = c.codec.Encode(c, newPacket)
+			delaySendDecodePacketData = codec.Encode(c, newPacket)
 			if len(delaySendDecodePacketData) > 0 {
 				// if the RingBuffer is full, leave the rest packet to process later
 				logger.Debug("%v sendBuffer is full delaySize:%v", c.GetConnectionId(), len(delaySendDecodePacketData))
@@ -350,7 +352,7 @@ func (c *TcpConnection) onHeartBeatTimeUp(heartBeatTimer *time.Timer) (delaySend
 	}()
 	if c.isConnector && c.config.HeartBeatInterval > 0 && c.handler != nil {
 		if heartBeatPacket := c.handler.CreateHeartBeatPacket(c); heartBeatPacket != nil {
-			delaySendDecodePacketData = c.codec.Encode(c, heartBeatPacket)
+			delaySendDecodePacketData = c.GetCodec().Encode(c, heartBeatPacket)
 		}
 	}
 	return

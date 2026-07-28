@@ -86,7 +86,7 @@ func (c *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitGrou
 		defer func() {
 			netMgrWg.Done()
 			if err := recover(); err != nil {
-				logger.Error("read fatal %v: %v", c.GetConnectionId(), err.(error))
+				logger.Error("read fatal %v: %v", c.GetConnectionId(), err)
 				LogStack()
 			}
 		}()
@@ -103,7 +103,7 @@ func (c *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitGrou
 		defer func() {
 			netMgrWg.Done()
 			if err := recover(); err != nil {
-				logger.Error("write fatal %v: %v", c.GetConnectionId(), err.(error))
+				logger.Error("write fatal %v: %v", c.GetConnectionId(), err)
 				LogStack()
 			}
 		}()
@@ -122,16 +122,17 @@ func (c *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitGrou
 func (c *TcpConnectionSimple) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("readLoop fatal %v: %v", c.GetConnectionId(), err.(error))
+			logger.Error("readLoop fatal %v: %v", c.GetConnectionId(), err)
 			LogStack()
 		}
 	}()
 
 	logger.Debug("readLoop begin %v isConnector:%v", c.GetConnectionId(), c.IsConnector())
+	codec := c.GetCodec()
 	for c.IsConnected() {
 		// 先读取消息头
 		// read packet header first
-		messageHeaderData := make([]byte, c.codec.PacketHeaderSize())
+		messageHeaderData := make([]byte, codec.PacketHeaderSize())
 		readHeaderSize, err := io.ReadFull(c.conn, messageHeaderData)
 		if err != nil {
 			if err != io.EOF {
@@ -142,7 +143,7 @@ func (c *TcpConnectionSimple) readLoop() {
 		if readHeaderSize != len(messageHeaderData) {
 			break
 		}
-		newPacketHeader := c.codec.CreatePacketHeader(c, nil, nil)
+		newPacketHeader := codec.CreatePacketHeader(c, nil, nil)
 		newPacketHeader.ReadFrom(messageHeaderData)
 		packetDataLen := int(newPacketHeader.Len())
 		fullPacketData := make([]byte, len(messageHeaderData)+packetDataLen)
@@ -161,7 +162,7 @@ func (c *TcpConnectionSimple) readLoop() {
 				break
 			}
 		}
-		newPacket, decodeError := c.codec.Decode(c, fullPacketData)
+		newPacket, decodeError := codec.Decode(c, fullPacketData)
 		if decodeError != nil {
 			logger.Error("%v decodeError:%v", c.GetConnectionId(), decodeError.Error())
 			return
@@ -170,7 +171,7 @@ func (c *TcpConnectionSimple) readLoop() {
 			break
 		}
 		// 最近收到完整数据包的时间
-		c.lastRecvPacketTick = GetCurrentTimeStamp()
+		atomic.StoreInt64(&c.lastRecvPacketTick, GetCurrentTimeStamp())
 		if c.handler != nil {
 			c.handler.OnRecvPacket(c, newPacket)
 		}
@@ -182,7 +183,7 @@ func (c *TcpConnectionSimple) readLoop() {
 func (c *TcpConnectionSimple) writeLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("writeLoop fatal %v: %v", c.GetConnectionId(), err.(error))
+			logger.Error("writeLoop fatal %v: %v", c.GetConnectionId(), err)
 			LogStack()
 		}
 		logger.Debug("writeLoop end %v IsConnector:%v", c.GetConnectionId(), c.IsConnector())
@@ -232,11 +233,12 @@ func (c *TcpConnectionSimple) writeLoop(ctx context.Context) {
 }
 
 func (c *TcpConnectionSimple) writePacket(packet Packet) bool {
+	codec := c.GetCodec()
 	// 这里编码的是包体,不包含包头
-	packetData := c.codec.Encode(c, packet)
+	packetData := codec.Encode(c, packet)
 	// 包头数据
-	newPacketHeader := c.codec.CreatePacketHeader(c, packet, packetData)
-	packetHeaderData := make([]byte, c.codec.PacketHeaderSize())
+	newPacketHeader := codec.CreatePacketHeader(c, packet, packetData)
+	packetHeaderData := make([]byte, codec.PacketHeaderSize())
 	newPacketHeader.WriteTo(packetHeaderData)
 	writeCount := 0
 	// 先发送包头数据
@@ -282,7 +284,7 @@ func (c *TcpConnectionSimple) writePacket(packet Packet) bool {
 
 func (c *TcpConnectionSimple) checkRecvTimeout(recvTimeoutTimer *time.Timer) bool {
 	if c.config.RecvTimeout > 0 {
-		nextTimeoutTime := int64(c.config.RecvTimeout) + c.lastRecvPacketTick - GetCurrentTimeStamp()
+		nextTimeoutTime := int64(c.config.RecvTimeout) + atomic.LoadInt64(&c.lastRecvPacketTick) - GetCurrentTimeStamp()
 		if nextTimeoutTime > 0 {
 			if nextTimeoutTime > int64(c.config.RecvTimeout) {
 				nextTimeoutTime = int64(c.config.RecvTimeout)
