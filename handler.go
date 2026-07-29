@@ -1,6 +1,9 @@
 package gnet
 
-import "google.golang.org/protobuf/proto"
+import (
+	"google.golang.org/protobuf/proto"
+	"sync/atomic"
+)
 
 // handler for Connection
 type ConnectionHandler interface {
@@ -43,7 +46,10 @@ type PacketHandler func(connection Connection, packet Packet)
 type DefaultConnectionHandler struct {
 	// 注册消息的处理函数map
 	//  registered map of PacketCommand and PacketHandler
+	//  仅在初始化阶段修改,readLoop启动后冻结,之后调用Register会panic
 	PacketHandlers map[PacketCommand]PacketHandler
+	// 标记是否已冻结,冻结后不允许再修改PacketHandlers
+	frozen int32 // 0:可修改 1:已冻结
 	// 未注册消息的处理函数
 	//  packetHandler for unregistered PacketCommand
 	UnRegisterHandler PacketHandler
@@ -83,6 +89,8 @@ func (h *DefaultConnectionHandler) OnRecvPacket(connection Connection, packet Pa
 			LogStack()
 		}
 	}()
+	// 首次收包时冻结,此后不允许再Register
+	atomic.StoreInt32(&h.frozen, 1)
 	if packetHandler, ok := h.PacketHandlers[packet.Command()]; ok {
 		if packetHandler != nil {
 			packetHandler(connection, packet)
@@ -114,9 +122,13 @@ func (h *DefaultConnectionHandler) GetCodec() Codec {
 
 // 注册消息号和消息回调,proto.Message的映射
 // handler在TcpConnection的read协程中被调用
+// NOTE: 仅在初始化阶段(连接Start之前)调用,readLoop启动后会panic
 //
 //	register PacketCommand,PacketHandler,proto.Message
 func (h *DefaultConnectionHandler) Register(packetCommand PacketCommand, handler PacketHandler, protoMessage proto.Message) {
+	if atomic.LoadInt32(&h.frozen) != 0 {
+		return
+	}
 	h.PacketHandlers[packetCommand] = handler
 	if h.protoCodec != nil {
 		if protoRegister, ok := h.protoCodec.(ProtoRegister); ok {
