@@ -46,8 +46,8 @@ func (l *WsListener) GetConnection(connectionId uint32) Connection {
 // range for accepted connections
 func (l *WsListener) RangeConnections(f func(conn Connection) bool) {
 	// 先快照连接列表,释放锁后再回调,避免回调中调用Close等方法导致死锁
-	conns := make([]Connection, 0, len(l.connectionMap))
 	l.connectionMapLock.RLock()
+	conns := make([]Connection, 0, len(l.connectionMap))
 	for _, conn := range l.connectionMap {
 		if conn.IsConnected() {
 			conns = append(conns, conn)
@@ -63,8 +63,8 @@ func (l *WsListener) RangeConnections(f func(conn Connection) bool) {
 
 func (l *WsListener) Broadcast(packet Packet) {
 	// 先快照连接列表,释放锁后再发送,避免慢消费连接阻塞其他需要写锁的操作
-	conns := make([]Connection, 0, len(l.connectionMap))
 	l.connectionMapLock.RLock()
+	conns := make([]Connection, 0, len(l.connectionMap))
 	for _, conn := range l.connectionMap {
 		if conn.IsConnected() {
 			conns = append(conns, conn)
