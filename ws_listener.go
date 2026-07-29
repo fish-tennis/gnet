@@ -137,7 +137,9 @@ func (l *WsListener) Start(ctx context.Context, listenAddress string, checkOrigi
 	atomic.StoreInt32(&l.isRunning, 1)
 	l.serveDone = make(chan struct{}, 1)
 	l.httpServer = &http.Server{Handler: mux}
+	l.netMgrWg.Add(1)
 	go func() {
+		defer l.netMgrWg.Done()
 		var err error
 		if l.config.CertFile != "" {
 			err = l.httpServer.ServeTLS(ln, l.config.CertFile, l.config.KeyFile)

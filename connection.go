@@ -330,6 +330,9 @@ func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOp
 	case <-rpcTimer.C:
 		c.rpcCalls.removeReply(call.id)
 		return errors.New("timeout")
+	case <-c.writeStopNotifyChan:
+		c.rpcCalls.removeReply(call.id)
+		return errors.New("connection closed")
 	case replyPacket := <-call.reply:
 		if replyPacket == nil {
 			return errors.New("reply is nil")

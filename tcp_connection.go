@@ -104,6 +104,8 @@ func (c *TcpConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onC
 	if c.handler != nil {
 		c.handler.OnConnected(c, true)
 	}
+	// 初始化最近收包时间,避免首个RecvTimeout周期内未收到包就被误判超时
+	atomic.StoreInt64(&c.lastRecvPacketTick, GetCurrentTimeStamp())
 	// 开启收包协程
 	netMgrWg.Add(1)
 	go func() {

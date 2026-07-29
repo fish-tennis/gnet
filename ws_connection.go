@@ -86,6 +86,8 @@ func (c *WsConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onCl
 	if c.handler != nil {
 		c.handler.OnConnected(c, true)
 	}
+	// 初始化最近收包时间,避免首个RecvTimeout周期内未收到包就被误判超时
+	atomic.StoreInt64(&c.lastRecvPacketTick, GetCurrentTimeStamp())
 	// 开启收包协程
 	netMgrWg.Add(1)
 	go func() {
@@ -236,11 +238,11 @@ func (c *WsConnection) writeLoop(ctx context.Context) {
 					return
 				}
 				closeTimer := time.NewTimer(time.Second)
-			select {
-			case <-c.readStopNotifyChan:
-			case <-closeTimer.C:
-			}
-			closeTimer.Stop()
+				select {
+				case <-c.readStopNotifyChan:
+				case <-closeTimer.C:
+				}
+				closeTimer.Stop()
 			}
 			return
 		}

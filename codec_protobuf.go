@@ -102,7 +102,8 @@ func (c *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]byt
 		headerLen += 4
 		headerFlags |= ErrorCode
 	}
-	// headerData 切片引用栈数组,不会逃逸(仅在无Encoder时直接返回)
+	// headerData 切片引用headerBuf,放入返回值后逃逸到堆
+	// 相比之前多次小make,统一为一次连续分配
 	headerData := headerBuf[:headerLen]
 	var messageBytes []byte
 	if protoMessage != nil {
