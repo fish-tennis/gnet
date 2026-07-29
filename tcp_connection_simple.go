@@ -322,13 +322,12 @@ func (c *TcpConnectionSimple) Close() {
 		atomic.StoreInt32(&c.isConnected, 0)
 		if c.conn != nil {
 			c.conn.Close()
-			//c.conn = nil
 		}
 		if c.handler != nil {
-			c.handler.OnDisconnected(c)
+			safeCall(func() { c.handler.OnDisconnected(c) })
 		}
 		if c.onClose != nil {
-			c.onClose(c)
+			safeCall(func() { c.onClose(c) })
 		}
 		if c.sendPacketCache != nil {
 			close(c.sendPacketCache)

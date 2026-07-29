@@ -14,6 +14,10 @@ type WsListener struct {
 	upgrader websocket.Upgrader
 	// http server,用于优雅关闭
 	httpServer *http.Server
+	// 底层net.Listener,用于获取Addr和关闭
+	netListener net.Listener
+	// Serve退出通知
+	serveDone chan struct{}
 
 	acceptConnectionConfig  ConnectionConfig
 	acceptConnectionCodec   Codec
@@ -73,7 +77,10 @@ func (l *WsListener) Broadcast(packet Packet) {
 }
 
 func (l *WsListener) Addr() net.Addr {
-	return nil
+	if l.netListener == nil {
+		return nil
+	}
+	return l.netListener.Addr()
 }
 
 // 关闭监听,并关闭管理的连接
@@ -107,7 +114,9 @@ func (l *WsListener) IsRunning() bool {
 }
 
 func (l *WsListener) Start(ctx context.Context, listenAddress string, checkOrigin func(r *http.Request) bool) bool {
-	http.HandleFunc(l.config.Path, func(w http.ResponseWriter, r *http.Request) {
+	// 使用独立的ServeMux,避免多个WsListener之间使用全局DefaultServeMux冲突
+	mux := http.NewServeMux()
+	mux.HandleFunc(l.config.Path, func(w http.ResponseWriter, r *http.Request) {
 		l.serve(ctx, w, r)
 	})
 	l.upgrader = websocket.Upgrader{
@@ -121,11 +130,13 @@ func (l *WsListener) Start(ctx context.Context, listenAddress string, checkOrigi
 		logger.Error("Listen Failed %v: %v", l.GetListenerId(), err.Error())
 		return false
 	}
+	l.netListener = ln
 	logger.Debug("WsListener Start %v", l.GetListenerId())
 
 	// 监听协程
 	atomic.StoreInt32(&l.isRunning, 1)
-	l.httpServer = &http.Server{Handler: http.DefaultServeMux}
+	l.serveDone = make(chan struct{}, 1)
+	l.httpServer = &http.Server{Handler: mux}
 	go func() {
 		var err error
 		if l.config.CertFile != "" {
@@ -136,21 +147,22 @@ func (l *WsListener) Start(ctx context.Context, listenAddress string, checkOrigi
 		if err != nil && err != http.ErrServerClosed {
 			atomic.StoreInt32(&l.isRunning, 0)
 			logger.Error("Serve failed %v: %v", l.GetListenerId(), err.Error())
-			return
 		}
+		l.serveDone <- struct{}{}
 	}()
 
-	// 关闭响应协程
+	// 关闭响应协程:同时监听ctx取消和Serve退出
 	l.netMgrWg.Add(1)
 	go func() {
 		defer l.netMgrWg.Done()
-		for l.IsRunning() {
-			select {
-			// 关闭通知
-			case <-ctx.Done():
-				logger.Debug("recv closeNotify %v", l.GetListenerId())
+		select {
+		case <-ctx.Done():
+			logger.Debug("recv closeNotify %v", l.GetListenerId())
+			l.Close()
+		case <-l.serveDone:
+			// Serve异常退出,主动关闭
+			if l.IsRunning() {
 				l.Close()
-				return
 			}
 		}
 	}()

@@ -46,9 +46,10 @@ type PacketHandler func(connection Connection, packet Packet)
 type DefaultConnectionHandler struct {
 	// 注册消息的处理函数map
 	//  registered map of PacketCommand and PacketHandler
-	//  仅在初始化阶段修改,readLoop启动后冻结,之后调用Register会panic
+	// NOTE: PacketHandlers 非并发安全,必须在连接Start之前完成所有Register/RegisterCreator,
+	//        readLoop启动后(即首包到达时)会通过frozen标记冻结,之后Register变为无效(静默return)
 	PacketHandlers map[PacketCommand]PacketHandler
-	// 标记是否已冻结,冻结后不允许再修改PacketHandlers
+	// 标记是否已冻结,冻结后Register/RegisterCreator不再生效
 	frozen int32 // 0:可修改 1:已冻结
 	// 未注册消息的处理函数
 	//  packetHandler for unregistered PacketCommand
@@ -90,6 +91,8 @@ func (h *DefaultConnectionHandler) OnRecvPacket(connection Connection, packet Pa
 		}
 	}()
 	// 首次收包时冻结,此后不允许再Register
+	// NOTE: 此处与Register之间理论上存在极小的竞态窗口,但frozen只是尽力而为的标记,
+	//        业务层应确保在Start之前完成所有注册,不要在readLoop启动后再Register
 	atomic.StoreInt32(&h.frozen, 1)
 	if packetHandler, ok := h.PacketHandlers[packet.Command()]; ok {
 		if packetHandler != nil {
@@ -122,7 +125,7 @@ func (h *DefaultConnectionHandler) GetCodec() Codec {
 
 // 注册消息号和消息回调,proto.Message的映射
 // handler在TcpConnection的read协程中被调用
-// NOTE: 仅在初始化阶段(连接Start之前)调用,readLoop启动后会panic
+// NOTE: 仅在初始化阶段(连接Start之前)调用,readLoop启动后会无效
 //
 //	register PacketCommand,PacketHandler,proto.Message
 func (h *DefaultConnectionHandler) Register(packetCommand PacketCommand, handler PacketHandler, protoMessage proto.Message) {
@@ -138,7 +141,7 @@ func (h *DefaultConnectionHandler) Register(packetCommand PacketCommand, handler
 }
 
 // 注册消息号、消息回调和消息工厂函数,完全无反射
-// NOTE: 仅在初始化阶段(连接Start之前)调用,readLoop启动后会panic
+// NOTE: 仅在初始化阶段(连接Start之前)调用,readLoop启动后会无效
 //
 //	register PacketCommand,PacketHandler,ProtoMessageCreator
 func (h *DefaultConnectionHandler) RegisterCreator(packetCommand PacketCommand, handler PacketHandler, creator ProtoMessageCreator) {

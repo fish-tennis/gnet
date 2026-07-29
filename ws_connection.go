@@ -38,13 +38,12 @@ func (c *WsConnection) Close() {
 		atomic.StoreInt32(&c.isConnected, 0)
 		if c.conn != nil {
 			_ = c.conn.Close()
-			//c.conn = nil
 		}
 		if c.handler != nil {
-			c.handler.OnDisconnected(c)
+			safeCall(func() { c.handler.OnDisconnected(c) })
 		}
 		if c.onClose != nil {
-			c.onClose(c)
+			safeCall(func() { c.onClose(c) })
 		}
 		if c.sendPacketCache != nil {
 			close(c.sendPacketCache)
@@ -58,8 +57,11 @@ func (c *WsConnection) Connect(address string) bool {
 	if c.config.Scheme == "wss" {
 		dialer.TLSClientConfig = &tls.Config{RootCAs: nil, InsecureSkipVerify: c.config.InsecureSkipVerify}
 	}
-	conn, _, err := dialer.Dial(u.String(), nil)
+	conn, resp, err := dialer.Dial(u.String(), nil)
 	if err != nil {
+		if resp != nil {
+			resp.Body.Close()
+		}
 		atomic.StoreInt32(&c.isConnected, 0)
 		logger.Error("Connect failed %v: %v", c.GetConnectionId(), err.Error())
 		if c.handler != nil {
@@ -125,6 +127,16 @@ func (c *WsConnection) readLoop() {
 	if c.config.MaxPacketSize > 0 {
 		c.conn.SetReadLimit(int64(c.config.MaxPacketSize))
 	}
+	// 收到ping/pong时更新最近收包时间,避免只靠数据消息保活时误判超时
+	c.conn.SetPongHandler(func(string) error {
+		atomic.StoreInt64(&c.lastRecvPacketTick, GetCurrentTimeStamp())
+		return nil
+	})
+	defaultPingHandler := c.conn.PingHandler()
+	c.conn.SetPingHandler(func(appData string) error {
+		atomic.StoreInt64(&c.lastRecvPacketTick, GetCurrentTimeStamp())
+		return defaultPingHandler(appData)
+	})
 	for c.IsConnected() {
 		if c.config.RecvTimeout > 0 {
 			c.conn.SetReadDeadline(time.Now().Add(time.Duration(c.config.RecvTimeout) * time.Second))
@@ -217,10 +229,12 @@ func (c *WsConnection) writeLoop(ctx context.Context) {
 					logger.Debug("writeCloseMessageErr %v err:%v", c.GetConnectionId(), err.Error())
 					return
 				}
-				select {
-				case <-c.readStopNotifyChan:
-				case <-time.After(time.Second):
-				}
+				closeTimer := time.NewTimer(time.Second)
+			select {
+			case <-c.readStopNotifyChan:
+			case <-closeTimer.C:
+			}
+			closeTimer.Stop()
 			}
 			return
 		}

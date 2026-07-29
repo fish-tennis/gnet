@@ -214,42 +214,42 @@ func (c *TcpConnection) writeLoop(ctx context.Context) {
 	var pendingDelayData []byte
 	for c.IsConnected() {
 		var delaySendDecodePacketData []byte
-		// 如果上一轮还有未发送完的延迟数据,优先处理它
-		if pendingDelayData != nil {
-			delaySendDecodePacketData = pendingDelayData
-			pendingDelayData = nil
-		} else {
-			select {
-			case packet := <-c.sendPacketCache:
-				if packet == nil {
-					if c.IsConnected() {
-						logger.Error("packet==nil %v", c.GetConnectionId())
-					}
-					return
+		select {
+		case packet := <-c.sendPacketCache:
+			if packet == nil {
+				if c.IsConnected() {
+					logger.Error("packet==nil %v", c.GetConnectionId())
 				}
-				hasError := false
-				delaySendDecodePacketData, hasError = c.writePacket(packet)
-				if hasError {
-					return
-				}
-
-			case <-recvTimeoutTimer.C:
-				if !c.checkRecvTimeout(recvTimeoutTimer) {
-					return
-				}
-
-			case <-heartBeatTimer.C:
-				delaySendDecodePacketData = c.onHeartBeatTimeUp(heartBeatTimer)
-
-			case <-c.readStopNotifyChan:
-				logger.Debug("recv readStopNotify %v", c.GetConnectionId())
-				return
-
-			case <-ctx.Done():
-				// 收到外部的关闭通知
-				logger.Debug("recv closeNotify %v", c.GetConnectionId())
 				return
 			}
+			hasError := false
+			delaySendDecodePacketData, hasError = c.writePacket(packet)
+			if hasError {
+				return
+			}
+
+		case <-recvTimeoutTimer.C:
+			if !c.checkRecvTimeout(recvTimeoutTimer) {
+				return
+			}
+
+		case <-heartBeatTimer.C:
+			delaySendDecodePacketData = c.onHeartBeatTimeUp(heartBeatTimer)
+
+		case <-c.readStopNotifyChan:
+			logger.Debug("recv readStopNotify %v", c.GetConnectionId())
+			return
+
+		case <-ctx.Done():
+			// 收到外部的关闭通知
+			logger.Debug("recv closeNotify %v", c.GetConnectionId())
+			return
+		}
+
+		// 合并上一轮遗留的未发送数据(必须在select之后,确保心跳/超时事件不被跳过)
+		if pendingDelayData != nil {
+			delaySendDecodePacketData = append(pendingDelayData, delaySendDecodePacketData...)
+			pendingDelayData = nil
 		}
 
 		// sendEncodedBuffer返回未能写入的剩余数据
@@ -373,13 +373,13 @@ func (c *TcpConnection) Close() {
 		atomic.StoreInt32(&c.isConnected, 0)
 		if c.conn != nil {
 			c.conn.Close()
-			//c.conn = nil
 		}
+		// 用safeCall包装回调,确保回调panic时channel仍能被关闭
 		if c.handler != nil {
-			c.handler.OnDisconnected(c)
+			safeCall(func() { c.handler.OnDisconnected(c) })
 		}
 		if c.onClose != nil {
-			c.onClose(c)
+			safeCall(func() { c.onClose(c) })
 		}
 		if c.sendPacketCache != nil {
 			close(c.sendPacketCache)

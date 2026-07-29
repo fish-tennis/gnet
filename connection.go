@@ -342,7 +342,7 @@ func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOp
 		if replyPacket.Message() != nil {
 			valueReply := reflect.ValueOf(reply)
 			if valueReply.Kind() != reflect.Ptr {
-				return errors.New("request is not a ptr")
+				return errors.New("reply is not a ptr")
 			}
 			dstMsg, srcMsg := reply.ProtoReflect(), replyPacket.Message().ProtoReflect()
 			if dstMsg.Descriptor() != srcMsg.Descriptor() {
@@ -371,3 +371,13 @@ func NewConnectionId() uint32 {
 type ConnectionCreator func(config *ConnectionConfig) Connection
 
 type AcceptConnectionCreator func(conn net.Conn, config *ConnectionConfig) Connection
+
+// safeCall 安全执行回调,防止panic影响后续逻辑(如channel关闭)
+func safeCall(f func()) {
+	defer func() {
+		if err := recover(); err != nil {
+			logger.Error("safeCall panic: %v", err)
+		}
+	}()
+	f()
+}

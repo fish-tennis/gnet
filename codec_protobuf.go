@@ -87,7 +87,10 @@ func (c *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]byt
 	// write PacketCommand
 	commandBytes := make([]byte, 2)
 	binary.LittleEndian.PutUint16(commandBytes, uint16(packet.Command()))
-	rpcCallId := packet.(*ProtoPacket).rpcCallId
+	var rpcCallId uint32
+	if p, ok := packet.(*ProtoPacket); ok {
+		rpcCallId = p.rpcCallId
+	}
 	var rpcCallIdBytes []byte
 	// rpcCall才会写入rpcCallId
 	if rpcCallId > 0 {
