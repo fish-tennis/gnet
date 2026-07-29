@@ -244,17 +244,19 @@ func (c *baseConnection) SendPacket(packet Packet, opts ...SendOption) (ret bool
 			}
 		}
 	}()
-	sendOpts := defaultSendOptions()
+	// 使用值类型避免堆分配
+	sendOpts := sendOptions{timeout: DefaultRpcTimeout}
 	for _, opt := range opts {
-		opt.apply(sendOpts)
+		opt.apply(&sendOpts)
 	}
 	if sendOpts.timeout > 0 {
-		sendTimeout := time.After(sendOpts.timeout)
+		sendTimer := time.NewTimer(sendOpts.timeout)
+		defer sendTimer.Stop()
 		for {
 			select {
 			case c.sendPacketCache <- packet:
 				return true
-			case <-sendTimeout:
+			case <-sendTimer.C:
 				return false
 			case <-c.writeStopNotifyChan:
 				return false
@@ -312,9 +314,10 @@ func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOp
 			}
 		}
 	}()
-	sendOpts := defaultSendOptions()
+	// 使用值类型避免堆分配
+	sendOpts := sendOptions{timeout: DefaultRpcTimeout}
 	for _, opt := range opts {
-		opt.apply(sendOpts)
+		opt.apply(&sendOpts)
 	}
 	call := c.rpcCalls.newRpcCall()
 	request.SetRpcCallId(call.id)
@@ -325,9 +328,10 @@ func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOp
 		c.rpcCalls.removeReply(call.id)
 		return errors.New("connection closed")
 	}
-	timeout := time.After(sendOpts.timeout)
+	rpcTimer := time.NewTimer(sendOpts.timeout)
+	defer rpcTimer.Stop()
 	select {
-	case <-timeout:
+	case <-rpcTimer.C:
 		c.rpcCalls.removeReply(call.id)
 		return errors.New("timeout")
 	case replyPacket := <-call.reply:

@@ -75,13 +75,13 @@ func (h *SimplePacketHeader) WriteTo(packetHeaderData []byte) {
 // a simple protobuf codec for TcpConnectionSimple, without RingBuffer
 // use SimplePacketHeader as PacketHeader
 type SimpleProtoCodec struct {
-	// 消息号和proto.Message type的映射表
-	MessageCreatorMap map[PacketCommand]reflect.Type
+	// 消息号和proto.Message工厂函数的映射表
+	MessageCreatorMap map[PacketCommand]ProtoMessageCreator
 }
 
 func NewSimpleProtoCodec() *SimpleProtoCodec {
 	codec := &SimpleProtoCodec{
-		MessageCreatorMap: make(map[PacketCommand]reflect.Type),
+		MessageCreatorMap: make(map[PacketCommand]ProtoMessageCreator),
 	}
 	return codec
 }
@@ -98,7 +98,10 @@ func (c *SimpleProtoCodec) Register(command PacketCommand, protoMessage proto.Me
 		c.MessageCreatorMap[command] = nil
 		return
 	}
-	c.MessageCreatorMap[command] = reflect.TypeOf(protoMessage).Elem()
+	reflectType := reflect.TypeOf(protoMessage).Elem()
+	c.MessageCreatorMap[command] = func() proto.Message {
+		return reflect.New(reflectType).Interface().(proto.Message)
+	}
 }
 
 func (c *SimpleProtoCodec) CreatePacketHeader(connection Connection, packet Packet, packetData []byte) PacketHeader {
@@ -174,9 +177,9 @@ func (c *SimpleProtoCodec) Decode(connection Connection, data []byte) (newPacket
 		errorCode = binary.LittleEndian.Uint32(decodedPacketData[:4])
 		decodedPacketData = decodedPacketData[4:]
 	}
-	if protoMessageType, ok := c.MessageCreatorMap[PacketCommand(command)]; ok {
-		if protoMessageType != nil {
-			newProtoMessage := reflect.New(protoMessageType).Interface().(proto.Message)
+	if messageCreator, ok := c.MessageCreatorMap[PacketCommand(command)]; ok {
+		if messageCreator != nil {
+			newProtoMessage := messageCreator()
 			// TODO: check len(decodedPacketData) > 0?
 			err = proto.Unmarshal(decodedPacketData, newProtoMessage)
 			if err != nil {

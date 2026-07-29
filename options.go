@@ -25,12 +25,6 @@ type sendOptions struct {
 	discard bool
 }
 
-func defaultSendOptions() *sendOptions {
-	return &sendOptions{
-		timeout: DefaultRpcTimeout,
-	}
-}
-
 type TimeoutOption struct {
 	Timeout time.Duration
 }
@@ -45,39 +39,35 @@ func Timeout(timeout time.Duration) SendOption {
 	}
 }
 
-// funcSendOption wraps a function that modifies sendOptions into an
-// implementation of the SendOption interface.
-type funcSendOption struct {
-	f func(*sendOptions)
-}
-
-func (fso *funcSendOption) apply(so *sendOptions) {
-	fso.f(so)
-}
-
-func newFuncSendOption(f func(*sendOptions)) *funcSendOption {
-	return &funcSendOption{
-		f: f,
-	}
-}
-
 // 阻塞模式(TODO)
+type blockOption struct{}
+
+func (blockOption) apply(options *sendOptions) {
+	options.block = true
+}
+
 func WithBlock() SendOption {
-	return newFuncSendOption(func(options *sendOptions) {
-		options.block = true
-	})
+	return blockOption{}
 }
 
 // 消息满时丢弃
+type discardOption struct{}
+
+func (discardOption) apply(options *sendOptions) {
+	options.discard = true
+}
+
 func WithDiscard() SendOption {
-	return newFuncSendOption(func(options *sendOptions) {
-		options.discard = true
-	})
+	return discardOption{}
 }
 
 // 永不超时
+type infiniteTimeoutOption struct{}
+
+func (infiniteTimeoutOption) apply(options *sendOptions) {
+	options.timeout = math.MaxInt64
+}
+
 func WithInfiniteTimeout() SendOption {
-	return newFuncSendOption(func(options *sendOptions) {
-		options.timeout = math.MaxInt64
-	})
+	return infiniteTimeoutOption{}
 }

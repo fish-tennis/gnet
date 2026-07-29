@@ -30,17 +30,25 @@ type ProtoCodec struct {
 	// decoder before proto.Message deserialize
 	ProtoPacketBytesDecoder func(packetData []byte) []byte
 
-	// 消息号和proto.Message type的映射表
-	MessageCreatorMap map[PacketCommand]reflect.Type
+	// 消息号和proto.Message工厂函数的映射表
+	MessageCreatorMap map[PacketCommand]ProtoMessageCreator
 }
 
 func NewProtoCodec(protoMessageTypeMap map[PacketCommand]reflect.Type) *ProtoCodec {
 	codec := &ProtoCodec{
 		RingBufferCodec:   RingBufferCodec{},
-		MessageCreatorMap: protoMessageTypeMap,
+		MessageCreatorMap: make(map[PacketCommand]ProtoMessageCreator),
 	}
-	if codec.MessageCreatorMap == nil {
-		codec.MessageCreatorMap = make(map[PacketCommand]reflect.Type)
+	// 兼容旧的map[PacketCommand]reflect.Type初始化方式
+	if protoMessageTypeMap != nil {
+		for cmd, t := range protoMessageTypeMap {
+			if t != nil {
+				reflectType := t
+				codec.MessageCreatorMap[cmd] = func() proto.Message {
+					return reflect.New(reflectType).Interface().(proto.Message)
+				}
+			}
+		}
 	}
 	codec.DataEncoder = codec.EncodePacket
 	codec.DataDecoder = codec.DecodePacket
@@ -55,7 +63,11 @@ func (c *ProtoCodec) Register(command PacketCommand, protoMessage proto.Message)
 		c.MessageCreatorMap[command] = nil
 		return
 	}
-	c.MessageCreatorMap[command] = reflect.TypeOf(protoMessage).Elem()
+	// 用闭包捕获reflect.Type,后续创建消息时直接调用工厂函数,避免每次reflect.New
+	reflectType := reflect.TypeOf(protoMessage).Elem()
+	c.MessageCreatorMap[command] = func() proto.Message {
+		return reflect.New(reflectType).Interface().(proto.Message)
+	}
 }
 
 func (c *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]byte, uint8) {
@@ -140,9 +152,9 @@ func (c *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketHead
 			decodedPacketData = decodedPacketData[4:]
 		}
 	}
-	if protoMessageType, ok := c.MessageCreatorMap[PacketCommand(command)]; ok {
-		if protoMessageType != nil {
-			newProtoMessage := reflect.New(protoMessageType).Interface().(proto.Message)
+	if messageCreator, ok := c.MessageCreatorMap[PacketCommand(command)]; ok {
+		if messageCreator != nil {
+			newProtoMessage := messageCreator()
 			// TODO: check len(decodedPacketData) > 0?
 			err := proto.Unmarshal(decodedPacketData, newProtoMessage)
 			if err != nil {
