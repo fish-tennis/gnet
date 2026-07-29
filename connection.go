@@ -156,9 +156,8 @@ type baseConnection struct {
 	// handler
 	handler ConnectionHandler
 	// 编解码接口
+	// NOTE: codec只在初始化时设置,运行时不修改,无需加锁
 	codec Codec
-	// 保护codec并发读写
-	codecLock sync.RWMutex
 	// 关联数据
 	//  the associated tag
 	tag interface{}
@@ -187,14 +186,11 @@ func (c *baseConnection) IsConnected() bool {
 }
 
 func (c *baseConnection) GetCodec() Codec {
-	c.codecLock.RLock()
-	defer c.codecLock.RUnlock()
 	return c.codec
 }
 
+// SetCodec 仅在初始化阶段(连接Start之前)调用,运行时调用会导致readLoop/writeLoop编解码不一致
 func (c *baseConnection) SetCodec(codec Codec) {
-	c.codecLock.Lock()
-	defer c.codecLock.Unlock()
 	c.codec = codec
 }
 
