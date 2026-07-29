@@ -160,10 +160,8 @@ func (l *WsListener) Start(ctx context.Context, listenAddress string, checkOrigi
 			logger.Debug("recv closeNotify %v", l.GetListenerId())
 			l.Close()
 		case <-l.serveDone:
-			// Serve异常退出,主动关闭
-			if l.IsRunning() {
-				l.Close()
-			}
+			// Serve退出(正常或异常),主动关闭(closeOnce保证幂等)
+			l.Close()
 		}
 	}()
 

@@ -26,10 +26,16 @@ type WsConnection struct {
 }
 
 func (c *WsConnection) LocalAddr() net.Addr {
+	if c.conn == nil {
+		return nil
+	}
 	return c.conn.LocalAddr()
 }
 
 func (c *WsConnection) RemoteAddr() net.Addr {
+	if c.conn == nil {
+		return nil
+	}
 	return c.conn.RemoteAddr()
 }
 
@@ -138,9 +144,6 @@ func (c *WsConnection) readLoop() {
 		return defaultPingHandler(appData)
 	})
 	for c.IsConnected() {
-		if c.config.RecvTimeout > 0 {
-			c.conn.SetReadDeadline(time.Now().Add(time.Duration(c.config.RecvTimeout) * time.Second))
-		}
 		messageType, data, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
@@ -167,6 +170,9 @@ func (c *WsConnection) readLoop() {
 		// 最近收到完整数据包的时间
 		atomic.StoreInt64(&c.lastRecvPacketTick, GetCurrentTimeStamp())
 		if c.handler != nil {
+			if c.rpcCalls.putReply(newPacket) {
+				continue
+			}
 			c.handler.OnRecvPacket(c, newPacket)
 		}
 	}

@@ -24,6 +24,8 @@ type TcpConnectionSimple struct {
 	onClose func(connection Connection)
 	// 最近收到完整数据包的时间(时间戳:秒)
 	lastRecvPacketTick int64
+	// 收包复用buffer,避免每包make
+	readHeaderBuf []byte
 }
 
 func NewTcpConnectionSimple(config *ConnectionConfig) *TcpConnectionSimple {
@@ -129,25 +131,27 @@ func (c *TcpConnectionSimple) readLoop() {
 
 	logger.Debug("readLoop begin %v isConnector:%v", c.GetConnectionId(), c.IsConnector())
 	codec := c.GetCodec()
+	headerSize := int(codec.PacketHeaderSize())
+	// 预分配header buffer,整个连接生命周期复用
+	c.readHeaderBuf = make([]byte, headerSize)
 	for c.IsConnected() {
 		// 先读取消息头
 		// read packet header first
-		messageHeaderData := make([]byte, codec.PacketHeaderSize())
-		readHeaderSize, err := io.ReadFull(c.conn, messageHeaderData)
+		readHeaderSize, err := io.ReadFull(c.conn, c.readHeaderBuf)
 		if err != nil {
 			if err != io.EOF {
 				logger.Debug("readLoop %v err:%v", c.GetConnectionId(), err.Error())
 			}
 			break
 		}
-		if readHeaderSize != len(messageHeaderData) {
+		if readHeaderSize != headerSize {
 			break
 		}
 		newPacketHeader := codec.CreatePacketHeader(c, nil, nil)
-		newPacketHeader.ReadFrom(messageHeaderData)
+		newPacketHeader.ReadFrom(c.readHeaderBuf)
 		packetDataLen := int(newPacketHeader.Len())
-		fullPacketData := make([]byte, len(messageHeaderData)+packetDataLen)
-		copy(fullPacketData, messageHeaderData)
+		fullPacketData := make([]byte, headerSize+packetDataLen)
+		copy(fullPacketData, c.readHeaderBuf)
 		if packetDataLen > 0 {
 			// 读取消息体
 			// read packet body
@@ -173,6 +177,9 @@ func (c *TcpConnectionSimple) readLoop() {
 		// 最近收到完整数据包的时间
 		atomic.StoreInt64(&c.lastRecvPacketTick, GetCurrentTimeStamp())
 		if c.handler != nil {
+			if c.rpcCalls.putReply(newPacket) {
+				continue
+			}
 			c.handler.OnRecvPacket(c, newPacket)
 		}
 	}
@@ -238,41 +245,22 @@ func (c *TcpConnectionSimple) writePacket(packet Packet) bool {
 	packetData := codec.Encode(c, packet)
 	// 包头数据
 	newPacketHeader := codec.CreatePacketHeader(c, packet, packetData)
-	packetHeaderData := make([]byte, codec.PacketHeaderSize())
-	newPacketHeader.WriteTo(packetHeaderData)
-	writeCount := 0
-	// 先发送包头数据
-	for writeCount < len(packetHeaderData) {
-		if c.config.WriteTimeout > 0 {
-			setTimeoutErr := c.conn.SetWriteDeadline(time.Now().Add(time.Duration(c.config.WriteTimeout) * time.Second))
-			// Q:什么情况会导致SetWriteDeadline返回err?
-			if setTimeoutErr != nil {
-				// ...
-				logger.Debug("%v setTimeoutErr:%v", c.GetConnectionId(), setTimeoutErr.Error())
-				return false
-			}
-		}
-		n, err := c.conn.Write(packetHeaderData[writeCount:])
-		if err != nil {
-			logger.Error("%v send error:%v", c.GetConnectionId(), err.Error())
+	headerSize := int(codec.PacketHeaderSize())
+	// 合并包头和包体到同一buffer,一次Write发送
+	fullData := make([]byte, headerSize+len(packetData))
+	newPacketHeader.WriteTo(fullData)
+	copy(fullData[headerSize:], packetData)
+	if c.config.WriteTimeout > 0 {
+		setTimeoutErr := c.conn.SetWriteDeadline(time.Now().Add(time.Duration(c.config.WriteTimeout) * time.Second))
+		if setTimeoutErr != nil {
+			logger.Debug("%v setTimeoutErr:%v", c.GetConnectionId(), setTimeoutErr.Error())
 			return false
 		}
-		writeCount += n
 	}
-
-	writeCount = 0
-	// 再发送包体数据
-	for writeCount < len(packetData) {
-		if c.config.WriteTimeout > 0 {
-			setTimeoutErr := c.conn.SetWriteDeadline(time.Now().Add(time.Duration(c.config.WriteTimeout) * time.Second))
-			// Q:什么情况会导致SetWriteDeadline返回err?
-			if setTimeoutErr != nil {
-				// ...
-				logger.Debug("%v setTimeoutErr:%v", c.GetConnectionId(), setTimeoutErr.Error())
-				return false
-			}
-		}
-		n, err := c.conn.Write(packetData[writeCount:])
+	// 一次性发送,减少syscall
+	writeCount := 0
+	for writeCount < len(fullData) {
+		n, err := c.conn.Write(fullData[writeCount:])
 		if err != nil {
 			logger.Error("%v send error:%v", c.GetConnectionId(), err.Error())
 			return false

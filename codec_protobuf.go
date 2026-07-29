@@ -83,28 +83,27 @@ func (c *ProtoCodec) RegisterCreator(command PacketCommand, creator ProtoMessage
 func (c *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]byte, uint8) {
 	protoMessage := packet.Message()
 	headerFlags := uint8(0)
-	// 先写入消息号
-	// write PacketCommand
-	commandBytes := make([]byte, 2)
-	binary.LittleEndian.PutUint16(commandBytes, uint16(packet.Command()))
+	// 用栈数组承载command+rpcCallId+errorCode,避免多次小make分配
+	var headerBuf [10]byte // max: 2(command) + 4(rpcCallId) + 4(errorCode)
+	binary.LittleEndian.PutUint16(headerBuf[:2], uint16(packet.Command()))
+	headerLen := 2
 	var rpcCallId uint32
 	if p, ok := packet.(*ProtoPacket); ok {
 		rpcCallId = p.rpcCallId
 	}
-	var rpcCallIdBytes []byte
 	// rpcCall才会写入rpcCallId
 	if rpcCallId > 0 {
-		rpcCallIdBytes = make([]byte, 4)
-		binary.LittleEndian.PutUint32(rpcCallIdBytes, rpcCallId)
+		binary.LittleEndian.PutUint32(headerBuf[headerLen:], rpcCallId)
+		headerLen += 4
 		headerFlags |= RpcCall
-		//logger.Debug("write rpcCallId:%v", rpcCallId)
 	}
-	var errorCodeBytes []byte
 	if p, ok := packet.(*ProtoPacket); ok && p.errorCode != 0 {
-		errorCodeBytes = make([]byte, 4)
-		binary.LittleEndian.PutUint32(errorCodeBytes, uint32(p.errorCode))
+		binary.LittleEndian.PutUint32(headerBuf[headerLen:], uint32(p.errorCode))
+		headerLen += 4
 		headerFlags |= ErrorCode
 	}
+	// headerData 切片引用栈数组,不会逃逸(仅在无Encoder时直接返回)
+	headerData := headerBuf[:headerLen]
 	var messageBytes []byte
 	if protoMessage != nil {
 		var err error
@@ -121,15 +120,12 @@ func (c *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]byt
 	// 这里可以继续对messageBytes进行编码,如异或,加密,压缩等
 	// you can continue to encode messageBytes here, such as XOR, encryption, compression, etc
 	if c.ProtoPacketBytesEncoder != nil {
-		if rpcCallId > 0 {
-			return c.ProtoPacketBytesEncoder([][]byte{commandBytes, rpcCallIdBytes, errorCodeBytes, messageBytes}), headerFlags
-		}
-		return c.ProtoPacketBytesEncoder([][]byte{commandBytes, errorCodeBytes, messageBytes}), headerFlags
+		// 有Encoder时需要分段传入(可能按段独立编码),headerData需拷贝到堆
+		headerCopy := make([]byte, headerLen)
+		copy(headerCopy, headerData)
+		return c.ProtoPacketBytesEncoder([][]byte{headerCopy, messageBytes}), headerFlags
 	}
-	if rpcCallId > 0 {
-		return [][]byte{commandBytes, rpcCallIdBytes, errorCodeBytes, messageBytes}, headerFlags
-	}
-	return [][]byte{commandBytes, errorCodeBytes, messageBytes}, headerFlags
+	return [][]byte{headerData, messageBytes}, headerFlags
 }
 
 func (c *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketHeader, packetData []byte) Packet {
