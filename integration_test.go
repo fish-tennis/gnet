@@ -427,18 +427,17 @@ func TestBroadcast(t *testing.T) {
 	}
 	defer listener.Close()
 
-	// 创建2个客户端
-	clientCodec := NewProtoCodec(nil)
-	clientHandlers := make([]*DefaultConnectionHandler, 2)
+	// 创建2个客户端,每个客户端使用独立的codec实例
+	// 避免共享codec导致Register写map与readLoop读map之间的数据竞争
 	receivedCount := make([]int32, 2)
 	for i := 0; i < 2; i++ {
 		idx := i
+		clientCodec := NewProtoCodec(nil)
 		ch := NewDefaultConnectionHandler(clientCodec)
 		ch.Register(PacketCommand(pb.CmdTest_Cmd_TestMessage),
 			func(conn Connection, pkt Packet) {
 				atomic.AddInt32(&receivedCount[idx], 1)
 			}, new(pb.TestMessage))
-		clientHandlers[i] = ch
 
 		cfg := defaultTestConfig(clientCodec, ch)
 		c := GetNetMgr().NewConnector(ctx, addr, cfg, fmt.Sprintf("bcast-%d", i))
