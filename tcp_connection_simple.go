@@ -80,6 +80,10 @@ func (c *TcpConnectionSimple) Connect(address string) bool {
 // start read&write goroutine
 func (c *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onClose func(connection Connection)) {
 	c.onClose = onClose
+	// 先通知业务层连接已建立,避免goroutine中的OnDisconnected先于OnConnected触发
+	if c.handler != nil {
+		c.handler.OnConnected(c, true)
+	}
 	// 开启收包协程
 	netMgrWg.Add(1)
 	go func() {
@@ -112,10 +116,6 @@ func (c *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitGrou
 		// 写协程结束了,通知阻塞中的SendPacket结束
 		close(c.writeStopNotifyChan)
 	}(ctx)
-
-	if c.handler != nil {
-		c.handler.OnConnected(c, true)
-	}
 }
 
 // read goroutine

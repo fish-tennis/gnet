@@ -56,7 +56,7 @@ func (c *WsConnection) Connect(address string) bool {
 	u := url.URL{Scheme: c.config.Scheme, Host: address, Path: c.config.Path}
 	dialer := *websocket.DefaultDialer
 	if c.config.Scheme == "wss" {
-		dialer.TLSClientConfig = &tls.Config{RootCAs: nil, InsecureSkipVerify: true}
+		dialer.TLSClientConfig = &tls.Config{RootCAs: nil, InsecureSkipVerify: c.config.InsecureSkipVerify}
 	}
 	conn, _, err := dialer.Dial(u.String(), nil)
 	if err != nil {
@@ -74,6 +74,10 @@ func (c *WsConnection) Connect(address string) bool {
 
 func (c *WsConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onClose func(connection Connection)) {
 	c.onClose = onClose
+	// 先通知业务层连接已建立,避免goroutine中的OnDisconnected先于OnConnected触发
+	if c.handler != nil {
+		c.handler.OnConnected(c, true)
+	}
 	// 开启收包协程
 	netMgrWg.Add(1)
 	go func() {
@@ -106,10 +110,6 @@ func (c *WsConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onCl
 		// 写协程结束了,通知阻塞中的SendPacket结束
 		close(c.writeStopNotifyChan)
 	}(ctx)
-
-	if c.handler != nil {
-		c.handler.OnConnected(c, true)
-	}
 }
 
 func (c *WsConnection) readLoop() {

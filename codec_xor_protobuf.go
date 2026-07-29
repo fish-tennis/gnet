@@ -9,6 +9,9 @@ type XorProtoCodec struct {
 }
 
 func NewXorProtoCodec(xorKey []byte, protoMessageTypeMap map[PacketCommand]reflect.Type) *XorProtoCodec {
+	if len(xorKey) == 0 {
+		return nil
+	}
 	codec := &XorProtoCodec{
 		ProtoCodec: NewProtoCodec(protoMessageTypeMap),
 		xorKey:     xorKey,

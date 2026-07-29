@@ -80,13 +80,18 @@ func (l *TcpListener) Broadcast(packet Packet) {
 
 // range for accepted connections
 func (l *TcpListener) RangeConnections(f func(conn Connection) bool) {
+	// 先快照连接列表,释放锁后再回调,避免回调中调用Close等方法导致死锁
+	conns := make([]Connection, 0, len(l.connectionMap))
 	l.connectionMapLock.RLock()
-	defer l.connectionMapLock.RUnlock()
 	for _, conn := range l.connectionMap {
 		if conn.IsConnected() {
-			if !f(conn) {
-				return
-			}
+			conns = append(conns, conn)
+		}
+	}
+	l.connectionMapLock.RUnlock()
+	for _, conn := range conns {
+		if !f(conn) {
+			return
 		}
 	}
 }
@@ -205,6 +210,10 @@ func (l *TcpListener) acceptLoop(ctx context.Context) {
 			l.connectionMapLock.Lock()
 			l.connectionMap[newTcpConn.GetConnectionId()] = newTcpConn
 			l.connectionMapLock.Unlock()
+			// 先通知业务层连接已建立,避免Start内部goroutine中的OnDisconnected先于OnConnectionConnected触发
+			if l.handler != nil {
+				l.handler.OnConnectionConnected(l, newTcpConn)
+			}
 			newTcpConn.Start(ctx, l.netMgrWg, func(connection Connection) {
 				if l.handler != nil {
 					l.handler.OnConnectionDisconnect(l, connection)
@@ -213,9 +222,6 @@ func (l *TcpListener) acceptLoop(ctx context.Context) {
 				delete(l.connectionMap, connection.GetConnectionId())
 				l.connectionMapLock.Unlock()
 			})
-			if l.handler != nil {
-				l.handler.OnConnectionConnected(l, newTcpConn)
-			}
 		}()
 	}
 }

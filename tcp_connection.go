@@ -100,6 +100,10 @@ func (c *TcpConnection) Connect(address string) bool {
 // start read&write goroutine
 func (c *TcpConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onClose func(connection Connection)) {
 	c.onClose = onClose
+	// 先通知业务层连接已建立,避免goroutine中的OnDisconnected先于OnConnected触发
+	if c.handler != nil {
+		c.handler.OnConnected(c, true)
+	}
 	// 开启收包协程
 	netMgrWg.Add(1)
 	go func() {
@@ -132,10 +136,6 @@ func (c *TcpConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onC
 		// 写协程结束了,通知阻塞中的SendPacket结束
 		close(c.writeStopNotifyChan)
 	}(ctx)
-
-	if c.handler != nil {
-		c.handler.OnConnected(c, true)
-	}
 }
 
 // read goroutine
@@ -210,44 +210,54 @@ func (c *TcpConnection) writeLoop(ctx context.Context) {
 	heartBeatTimer := time.NewTimer(time.Second * time.Duration(c.config.HeartBeatInterval))
 	defer heartBeatTimer.Stop()
 	c.sendBuffer = c.createSendBuffer()
+	// 跨轮保留未能写入sendBuffer的延迟数据,防止丢失
+	var pendingDelayData []byte
 	for c.IsConnected() {
 		var delaySendDecodePacketData []byte
-		select {
-		case packet := <-c.sendPacketCache:
-			if packet == nil {
-				if c.IsConnected() {
-					logger.Error("packet==nil %v", c.GetConnectionId())
+		// 如果上一轮还有未发送完的延迟数据,优先处理它
+		if pendingDelayData != nil {
+			delaySendDecodePacketData = pendingDelayData
+			pendingDelayData = nil
+		} else {
+			select {
+			case packet := <-c.sendPacketCache:
+				if packet == nil {
+					if c.IsConnected() {
+						logger.Error("packet==nil %v", c.GetConnectionId())
+					}
+					return
 				}
+				hasError := false
+				delaySendDecodePacketData, hasError = c.writePacket(packet)
+				if hasError {
+					return
+				}
+
+			case <-recvTimeoutTimer.C:
+				if !c.checkRecvTimeout(recvTimeoutTimer) {
+					return
+				}
+
+			case <-heartBeatTimer.C:
+				delaySendDecodePacketData = c.onHeartBeatTimeUp(heartBeatTimer)
+
+			case <-c.readStopNotifyChan:
+				logger.Debug("recv readStopNotify %v", c.GetConnectionId())
+				return
+
+			case <-ctx.Done():
+				// 收到外部的关闭通知
+				logger.Debug("recv closeNotify %v", c.GetConnectionId())
 				return
 			}
-			hasError := false
-			delaySendDecodePacketData, hasError = c.writePacket(packet)
-			if hasError {
-				return
-			}
-
-		case <-recvTimeoutTimer.C:
-			if !c.checkRecvTimeout(recvTimeoutTimer) {
-				return
-			}
-
-		case <-heartBeatTimer.C:
-			delaySendDecodePacketData = c.onHeartBeatTimeUp(heartBeatTimer)
-
-		case <-c.readStopNotifyChan:
-			logger.Debug("recv readStopNotify %v", c.GetConnectionId())
-			return
-
-		case <-ctx.Done():
-			// 收到外部的关闭通知
-			logger.Debug("recv closeNotify %v", c.GetConnectionId())
-			return
 		}
 
-		sendErr := c.sendEncodedBuffer(delaySendDecodePacketData)
+		// sendEncodedBuffer返回未能写入的剩余数据
+		remaining, sendErr := c.sendEncodedBufferEx(delaySendDecodePacketData)
 		if sendErr != nil {
 			return
 		}
+		pendingDelayData = remaining
 	}
 }
 
@@ -288,9 +298,9 @@ func (c *TcpConnection) writePacket(packet Packet) (delaySendDecodePacketData []
 	return
 }
 
-func (c *TcpConnection) sendEncodedBuffer(delaySendDecodePacketData []byte) error {
+func (c *TcpConnection) sendEncodedBufferEx(delaySendDecodePacketData []byte) (remaining []byte, err error) {
 	if c.sendBuffer.UnReadLength() == 0 {
-		return nil
+		return delaySendDecodePacketData, nil
 	}
 	// 可读数据有可能分别存在数组的尾部和头部,所以需要循环发送,有可能需要发送多次
 	// the data may be separate at tail and head of the RingBuffer, so we need to send loop
@@ -301,14 +311,14 @@ func (c *TcpConnection) sendEncodedBuffer(delaySendDecodePacketData []byte) erro
 			if setTimeoutErr != nil {
 				// ...
 				logger.Debug("%v setTimeoutErr:%v", c.GetConnectionId(), setTimeoutErr.Error())
-				return setTimeoutErr
+				return delaySendDecodePacketData, setTimeoutErr
 			}
 		}
 		readBuffer := c.sendBuffer.ReadBuffer()
-		writeCount, err := c.conn.Write(readBuffer)
-		if err != nil {
-			logger.Debug("%v write Err:%v", c.GetConnectionId(), err.Error())
-			return err
+		writeCount, writeErr := c.conn.Write(readBuffer)
+		if writeErr != nil {
+			logger.Debug("%v write Err:%v", c.GetConnectionId(), writeErr.Error())
+			return delaySendDecodePacketData, writeErr
 		}
 		c.sendBuffer.SetReaded(writeCount)
 		if len(delaySendDecodePacketData) > 0 {
@@ -322,7 +332,7 @@ func (c *TcpConnection) sendEncodedBuffer(delaySendDecodePacketData []byte) erro
 			}
 		}
 	}
-	return nil
+	return delaySendDecodePacketData, nil
 }
 
 func (c *TcpConnection) checkRecvTimeout(recvTimeoutTimer *time.Timer) bool {

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 type WsListener struct {
@@ -42,13 +41,18 @@ func (l *WsListener) GetConnection(connectionId uint32) Connection {
 
 // range for accepted connections
 func (l *WsListener) RangeConnections(f func(conn Connection) bool) {
+	// 先快照连接列表,释放锁后再回调,避免回调中调用Close等方法导致死锁
+	conns := make([]Connection, 0, len(l.connectionMap))
 	l.connectionMapLock.RLock()
-	defer l.connectionMapLock.RUnlock()
 	for _, conn := range l.connectionMap {
 		if conn.IsConnected() {
-			if !f(conn) {
-				return
-			}
+			conns = append(conns, conn)
+		}
+	}
+	l.connectionMapLock.RUnlock()
+	for _, conn := range conns {
+		if !f(conn) {
+			return
 		}
 	}
 }
@@ -109,31 +113,32 @@ func (l *WsListener) Start(ctx context.Context, listenAddress string, checkOrigi
 	l.upgrader = websocket.Upgrader{
 		ReadBufferSize:  int(l.acceptConnectionConfig.RecvBufferSize),
 		WriteBufferSize: int(l.acceptConnectionConfig.SendBufferSize),
-		CheckOrigin: checkOrigin,
+		CheckOrigin:     checkOrigin,
 	}
-	// 监听协程
-	atomic.StoreInt32(&l.isRunning, 1)
-	l.httpServer = &http.Server{Addr: listenAddress}
-	go func() {
-		var err error
-		if l.config.CertFile != "" {
-			err = l.httpServer.ListenAndServeTLS(l.config.CertFile, l.config.KeyFile)
-		} else {
-			err = l.httpServer.ListenAndServe()
-		}
-		if err != nil && err != http.ErrServerClosed {
-			atomic.StoreInt32(&l.isRunning, 0)
-			logger.Error("ListenAndServe failed %v: %v", l.GetListenerId(), err.Error())
-			return
-		}
-	}()
-	// wait for ListenAndServe err
-	time.Sleep(time.Second)
-	if !l.IsRunning() {
-		logger.Error("Listen Failed %v", l.GetListenerId())
+	// 先绑定端口,立即得到绑定结果,避免用time.Sleep猜测
+	ln, err := net.Listen("tcp", listenAddress)
+	if err != nil {
+		logger.Error("Listen Failed %v: %v", l.GetListenerId(), err.Error())
 		return false
 	}
 	logger.Debug("WsListener Start %v", l.GetListenerId())
+
+	// 监听协程
+	atomic.StoreInt32(&l.isRunning, 1)
+	l.httpServer = &http.Server{Handler: http.DefaultServeMux}
+	go func() {
+		var err error
+		if l.config.CertFile != "" {
+			err = l.httpServer.ServeTLS(ln, l.config.CertFile, l.config.KeyFile)
+		} else {
+			err = l.httpServer.Serve(ln)
+		}
+		if err != nil && err != http.ErrServerClosed {
+			atomic.StoreInt32(&l.isRunning, 0)
+			logger.Error("Serve failed %v: %v", l.GetListenerId(), err.Error())
+			return
+		}
+	}()
 
 	// 关闭响应协程
 	l.netMgrWg.Add(1)
@@ -163,6 +168,10 @@ func (l *WsListener) serve(ctx context.Context, w http.ResponseWriter, r *http.R
 	l.connectionMapLock.Lock()
 	l.connectionMap[newTcpConn.GetConnectionId()] = newTcpConn
 	l.connectionMapLock.Unlock()
+	// 先通知业务层连接已建立,避免Start内部goroutine中的OnDisconnected先于OnConnectionConnected触发
+	if l.handler != nil {
+		l.handler.OnConnectionConnected(l, newTcpConn)
+	}
 	newTcpConn.Start(ctx, l.netMgrWg, func(connection Connection) {
 		if l.handler != nil {
 			l.handler.OnConnectionDisconnect(l, connection)
@@ -171,9 +180,6 @@ func (l *WsListener) serve(ctx context.Context, w http.ResponseWriter, r *http.R
 		delete(l.connectionMap, connection.GetConnectionId())
 		l.connectionMapLock.Unlock()
 	})
-	if l.handler != nil {
-		l.handler.OnConnectionConnected(l, newTcpConn)
-	}
 }
 
 func NewWsListener(listenerConfig *ListenerConfig) *WsListener {

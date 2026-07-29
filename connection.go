@@ -22,6 +22,7 @@ var (
 		RecvTimeout:        20, // 20s
 		WriteTimeout:       10, // 10s
 		HeartBeatInterval:  5,  // 5s
+		InsecureSkipVerify: true,
 	}
 )
 
@@ -131,6 +132,10 @@ type ConnectionConfig struct {
 
 	// "ws"或"wss"
 	Scheme string
+
+	// wss连接时是否跳过证书验证(默认跳过,兼容自签名证书场景)
+	//  whether to skip certificate verification for wss connections
+	InsecureSkipVerify bool
 }
 
 // TODO: support block send mode?
