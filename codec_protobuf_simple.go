@@ -90,7 +90,7 @@ func (c *SimpleProtoCodec) PacketHeaderSize() uint32 {
 	return uint32(SimplePacketHeaderSize)
 }
 
-// 注册消息和proto.Message的映射
+// 注册消息和proto.Message的映射(内部仍有反射,兼容旧用法)
 //
 //	protoMessage can be nil
 func (c *SimpleProtoCodec) Register(command PacketCommand, protoMessage proto.Message) {
@@ -102,6 +102,11 @@ func (c *SimpleProtoCodec) Register(command PacketCommand, protoMessage proto.Me
 	c.MessageCreatorMap[command] = func() proto.Message {
 		return reflect.New(reflectType).Interface().(proto.Message)
 	}
+}
+
+// 注册消息工厂函数,完全无反射
+func (c *SimpleProtoCodec) RegisterCreator(command PacketCommand, creator ProtoMessageCreator) {
+	c.MessageCreatorMap[command] = creator
 }
 
 func (c *SimpleProtoCodec) CreatePacketHeader(connection Connection, packet Packet, packetData []byte) PacketHeader {

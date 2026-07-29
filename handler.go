@@ -137,6 +137,34 @@ func (h *DefaultConnectionHandler) Register(packetCommand PacketCommand, handler
 	}
 }
 
+// 注册消息号、消息回调和消息工厂函数,完全无反射
+// NOTE: 仅在初始化阶段(连接Start之前)调用,readLoop启动后会panic
+//
+//	register PacketCommand,PacketHandler,ProtoMessageCreator
+func (h *DefaultConnectionHandler) RegisterCreator(packetCommand PacketCommand, handler PacketHandler, creator ProtoMessageCreator) {
+	if atomic.LoadInt32(&h.frozen) != 0 {
+		return
+	}
+	h.PacketHandlers[packetCommand] = handler
+	if h.protoCodec != nil {
+		if protoCreatorRegister, ok := h.protoCodec.(ProtoCreatorRegister); ok {
+			protoCreatorRegister.RegisterCreator(packetCommand, creator)
+		}
+	}
+}
+
+// RegisterHandler 泛型辅助函数,以类型参数指定消息类型,编译期生成工厂函数,消除反射
+// 用法: gnet.RegisterHandler[pb.TestMessage](handler, cmd, onTestMessage)
+// NOTE: 仅在初始化阶段(连接Start之前)调用
+//
+//	generic helper to register PacketCommand,PacketHandler with zero reflection
+func RegisterHandler[T any](h *DefaultConnectionHandler, packetCommand PacketCommand, handler PacketHandler) {
+	h.RegisterCreator(packetCommand, handler, func() proto.Message {
+		var m T
+		return any(&m).(proto.Message)
+	})
+}
+
 func (h *DefaultConnectionHandler) GetPacketHandler(packetCommand PacketCommand) PacketHandler {
 	return h.PacketHandlers[packetCommand]
 }

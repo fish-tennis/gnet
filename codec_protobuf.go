@@ -16,6 +16,11 @@ type ProtoRegister interface {
 	Register(command PacketCommand, protoMessage proto.Message)
 }
 
+// ProtoCreatorRegister 支持注册工厂函数,完全消除反射
+type ProtoCreatorRegister interface {
+	RegisterCreator(command PacketCommand, creator ProtoMessageCreator)
+}
+
 // codec for protobuf
 //
 //	use DefaultPacketHeader,RingBufferCodec
@@ -55,7 +60,7 @@ func NewProtoCodec(protoMessageTypeMap map[PacketCommand]reflect.Type) *ProtoCod
 	return codec
 }
 
-// 注册消息和proto.Message的映射
+// 注册消息和proto.Message的映射(内部仍有反射,兼容旧用法)
 //
 //	protoMessage can be nil
 func (c *ProtoCodec) Register(command PacketCommand, protoMessage proto.Message) {
@@ -68,6 +73,11 @@ func (c *ProtoCodec) Register(command PacketCommand, protoMessage proto.Message)
 	c.MessageCreatorMap[command] = func() proto.Message {
 		return reflect.New(reflectType).Interface().(proto.Message)
 	}
+}
+
+// 注册消息工厂函数,完全无反射
+func (c *ProtoCodec) RegisterCreator(command PacketCommand, creator ProtoMessageCreator) {
+	c.MessageCreatorMap[command] = creator
 }
 
 func (c *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]byte, uint8) {
