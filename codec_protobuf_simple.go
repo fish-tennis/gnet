@@ -3,13 +3,15 @@ package gnet
 import (
 	"encoding/binary"
 	"errors"
-	"google.golang.org/protobuf/proto"
 	"reflect"
+
+	"google.golang.org/protobuf/proto"
 )
 
 const (
-	// NOTE: unsafe.Sizeof(SimplePacketHeader{})=8
-	SimplePacketHeaderSize = 6 // int(unsafe.Sizeof(SimplePacketHeader{}))
+	// 手动设置为6字节,因为SimplePacketHeader只包含LenAndFlags和Command,所以不使用unsafe.Sizeof(SimplePacketHeader{})
+	// 因为unsafe.Sizeof(SimplePacketHeader{})=8
+	SimplePacketHeaderSize = 6
 )
 
 // a simple packet header for TcpConnectionSimple
