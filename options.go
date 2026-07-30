@@ -6,8 +6,10 @@ import (
 )
 
 var (
-	// rpc默认超时时间
+	// rpc等待回复的默认超时时间
 	DefaultRpcTimeout = time.Second * 3
+	// 发包写入sendPacketCache的默认超时时间
+	DefaultSendTimeout = time.Second * 3
 )
 
 // option for Connection.Send

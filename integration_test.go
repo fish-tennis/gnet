@@ -344,12 +344,13 @@ func TestRpc_Timeout(t *testing.T) {
 	req := NewProtoPacket(PacketCommand(pb.CmdTest_Cmd_TestMessage), &pb.TestMessage{Name: "no reply"})
 	reply := &pb.TestMessage{}
 	start := time.Now()
-	err := client.Rpc(req, reply, Timeout(500*time.Millisecond))
+	// Rpc的reply超时固定为DefaultRpcTimeout(3s)
+	err := client.Rpc(req, reply, Timeout(5*time.Second))
 	elapsed := time.Since(start)
 	if err == nil {
 		t.Fatal("should timeout")
 	}
-	if elapsed > 2*time.Second {
+	if elapsed > DefaultRpcTimeout+time.Second {
 		t.Fatalf("timeout took too long: %v", elapsed)
 	}
 }

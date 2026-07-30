@@ -48,8 +48,21 @@ type Connection interface {
 	//  try send a packet with Timeout
 	TrySendPacket(packet Packet, timeout time.Duration, opts ...SendOption) bool
 
-	// Rpc send a request to target and block wait reply
+	// Rpc 发送RPC请求并阻塞等待回复
+	//
+	// opts控制写入sendPacketCache的行为,与SendPacket的opts语义完全一致:
+	//   - Timeout: 写入sendPacketCache的超时(默认DefaultSendTimeout)
+	//   - WithInfiniteTimeout: 无限等待
+	//   - WithDiscard: 非阻塞写入
+	//
+	// 等待回复的超时固定为DefaultRpcTimeout,如需自定义请使用RpcTimeout
 	Rpc(request Packet, reply proto.Message, opts ...SendOption) error
+
+	// RpcTimeout 与Rpc功能相同,但额外支持自定义等待回复的超时时间
+	//
+	// replyTimeout: 等待回复的超时时间,<=0表示使用DefaultRpcTimeout
+	// opts: 控制写入sendPacketCache的行为,与Rpc完全一致
+	RpcTimeout(request Packet, reply proto.Message, replyTimeout time.Duration, opts ...SendOption) error
 
 	// is connected
 	IsConnected() bool
@@ -241,7 +254,7 @@ func (c *baseConnection) SendPacket(packet Packet, opts ...SendOption) (ret bool
 		}
 	}()
 	// 使用值类型避免堆分配
-	sendOpts := sendOptions{timeout: DefaultRpcTimeout}
+	sendOpts := sendOptions{timeout: DefaultSendTimeout}
 	for _, opt := range opts {
 		opt.apply(&sendOpts)
 	}
@@ -297,12 +310,19 @@ func (c *baseConnection) TrySendPacket(packet Packet, timeout time.Duration, opt
 }
 
 // Rpc send a request to target and block wait reply
+// Rpc 发送RPC请求并阻塞等待回复
+//
+// opts控制写入sendPacketCache的行为,与SendPacket的opts语义完全一致:
+//   - Timeout: 写入sendPacketCache的超时(默认DefaultSendTimeout)
+//   - WithInfiniteTimeout: 无限等待
+//   - WithDiscard: 非阻塞写入
+//
+// 等待回复的超时固定为DefaultRpcTimeout,如需自定义请使用RpcTimeout
 func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOption) (rpcErr error) {
 	if !c.IsConnected() {
 		return errors.New("disconnected")
 	}
 	defer func() {
-		// close(sendPacketCache)后,再执行sendPacketCache <- packet,会panic
 		if err := recover(); err != nil {
 			rpcErr = errors.New("rpc panic")
 			if c.IsConnected() {
@@ -310,21 +330,50 @@ func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOp
 			}
 		}
 	}()
-	// 使用值类型避免堆分配
-	sendOpts := sendOptions{timeout: DefaultRpcTimeout}
-	for _, opt := range opts {
-		opt.apply(&sendOpts)
-	}
 	call := c.rpcCalls.newRpcCall()
 	request.SetRpcCallId(call.id)
-	// 当sendPacketCache满时,通过select防止永久阻塞
-	select {
-	case c.sendPacketCache <- request:
-	case <-c.writeStopNotifyChan:
+	// 使用SendPacket写入sendPacketCache,完整复用opts的语义
+	if !c.SendPacket(request, opts...) {
 		c.rpcCalls.removeReply(call.id)
-		return errors.New("connection closed")
+		return errors.New("send failed")
 	}
-	rpcTimer := time.NewTimer(sendOpts.timeout)
+	// 等待回复,使用DefaultRpcTimeout
+	return c.waitRpcReply(call, reply, DefaultRpcTimeout)
+}
+
+// RpcTimeout 与Rpc功能相同,但额外支持自定义等待回复的超时时间
+//
+// replyTimeout: 等待回复的超时时间,<=0表示使用DefaultRpcTimeout
+// opts: 控制写入sendPacketCache的行为,与Rpc完全一致
+func (c *baseConnection) RpcTimeout(request Packet, reply proto.Message, replyTimeout time.Duration, opts ...SendOption) (rpcErr error) {
+	if !c.IsConnected() {
+		return errors.New("disconnected")
+	}
+	defer func() {
+		if err := recover(); err != nil {
+			rpcErr = errors.New("rpc panic")
+			if c.IsConnected() {
+				logger.Error("RpcTimeout fatal %v: %v", c.GetConnectionId(), err)
+			}
+		}
+	}()
+	call := c.rpcCalls.newRpcCall()
+	request.SetRpcCallId(call.id)
+	// 使用SendPacket写入sendPacketCache,完整复用opts的语义
+	if !c.SendPacket(request, opts...) {
+		c.rpcCalls.removeReply(call.id)
+		return errors.New("send failed")
+	}
+	// 等待回复,使用自定义的replyTimeout
+	if replyTimeout <= 0 {
+		replyTimeout = DefaultRpcTimeout
+	}
+	return c.waitRpcReply(call, reply, replyTimeout)
+}
+
+// waitRpcReply 阻塞等待RPC回复
+func (c *baseConnection) waitRpcReply(call *rpcCall, reply proto.Message, replyTimeout time.Duration) error {
+	rpcTimer := time.NewTimer(replyTimeout)
 	defer rpcTimer.Stop()
 	select {
 	case <-rpcTimer.C:
