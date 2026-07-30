@@ -351,7 +351,7 @@ func TestRpcTimeout_WriteTimeout(t *testing.T) {
 	req := NewProtoPacket(PacketCommand(pb.CmdTest_Cmd_TestMessage), &pb.TestMessage{Name: "req"})
 	reply := &pb.TestMessage{}
 	err := client.RpcTimeout(req, reply, 1*time.Second, Timeout(1*time.Millisecond))
-	// 结果可能是nil(写入快)或"write timeout"或"timeout"
+	// 结果可能是nil(写入快)或"send failed"(写入超时/连接关闭)或"timeout"(回复超时)
 	t.Logf("RpcTimeout with 1ms write timeout returned: %v", err)
 }
 
