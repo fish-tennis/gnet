@@ -3,12 +3,13 @@ package gnet
 import (
 	"context"
 	"errors"
-	"google.golang.org/protobuf/proto"
 	"net"
 	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -56,12 +57,36 @@ type Connection interface {
 	//   - WithDiscard: 非阻塞写入
 	//
 	// 等待回复的超时固定为DefaultRpcTimeout,如需自定义请使用RpcTimeout
+	//
+	// 重要提示: RPC超时只代表"在预期时间内未收到回复",不代表"服务端没有执行"。
+	// 超时发生时,服务端可能处于以下任何一种状态:
+	//   - 请求还在网络中,服务端尚未收到
+	//   - 服务端已收到,正在处理中
+	//   - 服务端已处理完成,回复正在网络中返回
+	// 因此,对不可重试的操作(如扣款、发货),超时后直接重试可能导致重复执行。
+	// 建议使用唯一requestId实现幂等性,或通过对账机制确认服务端的实际执行结果。
+	//
+	// 关于迟到回复: 当RPC超时后,如果服务端的回复延迟到达,该回复包会作为普通消息
+	// 投递给OnRecvPacket。如果客户端注册了相同消息号的handler,handler会被调用。
+	// 可通过检查pkt.RpcCallId() > 0来区分迟到的RPC回复和正常消息:
+	//
+	//	handler.Register(cmd, func(conn Connection, pkt Packet) {
+	//	    if pkt.RpcCallId() > 0 {
+	//	        // 迟到的RPC回复,可选择忽略或进行补偿处理
+	//	        // 例如:记录日志用于对账、通知上层"操作实际已成功"
+	//	        return
+	//	    }
+	//	    // 正常的异步通知
+	//	}, message)
 	Rpc(request Packet, reply proto.Message, opts ...SendOption) error
 
 	// RpcTimeout 与Rpc功能相同,但额外支持自定义等待回复的超时时间
 	//
 	// replyTimeout: 等待回复的超时时间,<=0表示使用DefaultRpcTimeout
 	// opts: 控制写入sendPacketCache的行为,与Rpc完全一致
+	//
+	// 重要提示: 参见Rpc的注释,超时不代表服务端没有执行,不可重试的操作需做幂等处理
+	// 关于迟到回复: 参见Rpc的注释
 	RpcTimeout(request Packet, reply proto.Message, replyTimeout time.Duration, opts ...SendOption) error
 
 	// is connected
@@ -318,6 +343,10 @@ func (c *baseConnection) TrySendPacket(packet Packet, timeout time.Duration, opt
 //   - WithDiscard: 非阻塞写入
 //
 // 等待回复的超时固定为DefaultRpcTimeout,如需自定义请使用RpcTimeout
+//
+// 重要提示: RPC超时只代表"在预期时间内未收到回复",不代表"服务端没有执行"。
+// 不可重试的操作(如扣款)超时后直接重试可能导致重复执行,建议用幂等设计或对账机制。
+// 超时后延迟到达的回复会投递给OnRecvPacket,可在handler中检查RpcCallId() > 0处理。
 func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOption) (rpcErr error) {
 	if !c.IsConnected() {
 		return errors.New("disconnected")
@@ -347,6 +376,9 @@ func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOp
 //
 // replyTimeout: 等待回复的超时时间,<=0表示使用DefaultRpcTimeout
 // opts: 控制写入sendPacketCache的行为,与Rpc完全一致
+//
+// 重要提示: 参见Rpc的注释,超时不代表服务端没有执行,不可重试的操作需做幂等处理
+// 关于迟到回复: 参见Rpc的注释
 func (c *baseConnection) RpcTimeout(request Packet, reply proto.Message, replyTimeout time.Duration, opts ...SendOption) (rpcErr error) {
 	if !c.IsConnected() {
 		return errors.New("disconnected")
@@ -382,7 +414,7 @@ func (c *baseConnection) waitRpcReply(call *rpcCall, reply proto.Message, replyT
 	select {
 	case <-rpcTimer.C:
 		c.rpcCalls.removeReply(call.id)
-		return errors.New("timeout")
+		return errors.New("timeout") // NOTE: RPC超时只代表**"我没有在预期时间内收到回复",不代表"服务端没有执行"**
 	case <-c.writeStopNotifyChan:
 		c.rpcCalls.removeReply(call.id)
 		return errors.New("connection closed")
