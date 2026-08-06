@@ -94,6 +94,8 @@ func (c *SimpleProtoCodec) PacketHeaderSize() uint32 {
 
 // 注册消息和proto.Message的映射(内部仍有反射,兼容旧用法)
 //
+// 设计说明: 无锁保护,必须在Connection.Start()之前调用,不可与Decode并发
+//
 //	protoMessage can be nil
 func (c *SimpleProtoCodec) Register(command PacketCommand, protoMessage proto.Message) {
 	if protoMessage == nil {

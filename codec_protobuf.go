@@ -36,6 +36,10 @@ type ProtoCodec struct {
 	ProtoPacketBytesDecoder func(packetData []byte) []byte
 
 	// 消息号和proto.Message工厂函数的映射表
+	//
+	// 设计说明: MessageCreatorMap的读写无锁保护,
+	// Register/RegisterCreator(写)与DecodePacket(读)不可并发调用。
+	// 应用层必须确保在Connection.Start()之前完成所有注册。
 	MessageCreatorMap map[PacketCommand]ProtoMessageCreator
 }
 
@@ -61,6 +65,8 @@ func NewProtoCodec(protoMessageTypeMap map[PacketCommand]reflect.Type) *ProtoCod
 }
 
 // 注册消息和proto.Message的映射(内部仍有反射,兼容旧用法)
+//
+// 设计说明: 无锁保护,必须在Connection.Start()之前调用,不可与DecodePacket并发
 //
 //	protoMessage can be nil
 func (c *ProtoCodec) Register(command PacketCommand, protoMessage proto.Message) {

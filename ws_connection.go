@@ -19,6 +19,8 @@ type WsConnection struct {
 	// notify chan for read goroutine end
 	readStopNotifyChan chan struct{}
 	closeOnce          sync.Once
+	// 保证回调只执行一次,与closeOnce分离,避免回调中重入Close()导致死锁
+	callbackOnce       sync.Once
 	// close callback
 	onClose func(connection Connection)
 	// 最近收到完整数据包的时间(时间戳:秒)
@@ -40,19 +42,23 @@ func (c *WsConnection) RemoteAddr() net.Addr {
 }
 
 func (c *WsConnection) Close() {
+	// closeOnce只做资源关闭,不执行回调,避免回调中重入Close()导致sync.Once死锁
 	c.closeOnce.Do(func() {
 		atomic.StoreInt32(&c.isConnected, 0)
 		if c.conn != nil {
 			_ = c.conn.Close()
 		}
+		if c.sendPacketCache != nil {
+			close(c.sendPacketCache)
+		}
+	})
+	// 回调在closeOnce外部执行,即使回调中重入Close(),closeOnce.Do直接跳过,不会死锁
+	c.callbackOnce.Do(func() {
 		if c.handler != nil {
 			safeCall(func() { c.handler.OnDisconnected(c) })
 		}
 		if c.onClose != nil {
 			safeCall(func() { c.onClose(c) })
-		}
-		if c.sendPacketCache != nil {
-			close(c.sendPacketCache)
 		}
 	})
 }

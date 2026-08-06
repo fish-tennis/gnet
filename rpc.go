@@ -43,6 +43,12 @@ func (c *rpcCalls) newRpcCall() *rpcCall {
 	return call
 }
 
+// putReply 尝试将回复包匹配到等待中的RPC调用
+// 返回true表示匹配成功(回复已投递),返回false表示不是RPC回复或调用已不存在
+//
+// 注意: RPC请求和RPC回复都带有rpcCallId>0。当putReply返回false时,
+// 该包可能是: (1)非RPC包 (2)RPC请求(服务端收到) (3)过期的RPC回复
+// 三种情况都交给OnRecvPacket处理,由业务层自行判断。
 func (c *rpcCalls) putReply(replyPacket Packet) bool {
 	if replyPacket.RpcCallId() > 0 {
 		c.rpcCallMutex.Lock()

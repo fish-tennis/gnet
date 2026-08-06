@@ -91,8 +91,11 @@ func (h *DefaultConnectionHandler) OnRecvPacket(connection Connection, packet Pa
 		}
 	}()
 	// 首次收包时冻结,此后不允许再Register
-	// NOTE: 此处与Register之间理论上存在极小的竞态窗口,但frozen只是尽力而为的标记,
-	//        业务层应确保在Start之前完成所有注册,不要在readLoop启动后再Register
+	//
+	// 设计说明: PacketHandlers map的并发读写由应用层保证——
+	// 业务层必须确保在Connection.Start()之前完成所有Register调用,
+	// 不要在readLoop启动(即首次收到数据包)后再Register。
+	// frozen只是"尽力而为"的标记,不保证线程安全,不增加额外的锁开销。
 	atomic.StoreInt32(&h.frozen, 1)
 	if packetHandler, ok := h.PacketHandlers[packet.Command()]; ok {
 		if packetHandler != nil {
@@ -125,7 +128,10 @@ func (h *DefaultConnectionHandler) GetCodec() Codec {
 
 // 注册消息号和消息回调,proto.Message的映射
 // handler在TcpConnection的read协程中被调用
-// NOTE: 仅在初始化阶段(连接Start之前)调用,readLoop启动后会无效
+//
+// 设计说明: Register和OnRecvPacket对PacketHandlers map的读写无锁保护,
+// 由应用层确保在Connection.Start()之前完成所有Register调用。
+// readLoop启动后frozen标记变为1,Register将静默无效。
 //
 //	register PacketCommand,PacketHandler,proto.Message
 func (h *DefaultConnectionHandler) Register(packetCommand PacketCommand, handler PacketHandler, protoMessage proto.Message) {

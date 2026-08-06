@@ -300,13 +300,13 @@ func TestRpcCallsPutReply(t *testing.T) {
 	calls := newRpcCalls()
 	call := calls.newRpcCall()
 
-	// 非 RPC 包(rpcCallId == 0)不应拦截
+	// 非 RPC 包(rpcCallId == 0)返回false,需交给OnRecvPacket处理
 	normalPkt := NewProtoPacket(1, nil)
 	if calls.putReply(normalPkt) {
 		t.Fatal("putReply should return false for non-rpc packet")
 	}
 
-	// RPC 回复包应被拦截
+	// RPC 回复包应返回true(匹配成功)
 	replyPkt := NewProtoPacket(1, &pb.TestMessage{Name: "reply"})
 	replyPkt.SetRpcCallId(call.id)
 	if !calls.putReply(replyPkt) {
@@ -436,7 +436,7 @@ func TestRpcCallsConcurrent(t *testing.T) {
 			defer wg.Done()
 			pkt := NewProtoPacket(1, nil)
 			pkt.SetRpcCallId(uint32(n + 1))
-			calls.putReply(pkt) // 可能返回 false(call不存在),不应 panic
+			calls.putReply(pkt) // 可能返回-1(call不存在),不应 panic
 		}(i)
 	}
 

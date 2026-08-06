@@ -322,15 +322,17 @@ func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOp
 	if !c.IsConnected() {
 		return errors.New("disconnected")
 	}
+	call := c.rpcCalls.newRpcCall()
 	defer func() {
 		if err := recover(); err != nil {
+			// panic时清理rpcCall,防止map泄漏
+			c.rpcCalls.removeReply(call.id)
 			rpcErr = errors.New("rpc panic")
 			if c.IsConnected() {
 				logger.Error("Rpc fatal %v: %v", c.GetConnectionId(), err)
 			}
 		}
 	}()
-	call := c.rpcCalls.newRpcCall()
 	request.SetRpcCallId(call.id)
 	// 使用SendPacket写入sendPacketCache,完整复用opts的语义
 	if !c.SendPacket(request, opts...) {
@@ -349,15 +351,17 @@ func (c *baseConnection) RpcTimeout(request Packet, reply proto.Message, replyTi
 	if !c.IsConnected() {
 		return errors.New("disconnected")
 	}
+	call := c.rpcCalls.newRpcCall()
 	defer func() {
 		if err := recover(); err != nil {
+			// panic时清理rpcCall,防止map泄漏
+			c.rpcCalls.removeReply(call.id)
 			rpcErr = errors.New("rpc panic")
 			if c.IsConnected() {
 				logger.Error("RpcTimeout fatal %v: %v", c.GetConnectionId(), err)
 			}
 		}
 	}()
-	call := c.rpcCalls.newRpcCall()
 	request.SetRpcCallId(call.id)
 	// 使用SendPacket写入sendPacketCache,完整复用opts的语义
 	if !c.SendPacket(request, opts...) {
