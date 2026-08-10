@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
+	"os"
 	"sync/atomic"
 	"time"
 
@@ -57,8 +58,7 @@ func main() {
 
 			// 幂等检查: 同一个requestId只处理一次
 			if req.GetI64() > 0 && processedRequests[uint64(req.GetI64())] {
-				log.Printf("服务端: 重复请求(requestId=%d),已处理过,直接返回成功",
-					req.GetI64())
+				slog.Info("服务端: 重复请求,已处理过,直接返回成功", "requestId", req.GetI64())
 				reply := &pb.TestMessage{Name: "购买成功(去重)", I32: req.I32}
 				replyPkt := gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), reply)
 				replyPkt.SetRpcCallId(pkt.RpcCallId())
@@ -71,13 +71,12 @@ func main() {
 				processedRequests[uint64(req.GetI64())] = true
 			}
 
-			log.Printf("服务端: 收到购买请求 name=%s, requestId=%d",
-				req.Name, req.GetI64())
+			slog.Info("服务端: 收到购买请求", "name", req.Name, "requestId", req.GetI64())
 
 			// 模拟耗时处理(5秒),超过客户端的3秒超时
 			time.Sleep(5 * time.Second)
 
-			log.Printf("服务端: 购买处理完成 name=%s", req.Name)
+			slog.Info("服务端: 购买处理完成", "name", req.Name)
 			reply := &pb.TestMessage{Name: "购买成功", I32: 100}
 			replyPkt := gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), reply)
 			replyPkt.SetRpcCallId(pkt.RpcCallId())
@@ -112,15 +111,14 @@ func main() {
 				// 通过RpcCallId查找对应的订单(RpcCallId就是order.RequestId)
 				order, ok := pendingOrders[pkt.RpcCallId()]
 				if !ok {
-					log.Printf("收到迟到回复但订单不存在: rpcCallId=%d", pkt.RpcCallId())
+					slog.Warn("收到迟到回复但订单不存在", "rpcCallId", pkt.RpcCallId())
 					return
 				}
 
 				// 补偿处理:
 				// 1. 确认服务端已执行成功
 				atomic.StoreInt32(&order.Status, StatusCompensated)
-				log.Printf("补偿: 订单requestId=%d 确认成功, 服务端回复: %s, 到账: %d",
-					order.RequestId, lateReply.Name, lateReply.I32)
+				slog.Info("补偿: 订单确认成功", "requestId", order.RequestId, "reply", lateReply.Name, "amount", lateReply.I32)
 
 				// 2. 通知上层(如UI层更新显示)
 				order.ReplyChan <- lateReply
@@ -128,13 +126,14 @@ func main() {
 			}
 
 			// RpcCallId == 0: 正常的异步通知
-			log.Printf("收到异步通知: %v", pkt.Message())
+			slog.Info("收到异步通知", "message", pkt.Message())
 		}, new(pb.TestMessage))
 
 	clientCfg := defaultConfig(clientCodec, clientHandler)
 	client := gnet.GetNetMgr().NewConnector(ctx, "127.0.0.1:18099", clientCfg, "demo-client")
 	if client == nil {
-		log.Fatal("连接失败")
+		slog.Error("连接失败")
+		os.Exit(1)
 	}
 	defer client.Close()
 
@@ -152,8 +151,8 @@ func main() {
 	}
 	pendingOrders[order.RequestId] = order
 
-	log.Printf("=== 发起购买请求: %s, requestId=%d ===", order.ItemName, order.RequestId)
-	log.Println("=== 重要: RPC超时不代表服务端没执行,不可盲目重试 ===")
+	slog.Info("发起购买请求", "item", order.ItemName, "requestId", order.RequestId)
+	slog.Info("重要: RPC超时不代表服务端没执行,不可盲目重试")
 
 	// 构造RPC请求,携带requestId用于服务端幂等
 	req := gnet.NewProtoPacket(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), &pb.TestMessage{
@@ -168,29 +167,29 @@ func main() {
 	elapsed := time.Since(startTime)
 
 	if err != nil {
-		log.Printf("RPC超时: %v (耗时: %v)", err, elapsed)
+		slog.Warn("RPC超时", "err", err, "elapsed", elapsed)
 		atomic.StoreInt32(&order.Status, StatusTimeout)
-		log.Println("→ 客户端认为操作未完成")
-		log.Println("→ 但服务端可能: (1)还没收到 (2)正在处理 (3)已完成但回复迟到")
-		log.Println("→ 对不可重试操作(如扣款): 需幂等设计或对账机制,不可直接重试")
+		slog.Info("客户端认为操作未完成")
+		slog.Info("但服务端可能: (1)还没收到 (2)正在处理 (3)已完成但回复迟到")
+		slog.Info("对不可重试操作(如扣款): 需幂等设计或对账机制,不可直接重试")
 	}
 
 	// ==================== 等待迟到回复 + 补偿 ====================
 
-	log.Println("=== 等待迟到回复... ===")
+	slog.Info("等待迟到回复...")
 	select {
 	case lateReply := <-order.ReplyChan:
 		status := atomic.LoadInt32(&order.Status)
-		log.Printf("=== 补偿完成: 订单状态=%d, 服务端确认: %s ===", status, lateReply.Name)
+		slog.Info("补偿完成", "status", status, "reply", lateReply.Name)
 	case <-time.After(10 * time.Second):
-		log.Println("未收到迟到回复,需事后对账确认")
+		slog.Warn("未收到迟到回复,需事后对账确认")
 	}
 
 	// ==================== 演示幂等重试 ====================
 	//
 	// 如果超时后确实需要重试,携带相同的requestId,服务端会去重,
 	// 不会重复执行业务逻辑(如不会重复扣款)
-	log.Println("=== 演示幂等重试(相同requestId) ===")
+	slog.Info("演示幂等重试(相同requestId)")
 	retryOrder := &PurchaseOrder{
 		RequestId: 2, // 注意: 重试同一笔交易应用相同的requestId,这里用新ID演示
 		ItemName:  "钻石x100(重试)",
@@ -205,12 +204,12 @@ func main() {
 	retryReply := &pb.TestMessage{}
 	err = client.RpcTimeout(retryReq, retryReply, 8*time.Second, gnet.Timeout(gnet.DefaultSendTimeout))
 	if err != nil {
-		log.Printf("重试RPC错误: %v", err)
+		slog.Error("重试RPC错误", "err", err)
 	} else {
-		log.Printf("重试RPC成功: %s (服务端去重,未重复执行)", retryReply.Name)
+		slog.Info("重试RPC成功(服务端去重,未重复执行)", "reply", retryReply.Name)
 	}
 
-	log.Println("=== 示例结束 ===")
+	slog.Info("示例结束")
 	time.Sleep(500 * time.Millisecond)
 }
 
