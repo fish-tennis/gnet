@@ -16,19 +16,19 @@ import (
 func TestNewProtoPacketEx_AllTypes(t *testing.T) {
 	// 测试所有支持的参数类型
 	p := NewProtoPacketEx(
-		nil,                     // 跳过 nil
-		PacketCommand(100),      // PacketCommand
-		uint16(200),             // uint16
-		int(300),                // int
-		int16(400),              // int16
-		int32(500),              // int32
-		int64(600),              // int64
-		uint(700),               // uint
-		uint32(800),             // uint32
-		uint64(900),             // uint64
+		nil,                         // 跳过 nil
+		PacketCommand(100),          // PacketCommand
+		uint16(200),                 // uint16
+		int(300),                    // int
+		int16(400),                  // int16
+		int32(500),                  // int32
+		int64(600),                  // int64
+		uint(700),                   // uint
+		uint32(800),                 // uint32
+		uint64(900),                 // uint64
 		&pb.TestMessage{Name: "ex"}, // proto.Message
-		[]byte("raw"),           // []byte
-		3.14,                    // unsupported type -> logger.Error
+		[]byte("raw"),               // []byte
+		3.14,                        // unsupported type -> logger.Error
 	)
 	if p == nil {
 		t.Fatal("packet is nil")

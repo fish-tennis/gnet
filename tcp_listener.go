@@ -101,10 +101,10 @@ func (l *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 	var err error
 	l.netListener, err = net.Listen("tcp", listenAddress)
 	if err != nil {
-		logger.Error("Listen Failed %v: %v", l.GetListenerId(), err.Error())
+		glog.Error("Listen Failed", "listenerId", l.GetListenerId(), "err", err)
 		return false
 	}
-	logger.Debug("TcpListener Start %v", l.GetListenerId())
+	glog.Debug("TcpListener Start", "listenerId", l.GetListenerId())
 
 	// 监听协程
 	atomic.StoreInt32(&l.isRunning, 1)
@@ -113,7 +113,7 @@ func (l *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 		defer l.netMgrWg.Done()
 		l.acceptLoop(ctx)
 		l.acceptStopNotifyChan <- struct{}{}
-		logger.Debug("acceptLoop end %v", l.GetListenerId())
+		glog.Debug("acceptLoop end", "listenerId", l.GetListenerId())
 	}(ctx)
 
 	// 关闭响应协程
@@ -124,12 +124,12 @@ func (l *TcpListener) Start(ctx context.Context, listenAddress string) bool {
 			select {
 			// 关闭通知
 			case <-ctx.Done():
-				logger.Debug("recv closeNotify %v", l.GetListenerId())
+				glog.Debug("recv closeNotify", "listenerId", l.GetListenerId())
 				l.Close()
 				return
 
 			case <-l.acceptStopNotifyChan:
-				logger.Debug("recv acceptStopNotify %v", l.GetListenerId())
+				glog.Debug("recv acceptStopNotify", "listenerId", l.GetListenerId())
 				l.Close()
 				return
 			}
@@ -172,7 +172,7 @@ func (l *TcpListener) IsRunning() bool {
 func (l *TcpListener) acceptLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("acceptLoop fatal %v: %v", l.GetListenerId(), err)
+			glog.Error("acceptLoop fatal", "listenerId", l.GetListenerId(), "err", err)
 			LogStack()
 		}
 	}()
@@ -181,16 +181,16 @@ func (l *TcpListener) acceptLoop(ctx context.Context) {
 		// 阻塞accept,当netListener关闭时,会返回err
 		newConn, err := l.netListener.Accept()
 		if err != nil {
-			logger.Error("%v accept err:%v", l.GetListenerId(), err.Error())
+			glog.Error("accept err", "listenerId", l.GetListenerId(), "err", err)
 			var netError net.Error
 			if errors.As(err, &netError) && netError.Temporary() {
-				logger.Error("accept temporary err:%v", l.GetListenerId())
+				glog.Error("accept temporary err", "listenerId", l.GetListenerId())
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
 			// 有可能是因为open file数量限制 而导致的accept失败
 			if err == syscall.EMFILE {
-				logger.Error("accept failed id:%v syscall.EMFILE", l.GetListenerId())
+				glog.Error("accept failed id syscall.EMFILE", "listenerId", l.GetListenerId())
 				// 这个错误只是导致新连接暂时无法连接,不应该退出监听,当有连接释放后,新连接又可以连接上
 				time.Sleep(100 * time.Millisecond)
 				continue
@@ -202,7 +202,7 @@ func (l *TcpListener) acceptLoop(ctx context.Context) {
 			defer func() {
 				l.netMgrWg.Done()
 				if err := recover(); err != nil {
-					logger.Error("acceptLoop fatal %v: %v", l.GetListenerId(), err)
+					glog.Error("acceptLoop fatal", "listenerId", l.GetListenerId(), "err", err)
 					LogStack()
 				}
 			}()

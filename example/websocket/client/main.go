@@ -3,21 +3,22 @@ package main
 import (
 	"context"
 	"flag"
+	"log/slog"
+	"time"
+
 	"github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/pb"
-	"time"
 )
 
 var (
 	addr   = flag.String("addr", "localhost:10001", "the address to connect to")
 	useWss = flag.Bool("wss", false, "whether use wss")
-	logger = gnet.GetLogger()
 )
 
 func main() {
 	flag.Parse()
 
-	gnet.SetLogLevel(gnet.DebugLevel)
+	slog.SetLogLoggerLevel(slog.LevelDebug)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
@@ -59,10 +60,10 @@ func main() {
 func onHeartBeatRes(connection gnet.Connection, packet gnet.Packet) {
 	res := packet.Message().(*pb.HeartBeatRes)
 	ping := res.ResponseTimestamp - res.RequestTimestamp
-	logger.Debug("ping: %v ms", ping)
+	slog.Debug("ping", "ms", ping)
 }
 
 func onTestMessage(connection gnet.Connection, packet gnet.Packet) {
 	res := packet.Message().(*pb.TestMessage)
-	logger.Info("client onTestMessage: %v", res)
+	slog.Info("client onTestMessage", "msg", res)
 }

@@ -274,7 +274,7 @@ func (c *baseConnection) SendPacket(packet Packet, opts ...SendOption) (ret bool
 		if err := recover(); err != nil {
 			ret = false
 			if c.IsConnected() {
-				logger.Error("SendPacket fatal %v: %v", c.GetConnectionId(), err)
+				glog.Error("SendPacket fatal", "connId", c.GetConnectionId(), "err", err)
 			}
 		}
 	}()
@@ -358,7 +358,7 @@ func (c *baseConnection) Rpc(request Packet, reply proto.Message, opts ...SendOp
 			c.rpcCalls.removeReply(call.id)
 			rpcErr = errors.New("rpc panic")
 			if c.IsConnected() {
-				logger.Error("Rpc fatal %v: %v", c.GetConnectionId(), err)
+				glog.Error("Rpc fatal", "connId", c.GetConnectionId(), "err", err)
 			}
 		}
 	}()
@@ -390,7 +390,7 @@ func (c *baseConnection) RpcTimeout(request Packet, reply proto.Message, replyTi
 			c.rpcCalls.removeReply(call.id)
 			rpcErr = errors.New("rpc panic")
 			if c.IsConnected() {
-				logger.Error("RpcTimeout fatal %v: %v", c.GetConnectionId(), err)
+				glog.Error("RpcTimeout fatal", "connId", c.GetConnectionId(), "err", err)
 			}
 		}
 	}()
@@ -460,7 +460,7 @@ type AcceptConnectionCreator func(conn net.Conn, config *ConnectionConfig) Conne
 func safeCall(f func()) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("safeCall panic: %v", err)
+			glog.Error("safeCall panic", "err", err)
 		}
 	}()
 	f()

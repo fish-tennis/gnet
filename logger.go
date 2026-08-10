@@ -1,91 +1,30 @@
 package gnet
 
 import (
-	"fmt"
-	"log"
-	"os"
+	"log/slog"
 	"runtime"
 )
 
-var (
-	// 默认使用系统库的log接口
-	//  default logger
-	logger = NewStdLogger(2)
-	// default InfoLevel
-	logLevel = InfoLevel
-)
-
-// 日志级别,参考zap
+// gnet 内部使用的 logger,默认使用 slog.Default()
 //
-//	log level
-const (
-	DebugLevel int8 = iota - 1
-	InfoLevel
-	WarnLevel
-	ErrorLevel
-)
+//	gnet internal logger, defaults to slog.Default()
+var glog = slog.Default()
 
-type Logger interface {
-	Debug(format string, args ...interface{})
-	Info(format string, args ...interface{})
-	Warn(format string, args ...interface{})
-	Error(format string, args ...interface{})
-}
-
-type StdLogger struct {
-	std       *log.Logger
-	callDepth int
-}
-
-func (s *StdLogger) Debug(format string, args ...interface{}) {
-	if logLevel > DebugLevel {
-		return
-	}
-	s.std.Output(s.callDepth, "[D] "+fmt.Sprintf(format, args...))
-}
-
-func (s *StdLogger) Info(format string, args ...interface{}) {
-	if logLevel > InfoLevel {
-		return
-	}
-	s.std.Output(s.callDepth, "[I] "+fmt.Sprintf(format, args...))
-}
-
-func (s *StdLogger) Warn(format string, args ...interface{}) {
-	if logLevel > WarnLevel {
-		return
-	}
-	s.std.Output(s.callDepth, "[W] "+fmt.Sprintf(format, args...))
-}
-
-func (s *StdLogger) Error(format string, args ...interface{}) {
-	if logLevel > ErrorLevel {
-		return
-	}
-	s.std.Output(s.callDepth, "[E] "+fmt.Sprintf(format, args...))
-}
-
-func NewStdLogger(callDepth int) Logger {
-	return &StdLogger{
-		std:       log.New(os.Stderr, "", log.LstdFlags|log.Llongfile),
-		callDepth: callDepth,
+// SetLogger 设置 gnet 内部使用的 logger
+//
+// 应用层可通过传入不同级别或 handler 的 *slog.Logger,实现 gnet 与应用层日志相互独立。
+//
+//	Set the logger used internally by gnet.
+//	Callers can pass a *slog.Logger with a different level/handler so that
+//	gnet's logging is independent from the application's logging.
+func SetLogger(l *slog.Logger) {
+	if l != nil {
+		glog = l
 	}
 }
 
-func GetLogger() Logger {
-	return logger
-}
-
-func SetLogger(w Logger, level int8) {
-	logger = w
-	logLevel = level
-}
-
-func SetLogLevel(level int8) {
-	logLevel = level
-}
-
+// LogStack 打印当前 goroutine 的堆栈信息
 func LogStack() {
 	buf := make([]byte, 1<<12)
-	logger.Error("%s", buf[:runtime.Stack(buf, false)])
+	glog.Error(string(buf[:runtime.Stack(buf, false)]))
 }

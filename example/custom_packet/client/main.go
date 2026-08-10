@@ -6,18 +6,18 @@ import (
 	"github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/custom_packet/codec"
 	"hash/crc32"
+	"log/slog"
 	"time"
 )
 
 var (
-	addr   = flag.String("addr", "localhost:10001", "the address to connect to")
-	logger = gnet.GetLogger()
+	addr = flag.String("addr", "localhost:10001", "the address to connect to")
 )
 
 func main() {
 	flag.Parse()
 
-	gnet.SetLogLevel(gnet.DebugLevel)
+	slog.SetLogLoggerLevel(slog.LevelDebug)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
@@ -31,13 +31,13 @@ func main() {
 		if packet.ErrorCode() == 0 {
 			customDataPacket := packet.(*codec.CustomDataPacket)
 			if len(customDataPacket.GetStreamData()) < 100 {
-				logger.Info("cmd:%v str:%v", customDataPacket.Command(), string(customDataPacket.GetStreamData()))
+				slog.Info("cmd", "cmd", customDataPacket.Command(), "str", string(customDataPacket.GetStreamData()))
 			} else {
 				sum := crc32.ChecksumIEEE(customDataPacket.GetStreamData())
-				logger.Info("cmd:%v crc:%x len:%v", customDataPacket.Command(), sum, len(customDataPacket.GetStreamData()))
+				slog.Info("cmd crc", "cmd", customDataPacket.Command(), "crc", sum, "len", len(customDataPacket.GetStreamData()))
 			}
 		} else {
-			logger.Info("cmd:%v errorCode:%v", packet.Command(), packet.ErrorCode())
+			slog.Info("cmd", "cmd", packet.Command(), "errorCode", packet.ErrorCode())
 		}
 	})
 
@@ -64,7 +64,7 @@ func main() {
 	}
 	sum := crc32.ChecksumIEEE(bigPacket)
 	connector.SendPacket(codec.NewCustomDataPacket(3, bigPacket))
-	logger.Info("%x", sum)
+	slog.Info("crc", "crc", sum)
 
 	gnet.GetNetMgr().Shutdown(true)
 }

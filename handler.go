@@ -86,7 +86,7 @@ func (h *DefaultConnectionHandler) OnDisconnected(connection Connection) {
 func (h *DefaultConnectionHandler) OnRecvPacket(connection Connection, packet Packet) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("fatal %v", err)
+			glog.Error("fatal", "err", err)
 			LogStack()
 		}
 	}()

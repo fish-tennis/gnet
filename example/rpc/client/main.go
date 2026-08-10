@@ -5,17 +5,17 @@ import (
 	"flag"
 	"github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/pb"
+	"log/slog"
 )
 
 var (
-	addr   = flag.String("addr", "localhost:10001", "the address to connect to")
-	logger = gnet.GetLogger()
+	addr = flag.String("addr", "localhost:10001", "the address to connect to")
 )
 
 func main() {
 	flag.Parse()
 
-	gnet.SetLogLevel(gnet.DebugLevel)
+	slog.SetLogLoggerLevel(slog.LevelDebug)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -36,10 +36,10 @@ func main() {
 	reply := new(pb.HelloReply)
 	err := connector.Rpc(request, reply)
 	if err != nil {
-		gnet.GetLogger().Error("RpcCallErr:%v", err)
+		slog.Error("RpcCallErr", "err", err)
 		return
 	}
-	logger.Info("reply:%v", reply)
+	slog.Info("reply", "data", reply)
 	connector.Close()
 
 	gnet.GetNetMgr().Shutdown(true)

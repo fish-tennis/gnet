@@ -20,7 +20,7 @@ type WsConnection struct {
 	readStopNotifyChan chan struct{}
 	closeOnce          sync.Once
 	// 保证回调只执行一次,与closeOnce分离,避免回调中重入Close()导致死锁
-	callbackOnce       sync.Once
+	callbackOnce sync.Once
 	// close callback
 	onClose func(connection Connection)
 	// 最近收到完整数据包的时间(时间戳:秒)
@@ -75,7 +75,7 @@ func (c *WsConnection) Connect(address string) bool {
 			resp.Body.Close()
 		}
 		atomic.StoreInt32(&c.isConnected, 0)
-		logger.Error("Connect failed %v: %v", c.GetConnectionId(), err.Error())
+		glog.Error("Connect failed", "connId", c.GetConnectionId(), "err", err)
 		if c.handler != nil {
 			c.handler.OnConnected(c, false)
 		}
@@ -100,7 +100,7 @@ func (c *WsConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onCl
 		defer func() {
 			netMgrWg.Done()
 			if err := recover(); err != nil {
-				logger.Error("read fatal %v: %v", c.GetConnectionId(), err)
+				glog.Error("read fatal", "connId", c.GetConnectionId(), "err", err)
 				LogStack()
 			}
 		}()
@@ -117,7 +117,7 @@ func (c *WsConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onCl
 		defer func() {
 			netMgrWg.Done()
 			if err := recover(); err != nil {
-				logger.Error("write fatal %v: %v", c.GetConnectionId(), err)
+				glog.Error("write fatal", "connId", c.GetConnectionId(), "err", err)
 				LogStack()
 			}
 		}()
@@ -131,12 +131,12 @@ func (c *WsConnection) Start(ctx context.Context, netMgrWg *sync.WaitGroup, onCl
 func (c *WsConnection) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("readLoop fatal %v: %v", c.GetConnectionId(), err)
+			glog.Error("readLoop fatal", "connId", c.GetConnectionId(), "err", err)
 			LogStack()
 		}
 	}()
 
-	logger.Debug("readLoop begin %v isConnector:%v", c.GetConnectionId(), c.IsConnector())
+	glog.Debug("readLoop begin", "connId", c.GetConnectionId(), "isConnector", c.IsConnector())
 	codec := c.GetCodec()
 	if c.config.MaxPacketSize > 0 {
 		c.conn.SetReadLimit(int64(c.config.MaxPacketSize))
@@ -155,21 +155,21 @@ func (c *WsConnection) readLoop() {
 		messageType, data, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				logger.Error("readLoopErr %v err:%v", c.GetConnectionId(), err.Error())
+				glog.Error("readLoopErr", "connId", c.GetConnectionId(), "err", err)
 			}
 			break
 		}
 		if messageType != websocket.BinaryMessage {
-			logger.Debug("messageTypeErr %v messageType:%v", c.GetConnectionId(), messageType)
+			glog.Debug("messageTypeErr", "connId", c.GetConnectionId(), "messageType", messageType)
 			break
 		}
 		if len(data) < int(codec.PacketHeaderSize()) {
-			logger.Debug("messageType Err %v messageType:%v", c.GetConnectionId(), messageType)
+			glog.Debug("messageType Err", "connId", c.GetConnectionId(), "messageType", messageType)
 			break
 		}
 		newPacket, decodeError := codec.Decode(c, data)
 		if decodeError != nil {
-			logger.Error("%v decodeError:%v", c.GetConnectionId(), decodeError.Error())
+			glog.Error("decodeError", "connId", c.GetConnectionId(), "err", decodeError)
 			return
 		}
 		if newPacket == nil {
@@ -189,13 +189,13 @@ func (c *WsConnection) readLoop() {
 func (c *WsConnection) writeLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("writeLoop fatal %v: %v", c.GetConnectionId(), err)
+			glog.Error("writeLoop fatal", "connId", c.GetConnectionId(), "err", err)
 			LogStack()
 		}
-		logger.Debug("writeLoop end %v IsConnector:%v", c.GetConnectionId(), c.IsConnector())
+		glog.Debug("writeLoop end", "connId", c.GetConnectionId(), "isConnector", c.IsConnector())
 	}()
 
-	logger.Debug("writeLoop begin %v isConnector:%v", c.GetConnectionId(), c.IsConnector())
+	glog.Debug("writeLoop begin", "connId", c.GetConnectionId(), "isConnector", c.IsConnector())
 	// 收包超时计时,用于检测掉线
 	recvTimeoutTimer := time.NewTimer(time.Second * time.Duration(c.config.RecvTimeout))
 	defer recvTimeoutTimer.Stop()
@@ -207,7 +207,7 @@ func (c *WsConnection) writeLoop(ctx context.Context) {
 		case packet := <-c.sendPacketCache:
 			if packet == nil {
 				if c.IsConnected() {
-					logger.Error("packet==nil %v", c.GetConnectionId())
+					glog.Error("packet==nil", "connId", c.GetConnectionId())
 				}
 				return
 			}
@@ -226,12 +226,12 @@ func (c *WsConnection) writeLoop(ctx context.Context) {
 			}
 
 		case <-c.readStopNotifyChan:
-			logger.Debug("recv readStopNotify %v", c.GetConnectionId())
+			glog.Debug("recv readStopNotify", "connId", c.GetConnectionId())
 			return
 
 		case <-ctx.Done():
 			// 收到外部的关闭通知
-			logger.Debug("recv closeNotify %v isConnector:%v", c.GetConnectionId(), c.isConnector)
+			glog.Debug("recv closeNotify", "connId", c.GetConnectionId(), "isConnector", c.isConnector)
 			if c.isConnector {
 				if c.config.WriteTimeout > 0 {
 					c.conn.SetWriteDeadline(time.Now().Add(time.Duration(c.config.WriteTimeout) * time.Second))
@@ -240,7 +240,7 @@ func (c *WsConnection) writeLoop(ctx context.Context) {
 				// waiting (with Timeout) for the server to close the connection.
 				err := c.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				if err != nil {
-					logger.Debug("writeCloseMessageErr %v err:%v", c.GetConnectionId(), err.Error())
+					glog.Debug("writeCloseMessageErr", "connId", c.GetConnectionId(), "err", err)
 					return
 				}
 				closeTimer := time.NewTimer(time.Second)
@@ -270,7 +270,7 @@ func (c *WsConnection) writePacket(packet Packet) bool {
 	}
 	err := c.conn.WriteMessage(websocket.BinaryMessage, fullData)
 	if err != nil {
-		logger.Debug("writePacketErr %v %v", c.GetConnectionId(), err.Error())
+		glog.Debug("writePacketErr", "connId", c.GetConnectionId(), "err", err)
 		return false
 	}
 	return true
@@ -287,7 +287,7 @@ func (c *WsConnection) checkRecvTimeout(recvTimeoutTimer *time.Timer) bool {
 		} else {
 			// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
 			// 需要主动关闭该连接,防止连接"泄漏"
-			logger.Debug("recv Timeout %v", c.GetConnectionId())
+			glog.Debug("recv Timeout", "connId", c.GetConnectionId())
 			return false
 		}
 	}
@@ -307,7 +307,7 @@ func (c *WsConnection) onHeartBeatTimeUp(heartBeatTimer *time.Timer) bool {
 		}
 		// WebSocket的内部协议
 		if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-			logger.Debug("PingMessageErr %v err:%v", c.GetConnectionId(), err.Error())
+			glog.Debug("PingMessageErr", "connId", c.GetConnectionId(), "err", err)
 			return false
 		}
 		// 自定义的心跳协议

@@ -5,18 +5,18 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fish-tennis/gnet"
+	"log/slog"
 	"strings"
 )
 
 var (
-	port   = flag.Int("port", 10001, "The server port")
-	logger = gnet.GetLogger()
+	port = flag.Int("port", 10001, "The server port")
 )
 
 func main() {
 	flag.Parse()
 
-	gnet.SetLogLevel(gnet.DebugLevel)
+	slog.SetLogLoggerLevel(slog.LevelDebug)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -27,7 +27,7 @@ func main() {
 	// 注册服务器的消息回调
 	serverHandler.SetUnRegisterHandler(func(connection gnet.Connection, packet gnet.Packet) {
 		str := string(packet.GetStreamData())
-		logger.Info("receive:%v", str)
+		slog.Info("receive", "data", str)
 		if strings.HasPrefix(str, "hello") {
 			connection.SendPacket(gnet.NewDataPacket([]byte(string(packet.GetStreamData()) + " world")))
 		} else {

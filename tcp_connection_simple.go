@@ -21,7 +21,7 @@ type TcpConnectionSimple struct {
 	readStopNotifyChan chan struct{}
 	closeOnce          sync.Once
 	// 保证回调只执行一次,与closeOnce分离,避免回调中重入Close()导致死锁
-	callbackOnce       sync.Once
+	callbackOnce sync.Once
 	// close callback
 	onClose func(connection Connection)
 	// 最近收到完整数据包的时间(时间戳:秒)
@@ -67,7 +67,7 @@ func (c *TcpConnectionSimple) Connect(address string) bool {
 	conn, err := net.DialTimeout("tcp", address, time.Second)
 	if err != nil {
 		atomic.StoreInt32(&c.isConnected, 0)
-		logger.Error("Connect failed %v: %v", c.GetConnectionId(), err.Error())
+		glog.Error("Connect failed", "connId", c.GetConnectionId(), "err", err)
 		if c.handler != nil {
 			c.handler.OnConnected(c, false)
 		}
@@ -96,7 +96,7 @@ func (c *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitGrou
 		defer func() {
 			netMgrWg.Done()
 			if err := recover(); err != nil {
-				logger.Error("read fatal %v: %v", c.GetConnectionId(), err)
+				glog.Error("read fatal", "connId", c.GetConnectionId(), "err", err)
 				LogStack()
 			}
 		}()
@@ -113,7 +113,7 @@ func (c *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitGrou
 		defer func() {
 			netMgrWg.Done()
 			if err := recover(); err != nil {
-				logger.Error("write fatal %v: %v", c.GetConnectionId(), err)
+				glog.Error("write fatal", "connId", c.GetConnectionId(), "err", err)
 				LogStack()
 			}
 		}()
@@ -128,12 +128,12 @@ func (c *TcpConnectionSimple) Start(ctx context.Context, netMgrWg *sync.WaitGrou
 func (c *TcpConnectionSimple) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("readLoop fatal %v: %v", c.GetConnectionId(), err)
+			glog.Error("readLoop fatal", "connId", c.GetConnectionId(), "err", err)
 			LogStack()
 		}
 	}()
 
-	logger.Debug("readLoop begin %v isConnector:%v", c.GetConnectionId(), c.IsConnector())
+	glog.Debug("readLoop begin", "connId", c.GetConnectionId(), "isConnector", c.IsConnector())
 	codec := c.GetCodec()
 	headerSize := int(codec.PacketHeaderSize())
 	// 预分配header buffer,整个连接生命周期复用
@@ -144,7 +144,7 @@ func (c *TcpConnectionSimple) readLoop() {
 		readHeaderSize, err := io.ReadFull(c.conn, c.readHeaderBuf)
 		if err != nil {
 			if err != io.EOF {
-				logger.Debug("readLoop %v err:%v", c.GetConnectionId(), err.Error())
+				glog.Debug("readLoop", "connId", c.GetConnectionId(), "err", err)
 			}
 			break
 		}
@@ -162,7 +162,7 @@ func (c *TcpConnectionSimple) readLoop() {
 			readDataSize, err := io.ReadFull(c.conn, fullPacketData[readHeaderSize:])
 			if err != nil {
 				if err != io.EOF {
-					logger.Debug("readLoop %v err:%v", c.GetConnectionId(), err.Error())
+					glog.Debug("readLoop", "connId", c.GetConnectionId(), "err", err)
 				}
 				break
 			}
@@ -172,7 +172,7 @@ func (c *TcpConnectionSimple) readLoop() {
 		}
 		newPacket, decodeError := codec.Decode(c, fullPacketData)
 		if decodeError != nil {
-			logger.Error("%v decodeError:%v", c.GetConnectionId(), decodeError.Error())
+			glog.Error("decodeError", "connId", c.GetConnectionId(), "err", decodeError)
 			return
 		}
 		if newPacket == nil {
@@ -187,20 +187,20 @@ func (c *TcpConnectionSimple) readLoop() {
 			c.handler.OnRecvPacket(c, newPacket)
 		}
 	}
-	//logger.Debug("readLoop end %v IsConnector:%v", c.GetConnectionId(), c.IsConnector())
+	//glog.Debug("readLoop end", "connId", c.GetConnectionId(), "isConnector", c.IsConnector())
 }
 
 // write goroutine
 func (c *TcpConnectionSimple) writeLoop(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("writeLoop fatal %v: %v", c.GetConnectionId(), err)
+			glog.Error("writeLoop fatal", "connId", c.GetConnectionId(), "err", err)
 			LogStack()
 		}
-		logger.Debug("writeLoop end %v IsConnector:%v", c.GetConnectionId(), c.IsConnector())
+		glog.Debug("writeLoop end", "connId", c.GetConnectionId(), "isConnector", c.IsConnector())
 	}()
 
-	logger.Debug("writeLoop begin %v isConnector:%v", c.GetConnectionId(), c.IsConnector())
+	glog.Debug("writeLoop begin", "connId", c.GetConnectionId(), "isConnector", c.IsConnector())
 	// 收包超时计时,用于检测掉线
 	recvTimeoutTimer := time.NewTimer(time.Second * time.Duration(c.config.RecvTimeout))
 	defer recvTimeoutTimer.Stop()
@@ -212,7 +212,7 @@ func (c *TcpConnectionSimple) writeLoop(ctx context.Context) {
 		case packet := <-c.sendPacketCache:
 			if packet == nil {
 				if c.IsConnected() {
-					logger.Error("packet==nil %v", c.GetConnectionId())
+					glog.Error("packet==nil", "connId", c.GetConnectionId())
 				}
 				return
 			}
@@ -231,16 +231,16 @@ func (c *TcpConnectionSimple) writeLoop(ctx context.Context) {
 			}
 
 		case <-c.readStopNotifyChan:
-			logger.Debug("recv readStopNotify %v", c.GetConnectionId())
+			glog.Debug("recv readStopNotify", "connId", c.GetConnectionId())
 			return
 
 		case <-ctx.Done():
 			// 收到外部的关闭通知
-			logger.Debug("recv closeNotify %v", c.GetConnectionId())
+			glog.Debug("recv closeNotify", "connId", c.GetConnectionId())
 			return
 		}
 	}
-	//logger.Debug("writeLoop end %v isConnector:%v", c.GetConnectionId(), c.IsConnector())
+	//glog.Debug("writeLoop end", "connId", c.GetConnectionId(), "isConnector", c.IsConnector())
 }
 
 func (c *TcpConnectionSimple) writePacket(packet Packet) bool {
@@ -257,7 +257,7 @@ func (c *TcpConnectionSimple) writePacket(packet Packet) bool {
 	if c.config.WriteTimeout > 0 {
 		setTimeoutErr := c.conn.SetWriteDeadline(time.Now().Add(time.Duration(c.config.WriteTimeout) * time.Second))
 		if setTimeoutErr != nil {
-			logger.Debug("%v setTimeoutErr:%v", c.GetConnectionId(), setTimeoutErr.Error())
+			glog.Debug("setTimeoutErr", "connId", c.GetConnectionId(), "err", setTimeoutErr)
 			return false
 		}
 	}
@@ -266,7 +266,7 @@ func (c *TcpConnectionSimple) writePacket(packet Packet) bool {
 	for writeCount < len(fullData) {
 		n, err := c.conn.Write(fullData[writeCount:])
 		if err != nil {
-			logger.Error("%v send error:%v", c.GetConnectionId(), err.Error())
+			glog.Error("send error", "connId", c.GetConnectionId(), "err", err)
 			return false
 		}
 		writeCount += n
@@ -285,7 +285,7 @@ func (c *TcpConnectionSimple) checkRecvTimeout(recvTimeoutTimer *time.Timer) boo
 		} else {
 			// 指定时间内,一直未读取到数据包,则认为该连接掉线了,可能处于"假死"状态了
 			// 需要主动关闭该连接,防止连接"泄漏"
-			logger.Debug("recv Timeout %v", c.GetConnectionId())
+			glog.Debug("recv Timeout", "connId", c.GetConnectionId())
 			return false
 		}
 	}

@@ -6,17 +6,17 @@ import (
 	"fmt"
 	"github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/pb"
+	"log/slog"
 )
 
 var (
-	port   = flag.Int("port", 10001, "The server port")
-	logger = gnet.GetLogger()
+	port = flag.Int("port", 10001, "The server port")
 )
 
 func main() {
 	flag.Parse()
 
-	gnet.SetLogLevel(gnet.DebugLevel)
+	slog.SetLogLoggerLevel(slog.LevelDebug)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -39,7 +39,7 @@ func main() {
 
 func onHelloRequest(connection gnet.Connection, packet gnet.Packet) {
 	request := packet.Message().(*pb.HelloRequest)
-	logger.Info("request:%v", request)
+	slog.Info("request", "data", request)
 	replyPacket := gnet.NewProtoPacketEx(pb.CmdTest_Cmd_HelloReply, &pb.HelloReply{
 		Message: request.Name + " from server's reply",
 	}).WithRpc(packet)

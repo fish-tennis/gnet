@@ -135,7 +135,7 @@ func (c *SimpleProtoCodec) Encode(connection Connection, packet Packet) []byte {
 			var err error
 			packetBodyData, err = proto.Marshal(protoMsg)
 			if err != nil {
-				logger.Error("%v proto %v err:%v", connection.GetConnectionId(), packet.Command(), err.Error())
+				glog.Error("proto encode err", "connId", connection.GetConnectionId(), "cmd", packet.Command(), "err", err.Error())
 				return nil
 			}
 		}
@@ -192,7 +192,7 @@ func (c *SimpleProtoCodec) Decode(connection Connection, data []byte) (newPacket
 			// TODO: check len(decodedPacketData) > 0?
 			err = proto.Unmarshal(decodedPacketData, newProtoMessage)
 			if err != nil {
-				logger.Error("proto decode err:%v cmd:%v", err, command)
+				glog.Error("proto decode err", "err", err, "cmd", command)
 				return nil, err
 			}
 			return &ProtoPacket{
@@ -214,7 +214,7 @@ func (c *SimpleProtoCodec) Decode(connection Connection, data []byte) (newPacket
 		}
 	}
 	if rpcCallId == 0 {
-		logger.Warn("unregistered command:%v", command)
+		glog.Warn("unregistered command", "cmd", command)
 	}
 	// 允许command不注册,留给业务层解析
 	rawData := decodedPacketData // SimpleProtoCodec没使用ringbuffer,所以这里不需要拷贝s

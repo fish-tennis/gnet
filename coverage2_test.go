@@ -422,7 +422,7 @@ func TestTcpConnection_RecvTimeout(t *testing.T) {
 	clientCodec := NewProtoCodec(nil)
 	clientHandler := NewDefaultConnectionHandler(clientCodec)
 	clientCfg := defaultTestConfig(clientCodec, clientHandler)
-	clientCfg.RecvTimeout = 2 // 2秒超时
+	clientCfg.RecvTimeout = 2       // 2秒超时
 	clientCfg.HeartBeatInterval = 0 // 禁用心跳
 	client := GetNetMgr().NewConnector(ctx, addr, clientCfg, "recv-timeout")
 	if client == nil {

@@ -50,7 +50,7 @@ func (m *NetMgr) NewListener(ctx context.Context, address string, listenerConfig
 	newListener := NewTcpListener(listenerConfig)
 	newListener.netMgrWg = &m.wg
 	if !newListener.Start(ctx, address) {
-		logger.Error("NewListener Start Failed")
+		glog.Error("NewListener Start Failed")
 		return nil
 	}
 	m.listenerMapLock.Lock()
@@ -69,7 +69,7 @@ func (m *NetMgr) NewWsListener(ctx context.Context, address string, listenerConf
 	newListener := NewWsListener(listenerConfig)
 	newListener.netMgrWg = &m.wg
 	if !newListener.Start(ctx, address, listenerConfig.CheckOrigin) {
-		logger.Error("NewWsListener Start Failed")
+		glog.Error("NewWsListener Start Failed")
 		return nil
 	}
 	m.listenerMapLock.Lock()
@@ -123,10 +123,10 @@ func (m *NetMgr) NewConnectorCustom(ctx context.Context, address string, connect
 //
 //	waitForAllNetGoroutine: wait blocks until all goroutine end
 func (m *NetMgr) Shutdown(waitForAllNetGoroutine bool) {
-	logger.Debug("Shutdown %v", waitForAllNetGoroutine)
+	glog.Debug("Shutdown", "waitForAllNetGoroutine", waitForAllNetGoroutine)
 	if waitForAllNetGoroutine {
 		// 等待所有网络协程结束
 		m.wg.Wait()
-		logger.Debug("all net goroutine closed")
+		glog.Debug("all net goroutine closed")
 	}
 }

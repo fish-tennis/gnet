@@ -3,12 +3,14 @@ package gnet
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/fish-tennis/gnet/example/pb"
+	"log/slog"
+	"os"
 	"testing"
+
+	"github.com/fish-tennis/gnet/example/pb"
 )
 
 func TestXorCodec(t *testing.T) {
-	SetLogger(GetLogger(), DebugLevel)
 	testProtoPacket := NewProtoPacket(PacketCommand(pb.CmdTest_Cmd_TestMessage),
 		&pb.TestMessage{
 			Name: "test packet",
@@ -24,7 +26,7 @@ func TestXorCodec(t *testing.T) {
 	copy(packetBytes2, packetBytes)
 	decodePacket := xorCodec.DecodePacket(nil, nil, packetBytes)
 	if decodePacket == nil {
-		logger.Warn("decodePacket nil")
+		glog.Warn("decodePacket nil")
 	}
 
 	xorCodec.Register(PacketCommand(pb.CmdTest_Cmd_TestMessage), new(pb.TestMessage))
@@ -54,14 +56,12 @@ func TestPacket(t *testing.T) {
 }
 
 func TestLogger(t *testing.T) {
-	SetLogger(GetLogger(), DebugLevel)
-	for level := DebugLevel; level <= ErrorLevel+1; level++ {
-		SetLogLevel(level)
-		logger.Debug("debug")
-		logger.Info("info")
-		logger.Warn("warn")
-		logger.Error("error")
-	}
+	// 通过 SetLogger 注入一个 Debug 级别的 logger,验证 gnet 内部日志能正常输出
+	SetLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	glog.Debug("debug")
+	glog.Info("info")
+	glog.Warn("warn")
+	glog.Error("error")
 	LogStack()
 }
 

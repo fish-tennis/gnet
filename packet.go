@@ -159,7 +159,7 @@ func NewProtoPacketEx(args ...any) *ProtoPacket {
 		case []byte:
 			p.data = v
 		default:
-			logger.Error("unsupported type:%v", v)
+			glog.Error("unsupported type", "type", v)
 		}
 	}
 	return p

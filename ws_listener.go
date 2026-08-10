@@ -127,11 +127,11 @@ func (l *WsListener) Start(ctx context.Context, listenAddress string, checkOrigi
 	// 先绑定端口,立即得到绑定结果,避免用time.Sleep猜测
 	ln, err := net.Listen("tcp", listenAddress)
 	if err != nil {
-		logger.Error("Listen Failed %v: %v", l.GetListenerId(), err.Error())
+		glog.Error("Listen Failed", "listenerId", l.GetListenerId(), "err", err)
 		return false
 	}
 	l.netListener = ln
-	logger.Debug("WsListener Start %v", l.GetListenerId())
+	glog.Debug("WsListener Start", "listenerId", l.GetListenerId())
 
 	// 监听协程
 	atomic.StoreInt32(&l.isRunning, 1)
@@ -148,7 +148,7 @@ func (l *WsListener) Start(ctx context.Context, listenAddress string, checkOrigi
 		}
 		if err != nil && err != http.ErrServerClosed {
 			atomic.StoreInt32(&l.isRunning, 0)
-			logger.Error("Serve failed %v: %v", l.GetListenerId(), err.Error())
+			glog.Error("Serve failed", "listenerId", l.GetListenerId(), "err", err)
 		}
 		l.serveDone <- struct{}{}
 	}()
@@ -159,7 +159,7 @@ func (l *WsListener) Start(ctx context.Context, listenAddress string, checkOrigi
 		defer l.netMgrWg.Done()
 		select {
 		case <-ctx.Done():
-			logger.Debug("recv closeNotify %v", l.GetListenerId())
+			glog.Debug("recv closeNotify", "listenerId", l.GetListenerId())
 			l.Close()
 		case <-l.serveDone:
 			// Serve退出(正常或异常),主动关闭(closeOnce保证幂等)
@@ -173,7 +173,7 @@ func (l *WsListener) Start(ctx context.Context, listenAddress string, checkOrigi
 func (l *WsListener) serve(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	conn, err := l.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		logger.Error("serveErr %v: %v", l.GetListenerId(), err)
+		glog.Error("serveErr", "listenerId", l.GetListenerId(), "err", err)
 		return
 	}
 	newTcpConn := NewWsConnectionAccept(conn, &l.acceptConnectionConfig, l.acceptConnectionCodec, l.acceptConnectionHandler)

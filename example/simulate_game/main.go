@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/pb"
+	"log/slog"
 	"net"
 	"sync/atomic"
 	"time"
@@ -55,7 +56,7 @@ var (
 func main() {
 	flag.Parse()
 
-	gnet.SetLogLevel(gnet.ErrorLevel)
+	slog.SetLogLoggerLevel(slog.LevelError)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*testTime)*time.Second)
 	defer cancel()
 

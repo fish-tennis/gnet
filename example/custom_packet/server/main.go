@@ -7,18 +7,18 @@ import (
 	"github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/custom_packet/codec"
 	"hash/crc32"
+	"log/slog"
 	"net"
 )
 
 var (
-	port   = flag.Int("port", 10001, "The server port")
-	logger = gnet.GetLogger()
+	port = flag.Int("port", 10001, "The server port")
 )
 
 func main() {
 	flag.Parse()
 
-	gnet.SetLogLevel(gnet.DebugLevel)
+	slog.SetLogLoggerLevel(slog.LevelDebug)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -30,10 +30,10 @@ func main() {
 	serverHandler.SetUnRegisterHandler(func(connection gnet.Connection, packet gnet.Packet) {
 		customDataPacket := packet.(*codec.CustomDataPacket)
 		if len(customDataPacket.GetStreamData()) < 100 {
-			logger.Info("cmd:%v str:%v", customDataPacket.Command(), string(customDataPacket.GetStreamData()))
+			slog.Info("cmd", "cmd", customDataPacket.Command(), "str", string(customDataPacket.GetStreamData()))
 		} else {
 			sum := crc32.ChecksumIEEE(customDataPacket.GetStreamData())
-			logger.Info("cmd:%v crc:%x len:%v", customDataPacket.Command(), sum, len(customDataPacket.GetStreamData()))
+			slog.Info("cmd crc", "cmd", customDataPacket.Command(), "crc", sum, "len", len(customDataPacket.GetStreamData()))
 		}
 		// echo
 		connection.SendPacket(customDataPacket)

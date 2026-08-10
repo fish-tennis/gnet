@@ -4,20 +4,21 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
+	"time"
+
 	"github.com/fish-tennis/gnet"
 	"github.com/fish-tennis/gnet/example/pb"
-	"time"
 )
 
 var (
-	port   = flag.Int("port", 10001, "The server port")
-	logger = gnet.GetLogger()
+	port = flag.Int("port", 10001, "The server port")
 )
 
 func main() {
 	flag.Parse()
 
-	gnet.SetLogLevel(gnet.DebugLevel)
+	slog.SetLogLoggerLevel(slog.LevelDebug)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -29,11 +30,11 @@ func main() {
 	serverHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_HeartBeat), onHeartBeatReq, new(pb.HeartBeatReq))
 	serverHandler.Register(gnet.PacketCommand(pb.CmdTest_Cmd_TestMessage), onTestMessage, new(pb.TestMessage))
 	serverHandler.SetOnConnectedFunc(func(connection gnet.Connection, success bool) {
-		logger.Info("OnConnected:%v success:%v", connection, success)
+		slog.Info("OnConnected", "connection", connection, "success", success)
 		return
 	})
 	serverHandler.SetUnRegisterHandler(func(connection gnet.Connection, packet gnet.Packet) {
-		logger.Info("UnRegister:%v", packet)
+		slog.Info("UnRegister", "packet", packet)
 	})
 
 	listenerConfig := &gnet.ListenerConfig{
@@ -51,7 +52,7 @@ func main() {
 // 服务器收到客户端的心跳包
 func onHeartBeatReq(connection gnet.Connection, packet gnet.Packet) {
 	req := packet.Message().(*pb.HeartBeatReq)
-	logger.Debug("Server onHeartBeatReq: %v", req)
+	slog.Debug("Server onHeartBeatReq", "req", req)
 	// 模拟网络延迟
 	time.Sleep(time.Millisecond * 10)
 	connection.Send(gnet.PacketCommand(pb.CmdTest_Cmd_HeartBeat), &pb.HeartBeatRes{
@@ -63,7 +64,7 @@ func onHeartBeatReq(connection gnet.Connection, packet gnet.Packet) {
 // 服务器收到客户端的TestMessage
 func onTestMessage(connection gnet.Connection, packet gnet.Packet) {
 	req := packet.Message().(*pb.TestMessage)
-	logger.Debug("Server onTestMessage: %v", req)
+	slog.Debug("Server onTestMessage", "req", req)
 	// echo
 	req.Name += " world from server"
 	connection.SendPacket(packet)

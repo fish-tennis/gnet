@@ -116,7 +116,7 @@ func (c *ProtoCodec) EncodePacket(connection Connection, packet Packet) ([][]byt
 		var err error
 		messageBytes, err = proto.Marshal(protoMessage)
 		if err != nil {
-			logger.Error("proto encode err:%v cmd:%v", err, packet.Command())
+			glog.Error("proto encode err", "err", err, "cmd", packet.Command())
 			return nil, 0
 		}
 	} else {
@@ -158,7 +158,7 @@ func (c *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketHead
 			}
 			rpcCallId = binary.LittleEndian.Uint32(decodedPacketData[:4])
 			decodedPacketData = decodedPacketData[4:]
-			//logger.Debug("read rpcCallId:%v", rpcCallId)
+			//glog.Debug("read rpcCallId", "rpcCallId", rpcCallId)
 		}
 		if packetHeader.HasFlag(ErrorCode) {
 			if len(decodedPacketData) < 4 {
@@ -174,7 +174,7 @@ func (c *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketHead
 			// TODO: check len(decodedPacketData) > 0?
 			err := proto.Unmarshal(decodedPacketData, newProtoMessage)
 			if err != nil {
-				logger.Error("proto decode err:%v cmd:%v", err, command)
+				glog.Error("proto decode err", "err", err, "cmd", command)
 				return nil
 			}
 			return &ProtoPacket{
@@ -198,7 +198,7 @@ func (c *ProtoCodec) DecodePacket(connection Connection, packetHeader PacketHead
 		}
 	}
 	if rpcCallId == 0 {
-		logger.Warn("unregistered command:%v", command)
+		glog.Warn("unregistered command", "cmd", command)
 	}
 	// 允许command不注册,留给业务层解析
 	// packetData有可能是ringbuffer里返回的内存,所以拷贝一份

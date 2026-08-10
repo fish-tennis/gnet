@@ -23,10 +23,10 @@ import (
 
 // PurchaseOrder 购买订单,用于跟踪RPC状态
 type PurchaseOrder struct {
-	RequestId  uint32       // 唯一请求ID,用于幂等
-	ItemName   string       // 购买物品
-	Status     int32        // 订单状态: 0=处理中 1=已成功 2=已超时 3=已补偿
-	ReplyChan  chan *pb.TestMessage // 补偿通知chan
+	RequestId uint32               // 唯一请求ID,用于幂等
+	ItemName  string               // 购买物品
+	Status    int32                // 订单状态: 0=处理中 1=已成功 2=已超时 3=已补偿
+	ReplyChan chan *pb.TestMessage // 补偿通知chan
 }
 
 const (

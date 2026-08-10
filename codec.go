@@ -1,6 +1,8 @@
 package gnet
 
-import "io"
+import (
+	"io"
+)
 
 // 连接的编解码接口
 // interface for encoding and decoding
@@ -178,8 +180,8 @@ func (c *RingBufferCodec) Decode(connection Connection, data []byte) (newPacket 
 			// 数据包长度超出设置
 			// check packet length
 			if tcpConnection.config.MaxPacketSize > 0 && tcpConnection.curReadPacketHeader.Len() > tcpConnection.config.MaxPacketSize {
-				logger.Error("%v ErrPacketLengthExceed len:%v max:%v", tcpConnection.GetConnectionId(), tcpConnection.curReadPacketHeader.Len(), tcpConnection.config.MaxPacketSize)
-				logger.Error("curReadPacketHeader:%v", tcpConnection.curReadPacketHeader)
+				glog.Error("ErrPacketLengthExceed", "connId", tcpConnection.GetConnectionId(), "len", tcpConnection.curReadPacketHeader.Len(), "max", tcpConnection.config.MaxPacketSize)
+				glog.Error("curReadPacketHeader", "header", tcpConnection.curReadPacketHeader)
 				return nil, ErrPacketLengthExceed
 			}
 		}
@@ -190,7 +192,7 @@ func (c *RingBufferCodec) Decode(connection Connection, data []byte) (newPacket 
 		// 数据包长度超出设置
 		// check packet length
 		if tcpConnection.config.MaxPacketSize > 0 && header.Len() > tcpConnection.config.MaxPacketSize {
-			logger.Error("%v ErrPacketLengthExceed len:%v max:%v", tcpConnection.GetConnectionId(), header.Len(), tcpConnection.config.MaxPacketSize)
+			glog.Error("ErrPacketLengthExceed", "connId", tcpConnection.GetConnectionId(), "len", header.Len(), "max", tcpConnection.config.MaxPacketSize)
 			return nil, ErrPacketLengthExceed
 		}
 		var packetData []byte
