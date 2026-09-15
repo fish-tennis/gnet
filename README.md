@@ -54,16 +54,16 @@ Layer2:Decoding the data from Layer1,such as decryption,decompression,etc
 
 Layer3:protobuf deserialize,generate proto.Message
 
-![length & data](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/packet.png)
+![length & data](imgs/packet.png)
 
-![encode](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/packet_encode.png)
+![encode](imgs/packet_encode.png)
 
-![decode](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/packet_decode.png)
+![decode](imgs/packet_decode.png)
 
 
 ## Use RingBuffer to increase performance
 
-![ringbuffer-performance](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/ringbuffer-performance.png)
+![ringbuffer-performance](imgs/ringbuffer-performance.png)
 
 ## rpc
 Rpc send a request to target and block wait reply,similar to grpc-go,but gnet use command id instead of method name
@@ -81,7 +81,7 @@ logger.Info("reply:%v", reply)
 
 ## goroutine
 
-![connection_goroutine](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/connection_goroutine.png)
+![connection_goroutine](imgs/connection_goroutine.png)
 
 ## Examples
 example/helloworld: a simple example use protobuf message

@@ -55,15 +55,15 @@ gnet把基于TCP流的解码分成3层
 
 第3层:对解码后的数据,进行protobuf反序列化,还原成proto.Message对象
 
-![length & data](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/packet.png)
+![length & data](imgs/packet.png)
 
-![encode](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/packet_encode.png)
+![encode](imgs/packet_encode.png)
 
-![decode](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/packet_decode.png)
+![decode](imgs/packet_decode.png)
 
 ## 使用RingBuffer来提高性能
 
-![ringbuffer-performance](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/ringbuffer-performance.png)
+![ringbuffer-performance](imgs/ringbuffer-performance.png)
 
 举例:在一个游戏地图中,你周围有很多其他玩家,其他玩家的数据更新需要同步给你,服务器会向你发送很多Packet,如果不使用RingBuffer机制, 就会每个Packet调用一次net.Conn.Write,而net.Conn.Write是系统调用,代价是比较高的,如TcpConnectionSimple
 
@@ -86,7 +86,7 @@ logger.Info("reply:%v", reply)
 
 ## go协程
 
-![connection_goroutine](https://github.com/fish-tennis/doc/blob/master/imgs/gnet/connection_goroutine.png)
+![connection_goroutine](imgs/connection_goroutine.png)
 
 ## 示例
 example/helloworld: protobuf数据包
